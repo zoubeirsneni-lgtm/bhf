@@ -1,0 +1,6 @@
+{
+  "name": "BEBBA Healthy Food",
+  "description": "Vos Plats santé en un clic — Plateforme complète de commande préparée à la commande, cuisine, livraison et gestion de stock pour BEBBA Healthy Food.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
