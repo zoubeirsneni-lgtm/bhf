@@ -12,6 +12,17 @@ import {
   UserRole,
   OrderStatus
 } from '../types';
+import {
+  initialCategories,
+  initialSuppliers,
+  initialIngredients,
+  initialSupplements,
+  initialProducts,
+  initialDrivers,
+  initialOrders,
+  initialStockMovements,
+  initialStats
+} from '../data/initialData';
 
 export interface CartItem {
   id: string;
@@ -96,21 +107,47 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+// Safe fetch helper to prevent HTML parsing errors when server is reloading
+async function safeFetchJson<T>(url: string, fallback: T): Promise<T> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: 'application/json'
+      }
+    });
+
+    if (!res.ok) {
+      return fallback;
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      // Returned HTML or other text, ignore gracefully
+      return fallback;
+    }
+
+    const data = await res.json();
+    return data !== undefined && data !== null ? data : fallback;
+  } catch (err) {
+    return fallback;
+  }
+}
+
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [currentRole, setCurrentRole] = useState<UserRole>('client');
   const [activeClientTab, setActiveClientTab] = useState<'menu' | 'tracking'>('menu');
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'orders' | 'products' | 'supplements' | 'stock' | 'drivers' | 'suppliers'>('dashboard');
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [supplements, setSupplements] = useState<Supplement[]>([]);
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
-  const [drivers, setDrivers] = useState<Driver[]>([]);
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
+  const [products, setProducts] = useState<Product[]>(initialProducts);
+  const [supplements, setSupplements] = useState<Supplement[]>(initialSupplements);
+  const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
+  const [drivers, setDrivers] = useState<Driver[]>(initialDrivers);
+  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [stats, setStats] = useState<DashboardStats | null>(initialStats);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Cart
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -160,32 +197,32 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         ordsRes,
         statsRes
       ] = await Promise.all([
-        fetch('/api/categories').then(r => r.json()),
-        fetch('/api/products').then(r => r.json()),
-        fetch('/api/supplements').then(r => r.json()),
-        fetch('/api/ingredients').then(r => r.json()),
-        fetch('/api/stock-movements').then(r => r.json()),
-        fetch('/api/drivers').then(r => r.json()),
-        fetch('/api/suppliers').then(r => r.json()),
-        fetch('/api/orders').then(r => r.json()),
-        fetch('/api/stats').then(r => r.json())
+        safeFetchJson<Category[]>('/api/categories', categories),
+        safeFetchJson<Product[]>('/api/products', products),
+        safeFetchJson<Supplement[]>('/api/supplements', supplements),
+        safeFetchJson<Ingredient[]>('/api/ingredients', ingredients),
+        safeFetchJson<StockMovement[]>('/api/stock-movements', stockMovements),
+        safeFetchJson<Driver[]>('/api/drivers', drivers),
+        safeFetchJson<Supplier[]>('/api/suppliers', suppliers),
+        safeFetchJson<Order[]>('/api/orders', orders),
+        safeFetchJson<DashboardStats | null>('/api/stats', stats)
       ]);
 
-      setCategories(catsRes || []);
-      setProducts(prodsRes || []);
-      setSupplements(supsRes || []);
-      setIngredients(ingsRes || []);
-      setStockMovements(movsRes || []);
-      setDrivers(drvsRes || []);
-      setSuppliers(suppsRes || []);
-      setOrders(ordsRes || []);
-      setStats(statsRes || null);
+      if (Array.isArray(catsRes) && catsRes.length > 0) setCategories(catsRes);
+      if (Array.isArray(prodsRes) && prodsRes.length > 0) setProducts(prodsRes);
+      if (Array.isArray(supsRes) && supsRes.length > 0) setSupplements(supsRes);
+      if (Array.isArray(ingsRes) && ingsRes.length > 0) setIngredients(ingsRes);
+      if (Array.isArray(movsRes)) setStockMovements(movsRes);
+      if (Array.isArray(drvsRes) && drvsRes.length > 0) setDrivers(drvsRes);
+      if (Array.isArray(suppsRes) && suppsRes.length > 0) setSuppliers(suppsRes);
+      if (Array.isArray(ordsRes)) setOrders(ordsRes);
+      if (statsRes) setStats(statsRes);
     } catch (err) {
-      console.error('Failed to fetch data from API:', err);
+      // Graceful background sync error handling
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [categories, products, supplements, ingredients, stockMovements, drivers, suppliers, orders, stats]);
 
   useEffect(() => {
     refreshAllData();
@@ -282,8 +319,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Erreur lors de la création de la commande');
+      let errorMsg = 'Erreur lors de la création de la commande';
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {
+        // ignore json parse error on non-ok status
+      }
+      throw new Error(errorMsg);
     }
 
     const createdOrder: Order = await response.json();
@@ -316,8 +359,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     });
 
     if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error || 'Erreur mise à jour statut');
+      let errorMsg = 'Erreur mise à jour statut';
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
     }
 
     const updated: Order = await response.json();

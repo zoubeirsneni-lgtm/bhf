@@ -25,6 +25,7 @@ import {
 
 export const OrderTrackingView: React.FC = () => {
   const {
+    orders,
     activeTrackingToken,
     setActiveTrackingToken,
     activeTrackingOrder,
@@ -45,15 +46,31 @@ export const OrderTrackingView: React.FC = () => {
 
   const handleManualSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tokenInput.trim()) return;
+    const query = tokenInput.trim();
+    if (!query) return;
     setSearchError(null);
+
+    // 1. Check in already loaded orders
+    const localMatch = (orders || []).find(o => o.trackingToken === query || o.orderNumber.toLowerCase() === query.toLowerCase());
+    if (localMatch) {
+      setActiveTrackingToken(localMatch.trackingToken);
+      setSearchedOrder(localMatch);
+      return;
+    }
+
     try {
-      const res = await fetch(`/api/orders/track/${encodeURIComponent(tokenInput.trim())}`);
+      const res = await fetch(`/api/orders/track/${encodeURIComponent(query)}`, {
+        headers: { Accept: 'application/json' }
+      });
       if (!res.ok) {
         throw new Error('Aucune commande trouvée avec ce code de suivi.');
       }
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Erreur de communication avec le serveur.');
+      }
       const data = await res.json();
-      setActiveTrackingToken(tokenInput.trim());
+      setActiveTrackingToken(query);
       setSearchedOrder(data);
     } catch (err: any) {
       setSearchError(err.message || 'Commande introuvable.');
