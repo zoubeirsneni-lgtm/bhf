@@ -14,8 +14,8 @@ import {
 export const RoleSwitcher: React.FC = () => {
   const { currentRole, setCurrentRole, orders, resetDemoData, isLoading } = useApp();
 
-  const activeOrdersCount = orders.filter(o => o.status === 'received' || o.status === 'preparing').length;
-  const readyOrdersCount = orders.filter(o => o.status === 'ready' || o.status === 'delivering').length;
+  const activeOrdersCount = (orders || []).filter(o => o.status === 'received' || o.status === 'preparing').length;
+  const readyOrdersCount = (orders || []).filter(o => o.status === 'ready' || o.status === 'delivering').length;
 
   const roles: Array<{ role: UserRole; label: string; icon: React.ReactNode; badge?: number }> = [
     {

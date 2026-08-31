@@ -1,14 +1,14 @@
 import React from 'react';
 import { Product } from '../../types';
 import { useApp } from '../../context/AppContext';
-import { Plus, Flame, Sparkles, Utensils } from 'lucide-react';
+import { Plus, Flame, Sparkles, Utensils, ShoppingBag } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { setSelectedProductForCustomization } = useApp();
+  const { setSelectedProductForCustomization, addToCart } = useApp();
 
   return (
     <article
@@ -87,17 +87,40 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           )}
         </div>
 
-        {/* CTA Button */}
-        <div className="pt-2 border-t border-stone-100 flex items-center justify-between gap-2">
-          <span className="text-[11px] text-stone-500 font-medium italic">
-            Préparé minute à la commande
-          </span>
+        {/* CTA Actions */}
+        <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <button
+            id={`btn-order-${product.id}`}
+            onClick={() => {
+              const defaultProtein = product.customization?.proteinOptions?.[0];
+              const defaultVeggies = product.customization?.veggiesOptions?.[0];
+              const defaultBase = product.customization?.baseChoices?.[0];
+              const extraCost = (defaultProtein?.extraPrice || 0) + (defaultVeggies?.extraPrice || 0) + (defaultBase?.extraPrice || 0);
+              const unitPrice = product.basePrice + extraCost;
+
+              addToCart({
+                product,
+                quantity: 1,
+                proteinOption: defaultProtein,
+                veggiesOption: defaultVeggies,
+                baseChoice: defaultBase,
+                supplements: [],
+                specialInstructions: '',
+                itemTotalPrice: unitPrice
+              });
+            }}
+            className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            <span>Commander</span>
+          </button>
+
           <button
             id={`btn-customize-${product.id}`}
             onClick={() => setSelectedProductForCustomization(product)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm hover:shadow transition-all active:scale-95"
+            className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-stone-100 hover:bg-emerald-50 hover:text-emerald-800 active:bg-emerald-100 border border-stone-200 hover:border-emerald-300 text-stone-800 text-xs sm:text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 text-emerald-600" />
             <span>Personnaliser</span>
           </button>
         </div>

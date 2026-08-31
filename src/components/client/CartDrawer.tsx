@@ -146,12 +146,12 @@ export const CartDrawer: React.FC = () => {
                               <span>{item.veggiesOption.label}</span>
                             </div>
                           )}
-                          {item.supplements.length > 0 && (
+                          {(item.supplements || []).length > 0 && (
                             <div className="flex items-start gap-1 text-[11px] text-emerald-800">
                               <span className="text-stone-400">•</span>
                               <span className="font-medium">Suppléments :</span>
                               <span>
-                                {item.supplements
+                                {(item.supplements || [])
                                   .map(s => `${s.supplement.name} (x${s.quantity})`)
                                   .join(', ')}
                               </span>

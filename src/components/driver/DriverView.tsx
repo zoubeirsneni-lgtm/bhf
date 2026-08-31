@@ -23,9 +23,9 @@ export const DriverView: React.FC = () => {
   const currentDriver = drivers.find(d => d.id === selectedDriverId) || drivers[0];
 
   // Orders relevant to drivers (Ready for pickup or currently being delivered)
-  const availableOrders = orders.filter(o => o.status === 'ready');
-  const ongoingDeliveries = orders.filter(o => o.status === 'delivering');
-  const deliveredToday = orders.filter(o => o.status === 'delivered');
+  const availableOrders = (orders || []).filter(o => o.status === 'ready');
+  const ongoingDeliveries = (orders || []).filter(o => o.status === 'delivering');
+  const deliveredToday = (orders || []).filter(o => o.status === 'delivered');
 
   const handleStartDelivery = async (order: Order) => {
     try {

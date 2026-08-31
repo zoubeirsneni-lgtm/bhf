@@ -247,7 +247,7 @@ export const KitchenView: React.FC = () => {
                       </div>
 
                       {/* Customization Details */}
-                      {(item.proteinOption || item.veggiesOption || item.baseChoice || item.supplements.length > 0) && (
+                      {(item.proteinOption || item.veggiesOption || item.baseChoice || (item.supplements && item.supplements.length > 0)) && (
                         <div className="text-[11px] text-stone-600 space-y-0.5 pt-0.5">
                           {item.proteinOption && (
                             <p>• Protéine : <strong className="text-stone-900">{item.proteinOption.label}</strong></p>
@@ -258,7 +258,7 @@ export const KitchenView: React.FC = () => {
                           {item.veggiesOption && (
                             <p>• Légumes : <strong className="text-stone-900">{item.veggiesOption.label}</strong></p>
                           )}
-                          {item.supplements.length > 0 && (
+                          {item.supplements && item.supplements.length > 0 && (
                             <p className="text-emerald-800 font-bold">
                               • Suppléments : {item.supplements.map(s => `${s.name} (x${s.quantity})`).join(', ')}
                             </p>

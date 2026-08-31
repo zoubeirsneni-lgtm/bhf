@@ -46,32 +46,32 @@ export const AdminView: React.FC = () => {
 
   // Compute key metrics
   const totalRevenue = useMemo(() => {
-    return orders
+    return (orders || [])
       .filter(o => o.status !== 'cancelled')
       .reduce((sum, o) => sum + o.totalAmount, 0);
   }, [orders]);
 
   const collectedCash = useMemo(() => {
-    return orders
+    return (orders || [])
       .filter(o => o.paymentStatus === 'paid')
       .reduce((sum, o) => sum + o.totalAmount, 0);
   }, [orders]);
 
   const pendingCash = useMemo(() => {
-    return orders
+    return (orders || [])
       .filter(o => o.paymentStatus === 'pending' && o.status !== 'cancelled')
       .reduce((sum, o) => sum + o.totalAmount, 0);
   }, [orders]);
 
   const lowStockIngredients = useMemo(() => {
-    return ingredients.filter(i => i.currentStock <= i.minimumAlertStock);
+    return (ingredients || []).filter(i => i.currentStock <= i.minimumAlertStock);
   }, [ingredients]);
 
   const topProducts = useMemo(() => {
     const counts: Record<string, { name: string; count: number; revenue: number }> = {};
-    orders.forEach(o => {
+    (orders || []).forEach(o => {
       if (o.status === 'cancelled') return;
-      o.items.forEach(item => {
+      (o.items || []).forEach(item => {
         if (!counts[item.productId]) {
           counts[item.productId] = { name: item.productName, count: 0, revenue: 0 };
         }
