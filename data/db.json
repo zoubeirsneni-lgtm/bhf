@@ -1,0 +1,3071 @@
+{
+  "categories": [
+    {
+      "id": "cat-healthy",
+      "name": "Healthy Bowls",
+      "slug": "healthy",
+      "icon": "Salad",
+      "description": "Compositions équilibrées, céréales complètes, légumes frais et protéines maigres.",
+      "active": true,
+      "order": 1
+    },
+    {
+      "id": "cat-grillades",
+      "name": "Grillades",
+      "slug": "grillades",
+      "icon": "Flame",
+      "description": "Viandes et volailles sélectionnées, grillées minute à la flamme sans matières grasses superflues.",
+      "active": true,
+      "order": 2
+    },
+    {
+      "id": "cat-salades",
+      "name": "Salades & Fraîcheur",
+      "slug": "salades",
+      "icon": "Sparkles",
+      "description": "Légumes croquants du terroir, herbes fraîches et assaisonnements maison.",
+      "active": true,
+      "order": 3
+    },
+    {
+      "id": "cat-boissons",
+      "name": "Jus Frais & Détox",
+      "slug": "boissons",
+      "icon": "GlassWater",
+      "description": "Jus 100% naturels pressés à froid sans sucre ajouté et eaux infusées.",
+      "active": true,
+      "order": 4
+    }
+  ],
+  "suppliers": [
+    {
+      "id": "sup-1",
+      "name": "Ferme Bio de Mornag",
+      "phone": "+216 71 889 001",
+      "email": "contact@ferme-mornag.tn",
+      "address": "Mornag, Ben Arous",
+      "suppliedIngredients": [
+        "ing-legumes",
+        "ing-avocat",
+        "ing-oeuf"
+      ]
+    },
+    {
+      "id": "sup-2",
+      "name": "Volailles du Terroir",
+      "phone": "+216 71 450 120",
+      "email": "commandes@volailles-terroir.tn",
+      "address": "Zone Industrielle, Tunis",
+      "suppliedIngredients": [
+        "ing-poulet",
+        "ing-boeuf"
+      ]
+    },
+    {
+      "id": "sup-3",
+      "name": "Moulins & Grains Sélection",
+      "phone": "+216 71 230 400",
+      "email": "contact@grains-selection.tn",
+      "address": "Port de Radès",
+      "suppliedIngredients": [
+        "ing-riz",
+        "ing-quinoa",
+        "ing-patate-douce"
+      ]
+    }
+  ],
+  "ingredients": [
+    {
+      "id": "ing-poulet",
+      "name": "Filet de Poulet mariné aux herbes",
+      "unit": "g",
+      "currentStock": 15900,
+      "minThreshold": 4000,
+      "purchaseCost": 0.016,
+      "supplierId": "sup-2",
+      "supplierName": "Volailles du Terroir",
+      "category": "Protéines",
+      "updatedAt": "2026-09-01T08:28:16.940Z"
+    },
+    {
+      "id": "ing-boeuf",
+      "name": "Bœuf maigre mariné façon BEBBA",
+      "unit": "g",
+      "currentStock": 9200,
+      "minThreshold": 3000,
+      "purchaseCost": 0.034,
+      "supplierId": "sup-2",
+      "supplierName": "Volailles du Terroir",
+      "category": "Protéines",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    },
+    {
+      "id": "ing-riz",
+      "name": "Riz Basmati complet aux épices douces",
+      "unit": "g",
+      "currentStock": 23050,
+      "minThreshold": 5000,
+      "purchaseCost": 0.005,
+      "supplierId": "sup-3",
+      "supplierName": "Moulins & Grains Sélection",
+      "category": "Féculents",
+      "updatedAt": "2026-09-01T08:28:16.941Z"
+    },
+    {
+      "id": "ing-quinoa",
+      "name": "Quinoa royal aux graines",
+      "unit": "g",
+      "currentStock": 7800,
+      "minThreshold": 2000,
+      "purchaseCost": 0.014,
+      "supplierId": "sup-3",
+      "supplierName": "Moulins & Grains Sélection",
+      "category": "Féculents",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    },
+    {
+      "id": "ing-patate-douce",
+      "name": "Patates douces rôties au romarin",
+      "unit": "g",
+      "currentStock": 12000,
+      "minThreshold": 3000,
+      "purchaseCost": 0.006,
+      "supplierId": "sup-3",
+      "supplierName": "Moulins & Grains Sélection",
+      "category": "Féculents",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    },
+    {
+      "id": "ing-legumes",
+      "name": "Légumes croquants de saison",
+      "unit": "g",
+      "currentStock": 18660,
+      "minThreshold": 5000,
+      "purchaseCost": 0.004,
+      "supplierId": "sup-1",
+      "supplierName": "Ferme Bio de Mornag",
+      "category": "Légumes",
+      "updatedAt": "2026-09-01T08:28:16.942Z"
+    },
+    {
+      "id": "ing-avocat",
+      "name": "Avocat frais crémeux",
+      "unit": "g",
+      "currentStock": 3500,
+      "minThreshold": 1500,
+      "purchaseCost": 0.018,
+      "supplierId": "sup-1",
+      "supplierName": "Ferme Bio de Mornag",
+      "category": "Légumes & Fruits",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    },
+    {
+      "id": "ing-oeuf",
+      "name": "Œufs fermiers bio pochés/durs",
+      "unit": "piece",
+      "currentStock": 65,
+      "minThreshold": 20,
+      "purchaseCost": 0.45,
+      "supplierId": "sup-1",
+      "supplierName": "Ferme Bio de Mornag",
+      "category": "Protéines",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    },
+    {
+      "id": "ing-halloumi",
+      "name": "Fromage Halloumi grillé",
+      "unit": "g",
+      "currentStock": 2800,
+      "minThreshold": 1000,
+      "purchaseCost": 0.025,
+      "supplierId": "sup-1",
+      "supplierName": "Ferme Bio de Mornag",
+      "category": "Protéines & Fromages",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    },
+    {
+      "id": "ing-sauce-healthy",
+      "name": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "unit": "ml",
+      "currentStock": 4045,
+      "minThreshold": 1000,
+      "purchaseCost": 0.008,
+      "supplierId": "sup-1",
+      "supplierName": "Ferme Bio de Mornag",
+      "category": "Sauces",
+      "updatedAt": "2026-09-01T08:28:16.943Z"
+    },
+    {
+      "id": "ing-sauce-miel-moutarde",
+      "name": "Sauce Miel & Moutarde à l’ancienne",
+      "unit": "ml",
+      "currentStock": 3800,
+      "minThreshold": 1000,
+      "purchaseCost": 0.009,
+      "supplierId": "sup-1",
+      "supplierName": "Ferme Bio de Mornag",
+      "category": "Sauces",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    },
+    {
+      "id": "ing-fruits-frais",
+      "name": "Agrumes & Fruits frais pressés",
+      "unit": "ml",
+      "currentStock": 12000,
+      "minThreshold": 3000,
+      "purchaseCost": 0.005,
+      "supplierId": "sup-1",
+      "supplierName": "Ferme Bio de Mornag",
+      "category": "Boissons",
+      "updatedAt": "2026-09-01T08:05:32.382Z"
+    }
+  ],
+  "supplements": [
+    {
+      "id": "sup-poulet-extra",
+      "name": "Portion supplémentaire de Poulet grillé (+150g)",
+      "description": "150g de filet de poulet mariné grillé minute.",
+      "price": 4.5,
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "quantityConsumed": 150,
+      "unit": "g",
+      "available": true,
+      "active": true
+    },
+    {
+      "id": "sup-boeuf-extra",
+      "name": "Portion supplémentaire de Bœuf grillé (+150g)",
+      "description": "150g de bœuf maigre mariné et grillé minute.",
+      "price": 6.5,
+      "ingredientId": "ing-boeuf",
+      "ingredientName": "Bœuf maigre mariné façon BEBBA",
+      "quantityConsumed": 150,
+      "unit": "g",
+      "available": true,
+      "active": true
+    },
+    {
+      "id": "sup-legumes-extra",
+      "name": "Légumes croquants supplémentaires (+150g)",
+      "description": "Courgettes, brocolis, carottes et poivrons sautés à sec.",
+      "price": 2.5,
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "quantityConsumed": 150,
+      "unit": "g",
+      "available": true,
+      "active": true
+    },
+    {
+      "id": "sup-riz-extra",
+      "name": "Riz basmati complet supplémentaire (+150g)",
+      "description": "Portion de riz complet aux aromates.",
+      "price": 2,
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "quantityConsumed": 150,
+      "unit": "g",
+      "available": true,
+      "active": true
+    },
+    {
+      "id": "sup-avocat-extra",
+      "name": "Demi-avocat tranché (+80g)",
+      "description": "Avocat frais riche en bons lipides.",
+      "price": 3,
+      "ingredientId": "ing-avocat",
+      "ingredientName": "Avocat frais crémeux",
+      "quantityConsumed": 80,
+      "unit": "g",
+      "available": true,
+      "active": true
+    },
+    {
+      "id": "sup-oeuf-poche",
+      "name": "Œuf fermier poché bio (1 pièce)",
+      "description": "Œuf coulant bio riche en protéines.",
+      "price": 1.5,
+      "ingredientId": "ing-oeuf",
+      "ingredientName": "Œufs fermiers bio pochés/durs",
+      "quantityConsumed": 1,
+      "unit": "piece",
+      "available": true,
+      "active": true
+    },
+    {
+      "id": "sup-halloumi-extra",
+      "name": "Halloumi grillé doré (+80g)",
+      "description": "Tranches de fromage halloumi grillé à la perfection.",
+      "price": 3.5,
+      "ingredientId": "ing-halloumi",
+      "ingredientName": "Fromage Halloumi grillé",
+      "quantityConsumed": 80,
+      "unit": "g",
+      "available": true,
+      "active": true
+    },
+    {
+      "id": "sup-sauce-extra",
+      "name": "Sauce signature BEBBA supplémentaire (+50ml)",
+      "description": "Pot de sauce maison fraîche.",
+      "price": 1,
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "quantityConsumed": 50,
+      "unit": "ml",
+      "available": true,
+      "active": true
+    }
+  ],
+  "products": [
+    {
+      "id": "prod-poulet-bowl",
+      "name": "BEBBA Chicken Power Bowl",
+      "description": "Filet de poulet mariné grillé minute, riz basmati complet, brocolis, courgettes grillées, avocat et sauce signature légère.",
+      "categoryId": "cat-healthy",
+      "basePrice": 14.5,
+      "imageUrl": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80",
+      "calories": 520,
+      "proteinGrams": 42,
+      "carbsGrams": 48,
+      "fatGrams": 14,
+      "active": true,
+      "isAvailable": true,
+      "isPopular": true,
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-poulet",
+          "ingredientName": "Filet de Poulet mariné aux herbes",
+          "quantity": 200,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-riz",
+          "ingredientName": "Riz Basmati complet aux épices douces",
+          "quantity": 150,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-legumes",
+          "ingredientName": "Légumes croquants de saison",
+          "quantity": 180,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-sauce-healthy",
+          "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+          "quantity": 35,
+          "unit": "ml"
+        }
+      ],
+      "customization": {
+        "allowsProteinChoice": true,
+        "proteinOptions": [
+          {
+            "label": "Portion normale (200g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Portion sportive (+100g de poulet)",
+            "extraPrice": 3,
+            "extraGrams": 100
+          },
+          {
+            "label": "Double protéine (+200g de poulet)",
+            "extraPrice": 5.5,
+            "extraGrams": 200
+          }
+        ],
+        "allowsVeggiesChoice": true,
+        "veggiesOptions": [
+          {
+            "label": "Portion normale (180g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Légumes supplémentaires (+100g)",
+            "extraPrice": 1.8,
+            "extraGrams": 100
+          },
+          {
+            "label": "Double portion légumes (+180g)",
+            "extraPrice": 3,
+            "extraGrams": 180
+          }
+        ],
+        "allowsBaseChoice": true,
+        "baseChoices": [
+          {
+            "label": "Riz Basmati complet",
+            "extraPrice": 0
+          },
+          {
+            "label": "Quinoa royal aux graines (+1.5 DT)",
+            "extraPrice": 1.5
+          },
+          {
+            "label": "Patates douces rôties (+1.0 DT)",
+            "extraPrice": 1
+          },
+          {
+            "label": "Base 100% Légumes sans féculent",
+            "extraPrice": 0
+          }
+        ],
+        "allowedSupplementIds": [
+          "sup-poulet-extra",
+          "sup-avocat-extra",
+          "sup-oeuf-poche",
+          "sup-halloumi-extra",
+          "sup-sauce-extra",
+          "sup-legumes-extra"
+        ]
+      }
+    },
+    {
+      "id": "prod-poulet-grille",
+      "name": "Assiette Grillade Poulet Mariné",
+      "description": "Poitrine de poulet fermier grillée à la flamme avec épices tunisiennes douces, accompagnée de patates douces rôties et légumes sautés.",
+      "categoryId": "cat-grillades",
+      "basePrice": 16,
+      "imageUrl": "https://images.unsplash.com/photo-1532550907401-a500c9a57435?auto=format&fit=crop&w=800&q=80",
+      "calories": 560,
+      "proteinGrams": 48,
+      "carbsGrams": 38,
+      "fatGrams": 16,
+      "active": true,
+      "isAvailable": true,
+      "isPopular": true,
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-poulet",
+          "ingredientName": "Filet de Poulet mariné aux herbes",
+          "quantity": 250,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-patate-douce",
+          "ingredientName": "Patates douces rôties au romarin",
+          "quantity": 180,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-legumes",
+          "ingredientName": "Légumes croquants de saison",
+          "quantity": 150,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-sauce-miel-moutarde",
+          "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+          "quantity": 40,
+          "unit": "ml"
+        }
+      ],
+      "customization": {
+        "allowsProteinChoice": true,
+        "proteinOptions": [
+          {
+            "label": "Portion normale (250g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Portion Gourmet (+100g de poulet)",
+            "extraPrice": 3,
+            "extraGrams": 100
+          },
+          {
+            "label": "Double portion (+250g de poulet)",
+            "extraPrice": 6,
+            "extraGrams": 250
+          }
+        ],
+        "allowsVeggiesChoice": true,
+        "veggiesOptions": [
+          {
+            "label": "Portion normale (150g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Extra légumes grillés (+100g)",
+            "extraPrice": 1.8,
+            "extraGrams": 100
+          }
+        ],
+        "allowsBaseChoice": true,
+        "baseChoices": [
+          {
+            "label": "Patates douces rôties",
+            "extraPrice": 0
+          },
+          {
+            "label": "Riz Basmati complet",
+            "extraPrice": 0
+          },
+          {
+            "label": "Quinoa royal (+1.5 DT)",
+            "extraPrice": 1.5
+          },
+          {
+            "label": "Double légumes (sans féculents)",
+            "extraPrice": 0
+          }
+        ],
+        "allowedSupplementIds": [
+          "sup-poulet-extra",
+          "sup-boeuf-extra",
+          "sup-halloumi-extra",
+          "sup-oeuf-poche",
+          "sup-sauce-extra"
+        ]
+      }
+    },
+    {
+      "id": "prod-boeuf-grillade",
+      "name": "Assiette Bœuf Grillé & Romarin",
+      "description": "Pavé de bœuf maigre tendre saisi sur le grill, légumes croquants rôties au four et sauce signature aux herbes.",
+      "categoryId": "cat-grillades",
+      "basePrice": 19.5,
+      "imageUrl": "https://images.unsplash.com/photo-1544025162-d76694265947?auto=format&fit=crop&w=800&q=80",
+      "calories": 590,
+      "proteinGrams": 50,
+      "carbsGrams": 32,
+      "fatGrams": 18,
+      "active": true,
+      "isAvailable": true,
+      "isPopular": false,
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-boeuf",
+          "ingredientName": "Bœuf maigre mariné façon BEBBA",
+          "quantity": 220,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-patate-douce",
+          "ingredientName": "Patates douces rôties au romarin",
+          "quantity": 160,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-legumes",
+          "ingredientName": "Légumes croquants de saison",
+          "quantity": 180,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-sauce-healthy",
+          "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+          "quantity": 35,
+          "unit": "ml"
+        }
+      ],
+      "customization": {
+        "allowsProteinChoice": true,
+        "proteinOptions": [
+          {
+            "label": "Portion normale (220g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Portion Gourmet (+100g de bœuf)",
+            "extraPrice": 5,
+            "extraGrams": 100
+          },
+          {
+            "label": "Double portion (+220g de bœuf)",
+            "extraPrice": 9,
+            "extraGrams": 220
+          }
+        ],
+        "allowsVeggiesChoice": true,
+        "veggiesOptions": [
+          {
+            "label": "Portion standard (180g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Légumes supplémentaires (+100g)",
+            "extraPrice": 1.8,
+            "extraGrams": 100
+          }
+        ],
+        "allowsBaseChoice": true,
+        "baseChoices": [
+          {
+            "label": "Patates douces rôties",
+            "extraPrice": 0
+          },
+          {
+            "label": "Riz complet basmati",
+            "extraPrice": 0
+          },
+          {
+            "label": "Quinoa royal (+1.5 DT)",
+            "extraPrice": 1.5
+          },
+          {
+            "label": "Mix 100% Légumes rôtis",
+            "extraPrice": 0
+          }
+        ],
+        "allowedSupplementIds": [
+          "sup-boeuf-extra",
+          "sup-oeuf-poche",
+          "sup-halloumi-extra",
+          "sup-avocat-extra",
+          "sup-sauce-extra"
+        ]
+      }
+    },
+    {
+      "id": "prod-quinoa-green-bowl",
+      "name": "Quinoa Superfood & Halloumi Bowl",
+      "description": "Quinoa royal, tranches d’halloumi grillé, avocat frais, œuf bio poché, brocolis vapeur et vinaigrette légère au citron.",
+      "categoryId": "cat-healthy",
+      "basePrice": 15.5,
+      "imageUrl": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=800&q=80",
+      "calories": 490,
+      "proteinGrams": 28,
+      "carbsGrams": 42,
+      "fatGrams": 22,
+      "active": true,
+      "isAvailable": true,
+      "isPopular": false,
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-quinoa",
+          "ingredientName": "Quinoa royal aux graines",
+          "quantity": 150,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-halloumi",
+          "ingredientName": "Fromage Halloumi grillé",
+          "quantity": 100,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-avocat",
+          "ingredientName": "Avocat frais crémeux",
+          "quantity": 70,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-oeuf",
+          "ingredientName": "Œufs fermiers bio pochés/durs",
+          "quantity": 1,
+          "unit": "piece"
+        },
+        {
+          "ingredientId": "ing-legumes",
+          "ingredientName": "Légumes croquants de saison",
+          "quantity": 120,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-sauce-healthy",
+          "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+          "quantity": 30,
+          "unit": "ml"
+        }
+      ],
+      "customization": {
+        "allowsProteinChoice": true,
+        "proteinOptions": [
+          {
+            "label": "Halloumi standard (100g) + 1 œuf",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Ajout Poulet grillé (+120g)",
+            "extraPrice": 3.5,
+            "extraGrams": 120
+          },
+          {
+            "label": "Double Halloumi (+80g)",
+            "extraPrice": 3.5,
+            "extraGrams": 80
+          }
+        ],
+        "allowsVeggiesChoice": true,
+        "veggiesOptions": [
+          {
+            "label": "Portion normale",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Légumes supplémentaires (+100g)",
+            "extraPrice": 1.8,
+            "extraGrams": 100
+          }
+        ],
+        "allowsBaseChoice": true,
+        "baseChoices": [
+          {
+            "label": "Quinoa royal",
+            "extraPrice": 0
+          },
+          {
+            "label": "Riz basmati complet",
+            "extraPrice": 0
+          },
+          {
+            "label": "Patates douces",
+            "extraPrice": 0
+          }
+        ],
+        "allowedSupplementIds": [
+          "sup-poulet-extra",
+          "sup-oeuf-poche",
+          "sup-avocat-extra",
+          "sup-halloumi-extra",
+          "sup-sauce-extra"
+        ]
+      }
+    },
+    {
+      "id": "prod-salade-fraicheur",
+      "name": "Grande Salade BEBBA Croustillante",
+      "description": "Mélange de jeunes pousses, concombre croquant, carottes râpées, tomates cerises, avocat, graines de courge et poulet effiloché tiède.",
+      "categoryId": "cat-salades",
+      "basePrice": 13,
+      "imageUrl": "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=800&q=80",
+      "calories": 380,
+      "proteinGrams": 32,
+      "carbsGrams": 20,
+      "fatGrams": 14,
+      "active": true,
+      "isAvailable": true,
+      "isPopular": false,
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-legumes",
+          "ingredientName": "Légumes croquants de saison",
+          "quantity": 240,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-poulet",
+          "ingredientName": "Filet de Poulet mariné aux herbes",
+          "quantity": 150,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-avocat",
+          "ingredientName": "Avocat frais crémeux",
+          "quantity": 50,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-sauce-healthy",
+          "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+          "quantity": 35,
+          "unit": "ml"
+        }
+      ],
+      "customization": {
+        "allowsProteinChoice": true,
+        "proteinOptions": [
+          {
+            "label": "Poulet grillé (150g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Double poulet (+150g)",
+            "extraPrice": 4,
+            "extraGrams": 150
+          },
+          {
+            "label": "Option Végétarienne (Remplacer par Halloumi + Œuf)",
+            "extraPrice": 1,
+            "extraGrams": 0
+          }
+        ],
+        "allowsVeggiesChoice": true,
+        "veggiesOptions": [
+          {
+            "label": "Portion généreuse (240g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Extra avocat & légumes (+100g)",
+            "extraPrice": 2.5,
+            "extraGrams": 100
+          }
+        ],
+        "allowedSupplementIds": [
+          "sup-oeuf-poche",
+          "sup-avocat-extra",
+          "sup-halloumi-extra",
+          "sup-poulet-extra",
+          "sup-sauce-extra"
+        ]
+      }
+    },
+    {
+      "id": "prod-jus-detox-vert",
+      "name": "Jus Vert Détox Vitalité (350ml)",
+      "description": "Pomme verte, concombre, épinards, menthe fraîche et touche de gingembre. Pressé à froid sans sucre.",
+      "categoryId": "cat-boissons",
+      "basePrice": 5.5,
+      "imageUrl": "https://images.unsplash.com/photo-1613478223719-2ab802602423?auto=format&fit=crop&w=800&q=80",
+      "calories": 110,
+      "proteinGrams": 2,
+      "carbsGrams": 24,
+      "fatGrams": 0,
+      "active": true,
+      "isAvailable": true,
+      "isPopular": true,
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-fruits-frais",
+          "ingredientName": "Agrumes & Fruits frais pressés",
+          "quantity": 350,
+          "unit": "ml"
+        }
+      ],
+      "customization": {
+        "allowedSupplementIds": []
+      }
+    },
+    {
+      "id": "prod-jus-orange-carotte",
+      "name": "Jus Boost Énergie Orange & Carotte (350ml)",
+      "description": "Oranges douces de Tunisie pressées à la minute avec carottes fraîches et pointe de curcuma.",
+      "categoryId": "cat-boissons",
+      "basePrice": 5,
+      "imageUrl": "https://images.unsplash.com/photo-1600271886742-f049cd451bba?auto=format&fit=crop&w=800&q=80",
+      "calories": 125,
+      "proteinGrams": 2,
+      "carbsGrams": 28,
+      "fatGrams": 0,
+      "active": true,
+      "isAvailable": true,
+      "isPopular": false,
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-fruits-frais",
+          "ingredientName": "Agrumes & Fruits frais pressés",
+          "quantity": 350,
+          "unit": "ml"
+        }
+      ],
+      "customization": {
+        "allowedSupplementIds": []
+      }
+    }
+  ],
+  "drivers": [
+    {
+      "id": "drv-1",
+      "name": "Yassine Ben Amor",
+      "phone": "+216 98 123 456",
+      "vehicle": "Scooter Honda 125cc (Rapide)",
+      "active": true,
+      "totalDeliveries": 142,
+      "rating": 4.9
+    },
+    {
+      "id": "drv-2",
+      "name": "Amine Trabelsi",
+      "phone": "+216 55 987 654",
+      "vehicle": "Moto Peugeot Tweet",
+      "active": true,
+      "totalDeliveries": 98,
+      "rating": 4.8
+    },
+    {
+      "id": "drv-3",
+      "name": "Karim Bouazizi",
+      "phone": "+216 22 456 789",
+      "vehicle": "Vélo Électrique Cargo",
+      "active": true,
+      "totalDeliveries": 64,
+      "rating": 4.95
+    }
+  ],
+  "orders": [
+    {
+      "id": "ord-1788251296940",
+      "orderNumber": "BEBBA-1062",
+      "trackingToken": "tk_ce81938cc5a9",
+      "createdAt": "2026-09-01T08:28:16.944Z",
+      "client": {
+        "name": "Client Public Anonyme",
+        "phone": "+216 20 123 456",
+        "deliveryAddress": "Menzah 9",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-qeah2ag",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz Basmati"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:16.944Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251296888",
+      "orderNumber": "BEBBA-1061",
+      "trackingToken": "tk_995a843db187",
+      "createdAt": "2026-09-01T08:28:16.893Z",
+      "client": {
+        "name": "Client Test Cuisine",
+        "phone": "+216 99 555 666",
+        "deliveryAddress": "Ennasr 2",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-x8ccmhh",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "preparing",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:16.893Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-01T08:28:16.897Z",
+          "note": "En cuisson",
+          "updatedBy": "Chef de Cuisine BEBBA (Cuisine)"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251296856",
+      "orderNumber": "BEBBA-1060",
+      "trackingToken": "tk_f8e1ebd02360",
+      "createdAt": "2026-09-01T08:28:16.861Z",
+      "client": {
+        "name": "Client Livreur 2",
+        "phone": "+216 99 333 444",
+        "deliveryAddress": "Marsa",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-3lwnor1",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "ready",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:16.861Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-01T08:28:16.868Z",
+          "note": "Préparation",
+          "updatedBy": "Administrateur BEBBA (Admin)"
+        },
+        {
+          "status": "ready",
+          "label": "Commande prête & emballée",
+          "timestamp": "2026-09-01T08:28:16.875Z",
+          "note": "Prêt pour livraison",
+          "updatedBy": "Administrateur BEBBA (Admin)"
+        }
+      ],
+      "assignedDriverId": "drv-2",
+      "assignedDriverName": "Amine Trabelsi"
+    },
+    {
+      "id": "ord-1788251296820",
+      "orderNumber": "BEBBA-1059",
+      "trackingToken": "tk_84e687dd5e56",
+      "createdAt": "2026-09-01T08:28:16.824Z",
+      "client": {
+        "name": "Client Livreur 1",
+        "phone": "+216 99 111 222",
+        "deliveryAddress": "Lac 1",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-pcojtgr",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "delivering",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "paid",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:16.824Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-01T08:28:16.831Z",
+          "note": "Préparation",
+          "updatedBy": "Administrateur BEBBA (Admin)"
+        },
+        {
+          "status": "ready",
+          "label": "Commande prête & emballée",
+          "timestamp": "2026-09-01T08:28:16.836Z",
+          "note": "Prêt pour livraison",
+          "updatedBy": "Administrateur BEBBA (Admin)"
+        },
+        {
+          "status": "delivering",
+          "label": "En cours de livraison",
+          "timestamp": "2026-09-01T08:28:16.907Z",
+          "note": "En route",
+          "updatedBy": "Sami Trabelsi (Livreur)"
+        }
+      ],
+      "assignedDriverId": "drv-1",
+      "assignedDriverName": "Yassine Ben Amor"
+    },
+    {
+      "id": "ord-1788251282822",
+      "orderNumber": "BEBBA-1058",
+      "trackingToken": "tk_501603aacaac",
+      "createdAt": "2026-09-01T08:28:02.827Z",
+      "client": {
+        "name": "Client Public Anonyme",
+        "phone": "+216 20 123 456",
+        "deliveryAddress": "Menzah 9",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-2h25zkn",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz Basmati"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:02.827Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251282766",
+      "orderNumber": "BEBBA-1057",
+      "trackingToken": "tk_7e99345bc93e",
+      "createdAt": "2026-09-01T08:28:02.770Z",
+      "client": {
+        "name": "Client Test Cuisine",
+        "phone": "+216 99 555 666",
+        "deliveryAddress": "Ennasr 2",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-xfs8d47",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "preparing",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:02.770Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-01T08:28:02.776Z",
+          "note": "En cuisson",
+          "updatedBy": "Chef de Cuisine BEBBA (Cuisine)"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251282746",
+      "orderNumber": "BEBBA-1056",
+      "trackingToken": "tk_28adb4db9180",
+      "createdAt": "2026-09-01T08:28:02.750Z",
+      "client": {
+        "name": "Client Livreur 2",
+        "phone": "+216 99 333 444",
+        "deliveryAddress": "Marsa",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-gd7s1i0",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:02.750Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251282733",
+      "orderNumber": "BEBBA-1055",
+      "trackingToken": "tk_048a8a8a89df",
+      "createdAt": "2026-09-01T08:28:02.735Z",
+      "client": {
+        "name": "Client Livreur 1",
+        "phone": "+216 99 111 222",
+        "deliveryAddress": "Lac 1",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-zcwqnoh",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:28:02.735Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251270337",
+      "orderNumber": "BEBBA-1054",
+      "trackingToken": "tk_7fd69241d809",
+      "createdAt": "2026-09-01T08:27:50.339Z",
+      "client": {
+        "name": "Client Public Anonyme",
+        "phone": "+216 20 123 456",
+        "deliveryAddress": "Menzah 9",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-pud7dt0",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz Basmati"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:27:50.339Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251231191",
+      "orderNumber": "BEBBA-1053",
+      "trackingToken": "tk_a77474f84cbe",
+      "createdAt": "2026-09-01T08:27:11.194Z",
+      "client": {
+        "name": "Client Public Anonyme",
+        "phone": "+216 20 123 456",
+        "deliveryAddress": "Menzah 9",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-gciqajc",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz Basmati"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:27:11.194Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251209985",
+      "orderNumber": "BEBBA-1052",
+      "trackingToken": "tk_0ee4f3b4cb30",
+      "createdAt": "2026-09-01T08:26:49.987Z",
+      "client": {
+        "name": "Client Public Anonyme",
+        "phone": "+216 20 123 456",
+        "deliveryAddress": "Menzah 9",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-nbmkrmn",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz Basmati"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:26:49.987Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788251167479",
+      "orderNumber": "BEBBA-1051",
+      "trackingToken": "tk_64d9162f8c14",
+      "createdAt": "2026-09-01T08:26:07.485Z",
+      "client": {
+        "name": "Client Public Anonyme",
+        "phone": "+216 20 123 456",
+        "deliveryAddress": "Menzah 9",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-fjhd98z",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": null,
+          "quantity": 1,
+          "baseChoice": {
+            "label": "Riz Basmati"
+          },
+          "supplements": [],
+          "itemTotalPrice": null,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": null,
+      "deliveryFee": 2.5,
+      "totalAmount": null,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:26:07.485Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788250399787",
+      "orderNumber": "BEBBA-1050",
+      "trackingToken": "tk_aaec4b4d5147",
+      "createdAt": "2026-09-01T08:13:19.790Z",
+      "client": {
+        "name": "Client Test Public",
+        "phone": "+216 99 888 777",
+        "deliveryAddress": "Les Berges du Lac 2, Tunis",
+        "notes": "Sonner à l’interphone 4"
+      },
+      "items": [
+        {
+          "id": "item-6ogxamz",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": 14.5,
+          "quantity": 1,
+          "proteinOption": {
+            "label": "Portion Standard (150g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          "veggiesOption": {
+            "label": "Portion Standard (150g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          "baseChoice": {
+            "label": "Riz Basmati Complet",
+            "extraPrice": 0
+          },
+          "supplements": [],
+          "itemTotalPrice": 14.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 14.5,
+      "deliveryFee": 2.5,
+      "totalAmount": 17,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-01T08:13:19.790Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1047",
+      "orderNumber": "BEBBA-1047",
+      "trackingToken": "tk_bebba_1047_demo",
+      "createdAt": "2026-09-01T07:30:32.382Z",
+      "client": {
+        "name": "Sami Khelifi",
+        "phone": "+216 98 440 210",
+        "deliveryAddress": "Résidence Les Palmiers, Apt 4B, Les Berges du Lac 2, Tunis",
+        "notes": "Code porte 4210. Sonner 2 fois."
+      },
+      "items": [
+        {
+          "id": "item-1",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": 14.5,
+          "quantity": 1,
+          "proteinOption": {
+            "label": "Portion sportive (+100g de poulet)",
+            "extraPrice": 3,
+            "extraGrams": 100
+          },
+          "veggiesOption": {
+            "label": "Légumes supplémentaires (+100g)",
+            "extraPrice": 1.8,
+            "extraGrams": 100
+          },
+          "baseChoice": {
+            "label": "Riz Basmati complet",
+            "extraPrice": 0
+          },
+          "supplements": [
+            {
+              "supplementId": "sup-avocat-extra",
+              "name": "Demi-avocat tranché (+80g)",
+              "price": 3,
+              "quantity": 1,
+              "ingredientId": "ing-avocat",
+              "ingredientName": "Avocat frais crémeux",
+              "quantityConsumed": 80,
+              "unit": "g"
+            }
+          ],
+          "specialInstructions": "Sauce servie à part svp. Pas de piment.",
+          "itemTotalPrice": 22.3,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 300,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 280,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-avocat",
+                "ingredientName": "Avocat frais crémeux",
+                "totalQuantity": 80,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Poulet mariné: 300g (Base 200g + Extra 100g)",
+              "🍚 Riz basmati: 150g",
+              "🥦 Légumes de saison: 280g (Base 180g + Extra 100g)",
+              "🥑 Avocat frais: 80g",
+              "🥣 Sauce signature BEBBA: 35ml (À PART)"
+            ]
+          }
+        }
+      ],
+      "subtotal": 22.3,
+      "deliveryFee": 2.5,
+      "totalAmount": 24.8,
+      "status": "delivering",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "assignedDriverId": "drv-1",
+      "assignedDriverName": "Yassine Ben Amor",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & enregistrée",
+          "timestamp": "2026-09-01T07:30:32.382Z",
+          "note": "Validation du panier client (Paiement à la livraison)"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-01T07:37:32.382Z",
+          "note": "Prise en charge par le Chef Cuisine BEBBA"
+        },
+        {
+          "status": "ready",
+          "label": "Commande prête & emballée",
+          "timestamp": "2026-09-01T07:53:32.382Z",
+          "note": "Vérification qualité et mise en sac thermique"
+        },
+        {
+          "status": "delivering",
+          "label": "En cours de livraison",
+          "timestamp": "2026-09-01T07:59:32.382Z",
+          "note": "Prise en charge par Yassine Ben Amor"
+        }
+      ]
+    },
+    {
+      "id": "ord-1048",
+      "orderNumber": "BEBBA-1048",
+      "trackingToken": "tk_bebba_1048_demo",
+      "createdAt": "2026-09-01T07:51:32.382Z",
+      "client": {
+        "name": "Meriem Mansouri",
+        "phone": "+216 52 119 883",
+        "deliveryAddress": "Avenue Habib Bourguiba, Immeuble Carthage, 3ème étage, La Marsa",
+        "notes": "Appeler à l’arrivée"
+      },
+      "items": [
+        {
+          "id": "item-2",
+          "productId": "prod-poulet-grille",
+          "productName": "Assiette Grillade Poulet Mariné",
+          "unitPrice": 16,
+          "quantity": 1,
+          "proteinOption": {
+            "label": "Portion normale (250g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          "veggiesOption": {
+            "label": "Portion normale (150g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          "baseChoice": {
+            "label": "Patates douces rôties",
+            "extraPrice": 0
+          },
+          "supplements": [
+            {
+              "supplementId": "sup-oeuf-poche",
+              "name": "Œuf fermier poché bio (1 pièce)",
+              "price": 1.5,
+              "quantity": 1,
+              "ingredientId": "ing-oeuf",
+              "ingredientName": "Œufs fermiers bio pochés/durs",
+              "quantityConsumed": 1,
+              "unit": "piece"
+            }
+          ],
+          "itemTotalPrice": 17.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 250,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-oeuf",
+                "ingredientName": "Œufs fermiers bio pochés/durs",
+                "totalQuantity": 1,
+                "unit": "piece"
+              },
+              {
+                "ingredientId": "ing-sauce-miel-moutarde",
+                "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+                "totalQuantity": 40,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Poulet grillé minute: 250g",
+              "🍠 Patates douces rôties: 180g",
+              "🥦 Légumes croquants: 150g",
+              "🥚 1 Œuf fermier poché bio",
+              "🍯 Sauce Miel & Moutarde: 40ml"
+            ]
+          }
+        },
+        {
+          "id": "item-3",
+          "productId": "prod-jus-detox-vert",
+          "productName": "Jus Vert Détox Vitalité (350ml)",
+          "unitPrice": 5.5,
+          "quantity": 1,
+          "supplements": [],
+          "itemTotalPrice": 5.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-fruits-frais",
+                "ingredientName": "Agrumes & Fruits frais pressés",
+                "totalQuantity": 350,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍏 1 Jus vert détox pressé frais (350ml)"
+            ]
+          }
+        }
+      ],
+      "subtotal": 23,
+      "deliveryFee": 2.5,
+      "totalAmount": 25.5,
+      "status": "preparing",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & enregistrée",
+          "timestamp": "2026-09-01T07:51:32.382Z",
+          "note": "Validée par le client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-01T07:55:32.382Z",
+          "note": "Grillades en cuisson"
+        }
+      ]
+    },
+    {
+      "id": "ord-1049",
+      "orderNumber": "BEBBA-1049",
+      "trackingToken": "tk_bebba_1049_demo",
+      "createdAt": "2026-09-01T08:00:32.382Z",
+      "client": {
+        "name": "Nidhal Gharbi",
+        "phone": "+216 23 881 902",
+        "deliveryAddress": "Centre Urbain Nord, Tour Yasmine, Bureau 502, Tunis",
+        "notes": "Laisser à la réception si indisponible."
+      },
+      "items": [
+        {
+          "id": "item-4",
+          "productId": "prod-boeuf-grillade",
+          "productName": "Assiette Bœuf Grillé & Romarin",
+          "unitPrice": 19.5,
+          "quantity": 1,
+          "proteinOption": {
+            "label": "Portion Gourmet (+100g de bœuf)",
+            "extraPrice": 5,
+            "extraGrams": 100
+          },
+          "veggiesOption": {
+            "label": "Portion standard (180g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          "baseChoice": {
+            "label": "Mix 100% Légumes rôtis",
+            "extraPrice": 0
+          },
+          "supplements": [
+            {
+              "supplementId": "sup-halloumi-extra",
+              "name": "Halloumi grillé doré (+80g)",
+              "price": 3.5,
+              "quantity": 1,
+              "ingredientId": "ing-halloumi",
+              "ingredientName": "Fromage Halloumi grillé",
+              "quantityConsumed": 80,
+              "unit": "g"
+            }
+          ],
+          "itemTotalPrice": 28,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-boeuf",
+                "ingredientName": "Bœuf maigre mariné façon BEBBA",
+                "totalQuantity": 320,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 280,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-halloumi",
+                "ingredientName": "Fromage Halloumi grillé",
+                "totalQuantity": 80,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🥩 Bœuf grillé tendre: 320g (Base 220g + Extra 100g)",
+              "🥦 Légumes rôtis: 280g (Base + Remplacement féculent)",
+              "🧀 Halloumi grillé: 80g",
+              "🥣 Sauce signature BEBBA: 35ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 28,
+      "deliveryFee": 2.5,
+      "totalAmount": 30.5,
+      "status": "received",
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & enregistrée",
+          "timestamp": "2026-09-01T08:00:32.382Z",
+          "note": "Nouvelle commande à traiter en cuisine"
+        }
+      ]
+    }
+  ],
+  "stockMovements": [
+    {
+      "id": "mov-1788251296943-sn0w",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251296940",
+      "orderNumber": "BEBBA-1062",
+      "notes": "Préparation commande #BEBBA-1062 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.943Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296942-f69i",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251296940",
+      "orderNumber": "BEBBA-1062",
+      "notes": "Préparation commande #BEBBA-1062 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.942Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296941-cf9n",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251296940",
+      "orderNumber": "BEBBA-1062",
+      "notes": "Préparation commande #BEBBA-1062 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.941Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296940-ma73",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251296940",
+      "orderNumber": "BEBBA-1062",
+      "notes": "Préparation commande #BEBBA-1062 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.940Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296892-c905",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251296888",
+      "orderNumber": "BEBBA-1061",
+      "notes": "Préparation commande #BEBBA-1061 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.892Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296891-3dfv",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251296888",
+      "orderNumber": "BEBBA-1061",
+      "notes": "Préparation commande #BEBBA-1061 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.891Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296890-8b5d",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251296888",
+      "orderNumber": "BEBBA-1061",
+      "notes": "Préparation commande #BEBBA-1061 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.890Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296888-sw4p",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251296888",
+      "orderNumber": "BEBBA-1061",
+      "notes": "Préparation commande #BEBBA-1061 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.888Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296860-8e9o",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251296856",
+      "orderNumber": "BEBBA-1060",
+      "notes": "Préparation commande #BEBBA-1060 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.860Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296859-ocuc",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251296856",
+      "orderNumber": "BEBBA-1060",
+      "notes": "Préparation commande #BEBBA-1060 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.859Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296858-2www",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251296856",
+      "orderNumber": "BEBBA-1060",
+      "notes": "Préparation commande #BEBBA-1060 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.858Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296856-a755",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251296856",
+      "orderNumber": "BEBBA-1060",
+      "notes": "Préparation commande #BEBBA-1060 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.856Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296823-y951",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251296820",
+      "orderNumber": "BEBBA-1059",
+      "notes": "Préparation commande #BEBBA-1059 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.823Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296822-2tuo",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251296820",
+      "orderNumber": "BEBBA-1059",
+      "notes": "Préparation commande #BEBBA-1059 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.822Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296821-qky4",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251296820",
+      "orderNumber": "BEBBA-1059",
+      "notes": "Préparation commande #BEBBA-1059 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.821Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251296820-zhvq",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251296820",
+      "orderNumber": "BEBBA-1059",
+      "notes": "Préparation commande #BEBBA-1059 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:16.820Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282826-siy2",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251282822",
+      "orderNumber": "BEBBA-1058",
+      "notes": "Préparation commande #BEBBA-1058 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.826Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282824-vcb0",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251282822",
+      "orderNumber": "BEBBA-1058",
+      "notes": "Préparation commande #BEBBA-1058 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.824Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282823-pyud",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251282822",
+      "orderNumber": "BEBBA-1058",
+      "notes": "Préparation commande #BEBBA-1058 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.823Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282822-j98b",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251282822",
+      "orderNumber": "BEBBA-1058",
+      "notes": "Préparation commande #BEBBA-1058 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.822Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282769-nv1s",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251282766",
+      "orderNumber": "BEBBA-1057",
+      "notes": "Préparation commande #BEBBA-1057 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.769Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282768-or1a",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251282766",
+      "orderNumber": "BEBBA-1057",
+      "notes": "Préparation commande #BEBBA-1057 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.768Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282767-r7c6",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251282766",
+      "orderNumber": "BEBBA-1057",
+      "notes": "Préparation commande #BEBBA-1057 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.767Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282766-bgme",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251282766",
+      "orderNumber": "BEBBA-1057",
+      "notes": "Préparation commande #BEBBA-1057 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.766Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282749-viwm",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251282746",
+      "orderNumber": "BEBBA-1056",
+      "notes": "Préparation commande #BEBBA-1056 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.749Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282748-rysx",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251282746",
+      "orderNumber": "BEBBA-1056",
+      "notes": "Préparation commande #BEBBA-1056 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.748Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282748-y22j",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251282746",
+      "orderNumber": "BEBBA-1056",
+      "notes": "Préparation commande #BEBBA-1056 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.748Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282747-bcqs",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251282746",
+      "orderNumber": "BEBBA-1056",
+      "notes": "Préparation commande #BEBBA-1056 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.747Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282735-nmjb",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251282733",
+      "orderNumber": "BEBBA-1055",
+      "notes": "Préparation commande #BEBBA-1055 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.735Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282734-1hwj",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251282733",
+      "orderNumber": "BEBBA-1055",
+      "notes": "Préparation commande #BEBBA-1055 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.734Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282734-pm0e",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251282733",
+      "orderNumber": "BEBBA-1055",
+      "notes": "Préparation commande #BEBBA-1055 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.734Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251282733-zfgv",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251282733",
+      "orderNumber": "BEBBA-1055",
+      "notes": "Préparation commande #BEBBA-1055 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:28:02.733Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251270339-7hdi",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251270337",
+      "orderNumber": "BEBBA-1054",
+      "notes": "Préparation commande #BEBBA-1054 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:50.339Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251270338-remi",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251270337",
+      "orderNumber": "BEBBA-1054",
+      "notes": "Préparation commande #BEBBA-1054 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:50.338Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251270338-s8cl",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251270337",
+      "orderNumber": "BEBBA-1054",
+      "notes": "Préparation commande #BEBBA-1054 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:50.338Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251270337-7m5z",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251270337",
+      "orderNumber": "BEBBA-1054",
+      "notes": "Préparation commande #BEBBA-1054 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:50.337Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251231194-yi10",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251231191",
+      "orderNumber": "BEBBA-1053",
+      "notes": "Préparation commande #BEBBA-1053 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:11.194Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251231193-d5mq",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251231191",
+      "orderNumber": "BEBBA-1053",
+      "notes": "Préparation commande #BEBBA-1053 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:11.193Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251231193-jrbx",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251231191",
+      "orderNumber": "BEBBA-1053",
+      "notes": "Préparation commande #BEBBA-1053 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:11.193Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251231191-3x9z",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251231191",
+      "orderNumber": "BEBBA-1053",
+      "notes": "Préparation commande #BEBBA-1053 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:27:11.191Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251209987-rtoh",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251209985",
+      "orderNumber": "BEBBA-1052",
+      "notes": "Préparation commande #BEBBA-1052 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:49.987Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251209986-lzxo",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251209985",
+      "orderNumber": "BEBBA-1052",
+      "notes": "Préparation commande #BEBBA-1052 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:49.986Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251209986-bbxe",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251209985",
+      "orderNumber": "BEBBA-1052",
+      "notes": "Préparation commande #BEBBA-1052 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:49.986Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251209985-zhpd",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251209985",
+      "orderNumber": "BEBBA-1052",
+      "notes": "Préparation commande #BEBBA-1052 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:49.985Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251167484-fl4q",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788251167479",
+      "orderNumber": "BEBBA-1051",
+      "notes": "Préparation commande #BEBBA-1051 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:07.484Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251167484-ixpn",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788251167479",
+      "orderNumber": "BEBBA-1051",
+      "notes": "Préparation commande #BEBBA-1051 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:07.484Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251167483-mz0q",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788251167479",
+      "orderNumber": "BEBBA-1051",
+      "notes": "Préparation commande #BEBBA-1051 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:07.483Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788251167482-oqeh",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788251167479",
+      "orderNumber": "BEBBA-1051",
+      "notes": "Préparation commande #BEBBA-1051 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:26:07.482Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788250399789-3h2g",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788250399787",
+      "orderNumber": "BEBBA-1050",
+      "notes": "Préparation commande #BEBBA-1050 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:13:19.789Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788250399789-7xx4",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788250399787",
+      "orderNumber": "BEBBA-1050",
+      "notes": "Préparation commande #BEBBA-1050 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:13:19.789Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788250399789-wab6",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788250399787",
+      "orderNumber": "BEBBA-1050",
+      "notes": "Préparation commande #BEBBA-1050 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:13:19.789Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1788250399788-mwof",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -200,
+      "unit": "g",
+      "orderId": "ord-1788250399787",
+      "orderNumber": "BEBBA-1050",
+      "notes": "Préparation commande #BEBBA-1050 (BEBBA Chicken Power Bowl x1)",
+      "timestamp": "2026-09-01T08:13:19.788Z",
+      "performedBy": "BEBBA KDS Moteur Automatique"
+    },
+    {
+      "id": "mov-1",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -300,
+      "unit": "g",
+      "orderId": "ord-1047",
+      "orderNumber": "BEBBA-1047",
+      "notes": "Consommation commande #BEBBA-1047 (Poulet Bowl 300g)",
+      "timestamp": "2026-09-01T07:30:32.382Z",
+      "performedBy": "Système Automatique BEBBA"
+    },
+    {
+      "id": "mov-2",
+      "ingredientId": "ing-riz",
+      "ingredientName": "Riz Basmati complet aux épices douces",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1047",
+      "orderNumber": "BEBBA-1047",
+      "notes": "Consommation commande #BEBBA-1047",
+      "timestamp": "2026-09-01T07:30:32.382Z",
+      "performedBy": "Système Automatique BEBBA"
+    },
+    {
+      "id": "mov-3",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "manual_in",
+      "quantity": 15000,
+      "unit": "g",
+      "notes": "Réception livraison fournisseur Volailles du Terroir (Bon #4891)",
+      "timestamp": "2026-09-01T04:05:32.382Z",
+      "performedBy": "Chef Gestionnaire"
+    }
+  ],
+  "users": [
+    {
+      "id": "usr-admin-1",
+      "username": "admin",
+      "name": "Administrateur BEBBA",
+      "phone": "+216 71 000 001",
+      "passwordHash": "$2b$10$iwkf0r7FFlM2BF4j1SVxoOARV4AbCheeJul0Ml3jEew/9s/HTzCGS",
+      "role": "admin",
+      "active": true,
+      "createdAt": "2026-09-01T08:13:06.548Z",
+      "updatedAt": "2026-09-01T08:13:06.548Z",
+      "lastLoginAt": "2026-09-01T08:28:16.402Z"
+    },
+    {
+      "id": "usr-kitchen-1",
+      "username": "cuisine",
+      "name": "Chef de Cuisine BEBBA",
+      "phone": "+216 71 000 002",
+      "passwordHash": "$2b$10$.vHj3.LYW01bT6/HiB5bLuaqClIzh/hkiKKjRYPzD2wAGeh5ZOWpG",
+      "role": "kitchen",
+      "active": true,
+      "createdAt": "2026-09-01T08:13:06.548Z",
+      "updatedAt": "2026-09-01T08:13:06.548Z",
+      "lastLoginAt": "2026-09-01T08:28:16.516Z"
+    },
+    {
+      "id": "usr-driver-1",
+      "username": "livreur1",
+      "name": "Sami Trabelsi",
+      "phone": "+216 98 123 456",
+      "passwordHash": "$2b$10$t42aOgbfRsD6y9yr64k1vuIW4w3LCJiT0Tq7mXEDXir1rYbmEwVMW",
+      "role": "driver",
+      "active": true,
+      "createdAt": "2026-09-01T08:13:06.548Z",
+      "updatedAt": "2026-09-01T08:13:06.548Z",
+      "driverId": "drv-1",
+      "lastLoginAt": "2026-09-01T08:28:16.657Z"
+    },
+    {
+      "id": "usr-driver-2",
+      "username": "livreur2",
+      "name": "Karim Ben Salem",
+      "phone": "+216 97 654 321",
+      "passwordHash": "$2b$10$H5P4AULhA8MH9CRt8bFPKOUf803r6hGTG37kwXBLTBvKcUTDHR9Ja",
+      "role": "driver",
+      "active": true,
+      "createdAt": "2026-09-01T08:13:06.548Z",
+      "updatedAt": "2026-09-01T08:13:06.548Z",
+      "driverId": "drv-2",
+      "lastLoginAt": "2026-09-01T08:28:16.773Z"
+    },
+    {
+      "id": "usr-driver-3",
+      "username": "livreur3",
+      "name": "Karim Bouazizi",
+      "phone": "+216 22 456 789",
+      "passwordHash": "$2b$10$TJJqxltJE6eFu6AD3FYZu.2K8Pba5fuG6ISX0Ox5apVnuVTMeHIli",
+      "role": "driver",
+      "driverId": "drv-3",
+      "active": true,
+      "createdAt": "2026-09-01T08:27:47.987Z",
+      "updatedAt": "2026-09-01T08:27:47.987Z"
+    }
+  ],
+  "nextOrderSeq": 1063
+}

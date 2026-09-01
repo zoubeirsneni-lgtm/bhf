@@ -2,6 +2,16 @@ import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { db } from './server/db';
+import {
+  authenticateUser,
+  requireRole,
+  comparePassword,
+  hashPassword,
+  generateToken,
+  sanitizeUser,
+  isValidStatusTransition,
+  AuthenticatedRequest
+} from './server/auth';
 
 async function startServer() {
   const app = express();
@@ -11,12 +21,70 @@ async function startServer() {
 
   // --- API Routes ---
 
-  // Health check
+  // Health check (Public)
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', brand: 'BEBBA Healthy Food', slogan: 'Vos Plats santé en un clic' });
   });
 
-  // Categories
+  // --- Authentication Routes ---
+
+  // POST /api/auth/login (Public)
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+
+      if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
+        res.status(400).json({ error: 'Nom d’utilisateur et mot de passe requis.' });
+        return;
+      }
+
+      const user = db.getUserByUsername(username);
+
+      // Generic error response to prevent user enumeration
+      if (!user || !user.active) {
+        res.status(401).json({ error: 'Identifiants invalides.' });
+        return;
+      }
+
+      const isPasswordValid = await comparePassword(password, user.passwordHash);
+      if (!isPasswordValid) {
+        res.status(401).json({ error: 'Identifiants invalides.' });
+        return;
+      }
+
+      // Update last login timestamp
+      db.updateUserLastLogin(user.id);
+
+      const safeUser = sanitizeUser(user);
+      const token = generateToken(safeUser);
+
+      res.json({
+        token,
+        user: safeUser
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Erreur interne lors de la connexion.' });
+    }
+  });
+
+  // GET /api/auth/me (Protected by authenticateUser)
+  app.get('/api/auth/me', authenticateUser, (req: AuthenticatedRequest, res) => {
+    try {
+      res.json({
+        user: req.user
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Erreur lors de la récupération du profil.' });
+    }
+  });
+
+  // POST /api/auth/logout (Public / Authenticated)
+  app.post('/api/auth/logout', (req, res) => {
+    res.json({ message: 'Déconnexion réussie.' });
+  });
+
+  // --- Categories Management ---
+  // GET /api/categories (Public for menu browsing)
   app.get('/api/categories', (req, res) => {
     try {
       res.json(db.getCategories());
@@ -25,7 +93,8 @@ async function startServer() {
     }
   });
 
-  app.post('/api/categories', (req, res) => {
+  // POST /api/categories (Admin only)
+  app.post('/api/categories', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveCategory(req.body);
       res.json(saved);
@@ -34,7 +103,8 @@ async function startServer() {
     }
   });
 
-  app.put('/api/categories/:id', (req, res) => {
+  // PUT /api/categories/:id (Admin only)
+  app.put('/api/categories/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const category = { ...req.body, id: req.params.id };
       const saved = db.saveCategory(category);
@@ -44,7 +114,8 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/categories/:id', (req, res) => {
+  // DELETE /api/categories/:id (Admin only)
+  app.delete('/api/categories/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const success = db.deleteCategory(req.params.id);
       res.json({ success });
@@ -53,7 +124,8 @@ async function startServer() {
     }
   });
 
-  // Products
+  // --- Products Management ---
+  // GET /api/products (Public for catalog browsing)
   app.get('/api/products', (req, res) => {
     try {
       res.json(db.getProducts());
@@ -62,7 +134,8 @@ async function startServer() {
     }
   });
 
-  app.post('/api/products', (req, res) => {
+  // POST /api/products (Admin only)
+  app.post('/api/products', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveProduct(req.body);
       res.json(saved);
@@ -71,7 +144,8 @@ async function startServer() {
     }
   });
 
-  app.put('/api/products/:id', (req, res) => {
+  // PUT /api/products/:id (Admin only)
+  app.put('/api/products/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const prod = { ...req.body, id: req.params.id };
       const saved = db.saveProduct(prod);
@@ -81,7 +155,8 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/products/:id', (req, res) => {
+  // DELETE /api/products/:id (Admin only)
+  app.delete('/api/products/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const success = db.deleteProduct(req.params.id);
       res.json({ success });
@@ -90,7 +165,8 @@ async function startServer() {
     }
   });
 
-  // Supplements
+  // --- Supplements Management ---
+  // GET /api/supplements (Public for menu customization)
   app.get('/api/supplements', (req, res) => {
     try {
       res.json(db.getSupplements());
@@ -99,7 +175,8 @@ async function startServer() {
     }
   });
 
-  app.post('/api/supplements', (req, res) => {
+  // POST /api/supplements (Admin only)
+  app.post('/api/supplements', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveSupplement(req.body);
       res.json(saved);
@@ -108,7 +185,8 @@ async function startServer() {
     }
   });
 
-  app.put('/api/supplements/:id', (req, res) => {
+  // PUT /api/supplements/:id (Admin only)
+  app.put('/api/supplements/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const sup = { ...req.body, id: req.params.id };
       const saved = db.saveSupplement(sup);
@@ -118,7 +196,8 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/supplements/:id', (req, res) => {
+  // DELETE /api/supplements/:id (Admin only)
+  app.delete('/api/supplements/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const success = db.deleteSupplement(req.params.id);
       res.json({ success });
@@ -127,8 +206,9 @@ async function startServer() {
     }
   });
 
-  // Ingredients (Matières premières)
-  app.get('/api/ingredients', (req, res) => {
+  // --- Ingredients & Stock Management ---
+  // GET /api/ingredients (Admin & Kitchen)
+  app.get('/api/ingredients', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
     try {
       res.json(db.getIngredients());
     } catch (err: any) {
@@ -136,7 +216,8 @@ async function startServer() {
     }
   });
 
-  app.post('/api/ingredients', (req, res) => {
+  // POST /api/ingredients (Admin only)
+  app.post('/api/ingredients', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveIngredient(req.body);
       res.json(saved);
@@ -145,7 +226,8 @@ async function startServer() {
     }
   });
 
-  app.put('/api/ingredients/:id', (req, res) => {
+  // PUT /api/ingredients/:id (Admin only)
+  app.put('/api/ingredients/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const ing = { ...req.body, id: req.params.id };
       const saved = db.saveIngredient(ing);
@@ -155,7 +237,8 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/ingredients/:id', (req, res) => {
+  // DELETE /api/ingredients/:id (Admin only)
+  app.delete('/api/ingredients/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const success = db.deleteIngredient(req.params.id);
       res.json({ success });
@@ -164,19 +247,21 @@ async function startServer() {
     }
   });
 
-  // Stock Adjustments
-  app.post('/api/ingredients/:id/stock', (req, res) => {
+  // Manual Stock Adjustments (Admin only)
+  app.post('/api/ingredients/:id/stock', authenticateUser, requireRole('admin'), (req: AuthenticatedRequest, res) => {
     try {
-      const { type, quantity, notes, performedBy } = req.body;
-      if (typeof quantity !== 'number') {
-        return res.status(400).json({ error: 'Quantité invalide.' });
+      const { type, quantity, notes } = req.body;
+      if (typeof quantity !== 'number' || isNaN(quantity)) {
+        res.status(400).json({ error: 'Quantité invalide.' });
+        return;
       }
+      const performer = req.user ? `${req.user.name} (Admin)` : 'Administrateur';
       const result = db.addStockMovement({
         ingredientId: req.params.id,
         type: type || 'manual_in',
         quantity: Number(quantity),
         notes: notes || 'Ajustement manuel de stock',
-        performedBy: performedBy || 'Gestionnaire'
+        performedBy: performer
       });
       res.json(result);
     } catch (err: any) {
@@ -184,7 +269,8 @@ async function startServer() {
     }
   });
 
-  app.get('/api/stock-movements', (req, res) => {
+  // GET /api/stock-movements (Admin only)
+  app.get('/api/stock-movements', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       res.json(db.getStockMovements());
     } catch (err: any) {
@@ -192,8 +278,9 @@ async function startServer() {
     }
   });
 
-  // Drivers
-  app.get('/api/drivers', (req, res) => {
+  // --- Drivers Management ---
+  // GET /api/drivers (Admin & Kitchen)
+  app.get('/api/drivers', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
     try {
       res.json(db.getDrivers());
     } catch (err: any) {
@@ -201,7 +288,8 @@ async function startServer() {
     }
   });
 
-  app.post('/api/drivers', (req, res) => {
+  // POST /api/drivers (Admin only)
+  app.post('/api/drivers', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveDriver(req.body);
       res.json(saved);
@@ -210,7 +298,8 @@ async function startServer() {
     }
   });
 
-  app.put('/api/drivers/:id', (req, res) => {
+  // PUT /api/drivers/:id (Admin only)
+  app.put('/api/drivers/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveDriver({ ...req.body, id: req.params.id });
       res.json(saved);
@@ -219,8 +308,9 @@ async function startServer() {
     }
   });
 
-  // Suppliers
-  app.get('/api/suppliers', (req, res) => {
+  // --- Suppliers Management ---
+  // GET /api/suppliers (Admin only)
+  app.get('/api/suppliers', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       res.json(db.getSuppliers());
     } catch (err: any) {
@@ -228,7 +318,8 @@ async function startServer() {
     }
   });
 
-  app.post('/api/suppliers', (req, res) => {
+  // POST /api/suppliers (Admin only)
+  app.post('/api/suppliers', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveSupplier(req.body);
       res.json(saved);
@@ -237,7 +328,8 @@ async function startServer() {
     }
   });
 
-  app.put('/api/suppliers/:id', (req, res) => {
+  // PUT /api/suppliers/:id (Admin only)
+  app.put('/api/suppliers/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveSupplier({ ...req.body, id: req.params.id });
       res.json(saved);
@@ -246,7 +338,8 @@ async function startServer() {
     }
   });
 
-  app.delete('/api/suppliers/:id', (req, res) => {
+  // DELETE /api/suppliers/:id (Admin only)
+  app.delete('/api/suppliers/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const success = db.deleteSupplier(req.params.id);
       res.json({ success });
@@ -255,33 +348,118 @@ async function startServer() {
     }
   });
 
-  // Orders
-  app.get('/api/orders', (req, res) => {
+  // --- Users Management (Admin only) ---
+  app.get('/api/users', authenticateUser, requireRole('admin'), (req, res) => {
     try {
-      res.json(db.getOrders());
+      const users = db.getUsers().map(sanitizeUser);
+      res.json(users);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  app.get('/api/orders/:id', (req, res) => {
+  app.post('/api/users', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const order = db.getOrderById(req.params.id);
-      if (!order) {
-        return res.status(404).json({ error: 'Commande non trouvée.' });
+      const { username, name, phone, password, role, driverId, active } = req.body;
+      if (!username || !password || !role) {
+        res.status(400).json({ error: 'Champs obligatoires manquants.' });
+        return;
       }
+      const existing = db.getUserByUsername(username);
+      if (existing) {
+        res.status(400).json({ error: 'Ce nom d’utilisateur est déjà utilisé.' });
+        return;
+      }
+      const passwordHash = await hashPassword(password);
+      const newUser = db.saveUser({
+        id: 'usr-' + Date.now(),
+        username: username.trim().toLowerCase(),
+        name: name || username,
+        phone: phone || '',
+        passwordHash,
+        role,
+        driverId: role === 'driver' ? driverId : undefined,
+        active: active !== false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      res.status(201).json(sanitizeUser(newUser));
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // --- Orders Management & Role-Based Isolation ---
+
+  // GET /api/orders (Staff: Admin, Kitchen, Driver with strict server-side isolation)
+  app.get('/api/orders', authenticateUser, requireRole('admin', 'kitchen', 'driver'), (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const allOrders = db.getOrders();
+
+      if (user.role === 'admin') {
+        // Admin views all orders
+        res.json(allOrders);
+        return;
+      }
+
+      if (user.role === 'kitchen') {
+        // Kitchen views all orders except cancelled (focus on received, preparing, ready, delivering, delivered)
+        const kitchenOrders = allOrders.filter(o => o.status !== 'cancelled');
+        res.json(kitchenOrders);
+        return;
+      }
+
+      if (user.role === 'driver') {
+        // Driver strictly views only orders assigned to their driverId
+        const driverId = user.driverId;
+        if (!driverId) {
+          res.json([]);
+          return;
+        }
+        const driverOrders = allOrders.filter(o => o.assignedDriverId === driverId);
+        res.json(driverOrders);
+        return;
+      }
+
+      res.status(403).json({ error: 'Accès non autorisé.' });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/orders/:id (Staff with IDOR protection)
+  app.get('/api/orders/:id', authenticateUser, requireRole('admin', 'kitchen', 'driver'), (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const order = db.getOrderById(req.params.id);
+
+      if (!order) {
+        res.status(404).json({ error: 'Commande non trouvée.' });
+        return;
+      }
+
+      // IDOR Protection: Drivers can ONLY access their own assigned order
+      if (user.role === 'driver') {
+        if (!user.driverId || order.assignedDriverId !== user.driverId) {
+          res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
+          return;
+        }
+      }
+
       res.json(order);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
-  // Public Order Tracking by unique token
+  // Public Order Tracking by unique token (No auth required)
   app.get('/api/orders/track/:token', (req, res) => {
     try {
       const order = db.getOrderByTrackingToken(req.params.token);
       if (!order) {
-        return res.status(404).json({ error: 'Lien de suivi invalide ou commande introuvable.' });
+        res.status(404).json({ error: 'Lien de suivi invalide ou commande introuvable.' });
+        return;
       }
 
       // Safe public payload (avoids exposing private backend details while giving live status)
@@ -318,7 +496,7 @@ async function startServer() {
     }
   });
 
-  // Create Order (Calculates custom preparation, deducts stock, returns full order with tracking token)
+  // POST /api/orders (Public Client Order Creation)
   app.post('/api/orders', (req, res) => {
     try {
       const newOrder = db.createOrder(req.body);
@@ -328,26 +506,90 @@ async function startServer() {
     }
   });
 
-  // Update Order Status (Kitchen, Driver, Admin)
-  app.patch('/api/orders/:id/status', (req, res) => {
+  // PATCH /api/orders/:id/status (Protected & strictly validated by role)
+  app.patch('/api/orders/:id/status', authenticateUser, requireRole('admin', 'kitchen', 'driver'), (req: AuthenticatedRequest, res) => {
     try {
-      const { status, note, updatedBy, assignedDriverId } = req.body;
+      const user = req.user!;
+      const order = db.getOrderById(req.params.id);
+
+      if (!order) {
+        res.status(404).json({ error: 'Commande non trouvée.' });
+        return;
+      }
+
+      // IDOR Protection: Drivers can only modify their own assigned orders
+      if (user.role === 'driver') {
+        if (!user.driverId || order.assignedDriverId !== user.driverId) {
+          res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
+          return;
+        }
+      }
+
+      const { status, note, assignedDriverId } = req.body;
+
+      if (!status) {
+        res.status(400).json({ error: 'Le champ statut est requis.' });
+        return;
+      }
+
+      // Check lifecycle transition permission for the current role
+      if (!isValidStatusTransition(order.status, status, user.role)) {
+        res.status(403).json({
+          error: `Transition interdite : Le rôle '${user.role}' n'est pas autorisé à passer de '${order.status}' à '${status}'.`
+        });
+        return;
+      }
+
+      // Generate server-verified updatedBy string
+      const roleLabel = user.role === 'admin' ? 'Admin' : user.role === 'kitchen' ? 'Cuisine' : 'Livreur';
+      const verifiedUpdatedBy = `${user.name} (${roleLabel})`;
+
+      // Driver assignment can ONLY be performed by Admin
+      const validAssignedDriverId = user.role === 'admin' ? assignedDriverId : undefined;
+
       const updated = db.updateOrderStatus({
         orderId: req.params.id,
         status,
         note,
-        updatedBy,
-        assignedDriverId
+        updatedBy: verifiedUpdatedBy,
+        assignedDriverId: validAssignedDriverId
       });
+
       res.json(updated);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  // Update Order Payment Status
-  app.patch('/api/orders/:id/payment', (req, res) => {
+  // PATCH /api/orders/:id/payment (Protected: Admin or Assigned Driver only)
+  app.patch('/api/orders/:id/payment', authenticateUser, (req: AuthenticatedRequest, res) => {
     try {
+      const user = req.user!;
+      const order = db.getOrderById(req.params.id);
+
+      if (!order) {
+        res.status(404).json({ error: 'Commande non trouvée.' });
+        return;
+      }
+
+      // Kitchen is strictly forbidden from modifying payment
+      if (user.role === 'kitchen') {
+        res.status(403).json({ error: 'Accès refusé : La cuisine n’a pas l’autorisation de modifier le statut de paiement.' });
+        return;
+      }
+
+      // Driver can only confirm payment for their assigned orders and when marked as paid
+      if (user.role === 'driver') {
+        if (!user.driverId || order.assignedDriverId !== user.driverId) {
+          res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
+          return;
+        }
+        if (req.body.paymentStatus !== 'paid') {
+          res.status(400).json({ error: 'Le livreur peut uniquement enregistrer le paiement reçu (paid).' });
+          return;
+        }
+      }
+
       const { paymentStatus } = req.body;
       const updated = db.updatePaymentStatus(req.params.id, paymentStatus);
       res.json(updated);
@@ -356,8 +598,8 @@ async function startServer() {
     }
   });
 
-  // Dashboard Stats
-  app.get('/api/stats', (req, res) => {
+  // Dashboard Stats (Admin only)
+  app.get('/api/stats', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       res.json(db.getDashboardStats());
     } catch (err: any) {
@@ -365,8 +607,8 @@ async function startServer() {
     }
   });
 
-  // Reset Demo Data
-  app.post('/api/reset-demo-data', (req, res) => {
+  // Reset Demo Data (Admin only)
+  app.post('/api/reset-demo-data', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const freshData = db.resetToDefaults();
       res.json({ message: 'Données de démonstration réinitialisées avec succès.', freshData });
@@ -396,3 +638,4 @@ async function startServer() {
 }
 
 startServer();
+

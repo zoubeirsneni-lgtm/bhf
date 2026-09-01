@@ -185,7 +185,29 @@ export interface Driver {
   rating?: number;
 }
 
+export type InternalRole = 'admin' | 'kitchen' | 'driver';
 export type UserRole = 'client' | 'kitchen' | 'driver' | 'admin';
+
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  phone?: string;
+  passwordHash: string;
+  role: InternalRole;
+  driverId?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginAt?: string;
+}
+
+export type SafeUser = Omit<User, 'passwordHash'>;
+
+export interface AuthResponse {
+  token: string;
+  user: SafeUser;
+}
 
 export interface DashboardStats {
   todayOrdersCount: number;

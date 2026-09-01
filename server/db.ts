@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import {
   Category,
   Ingredient,
@@ -14,7 +15,8 @@ import {
   PaymentStatus,
   DashboardStats,
   OrderItem,
-  PreparationIngredient
+  PreparationIngredient,
+  User
 } from '../src/types';
 import {
   initialCategories,
@@ -36,6 +38,7 @@ interface DatabaseSchema {
   drivers: Driver[];
   orders: Order[];
   stockMovements: StockMovement[];
+  users: User[];
   nextOrderSeq: number;
 }
 
@@ -51,6 +54,76 @@ class DatabaseManager {
     this.init();
   }
 
+  private getDefaultUsers(): User[] {
+    const adminUsername = (process.env.INITIAL_ADMIN_USERNAME || 'admin').trim().toLowerCase();
+    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'Bebba@Admin2026!';
+    const kitchenPassword = process.env.INITIAL_KITCHEN_PASSWORD || 'Bebba@Kitchen2026!';
+    const driverPassword = process.env.INITIAL_DRIVER_PASSWORD || 'Bebba@Driver2026!';
+
+    const now = new Date().toISOString();
+
+    return [
+      {
+        id: 'usr-admin-1',
+        username: adminUsername,
+        name: 'Administrateur BEBBA',
+        phone: '+216 71 000 001',
+        passwordHash: bcrypt.hashSync(adminPassword, 10),
+        role: 'admin',
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'usr-kitchen-1',
+        username: 'cuisine',
+        name: 'Chef de Cuisine BEBBA',
+        phone: '+216 71 000 002',
+        passwordHash: bcrypt.hashSync(kitchenPassword, 10),
+        role: 'kitchen',
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'usr-driver-1',
+        username: 'livreur1',
+        name: 'Yassine Ben Amor',
+        phone: '+216 98 123 456',
+        passwordHash: bcrypt.hashSync(driverPassword, 10),
+        role: 'driver',
+        driverId: 'drv-1',
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'usr-driver-2',
+        username: 'livreur2',
+        name: 'Amine Trabelsi',
+        phone: '+216 55 987 654',
+        passwordHash: bcrypt.hashSync(driverPassword, 10),
+        role: 'driver',
+        driverId: 'drv-2',
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'usr-driver-3',
+        username: 'livreur3',
+        name: 'Karim Bouazizi',
+        phone: '+216 22 456 789',
+        passwordHash: bcrypt.hashSync(driverPassword, 10),
+        role: 'driver',
+        driverId: 'drv-3',
+        active: true,
+        createdAt: now,
+        updatedAt: now
+      }
+    ];
+  }
+
   private getDefaultData(): DatabaseSchema {
     return {
       categories: JSON.parse(JSON.stringify(initialCategories)),
@@ -61,6 +134,7 @@ class DatabaseManager {
       drivers: JSON.parse(JSON.stringify(initialDrivers)),
       orders: JSON.parse(JSON.stringify(initialOrders)),
       stockMovements: JSON.parse(JSON.stringify(initialStockMovements)),
+      users: this.getDefaultUsers(),
       nextOrderSeq: 1050
     };
   }
@@ -77,6 +151,32 @@ class DatabaseManager {
           ...this.getDefaultData(),
           ...parsed
         };
+
+        // Ensure users collection exists and default users are synchronized
+        if (!this.data.users || this.data.users.length === 0) {
+          this.data.users = this.getDefaultUsers();
+          this.persist();
+        } else {
+          let changed = false;
+          const defaultUsers = this.getDefaultUsers();
+          defaultUsers.forEach(defUser => {
+            const existingIdx = this.data.users.findIndex(u => u.username === defUser.username);
+            if (existingIdx === -1) {
+              this.data.users.push(defUser);
+              changed = true;
+            } else {
+              // Sync driverId and update hash if needed
+              if (defUser.driverId && this.data.users[existingIdx].driverId !== defUser.driverId) {
+                this.data.users[existingIdx].driverId = defUser.driverId;
+                changed = true;
+              }
+              // Sync default password hashes
+              this.data.users[existingIdx].passwordHash = defUser.passwordHash;
+              changed = true;
+            }
+          });
+          if (changed) this.persist();
+        }
       } else {
         this.persist();
       }
@@ -719,6 +819,52 @@ class DatabaseManager {
       lowStockCount,
       topSellingProducts
     };
+  }
+
+  // --- Users & Authentication ---
+  public getUsers(): User[] {
+    return this.data.users;
+  }
+
+  public getUserById(id: string): User | undefined {
+    return this.data.users.find(u => u.id === id);
+  }
+
+  public getUserByUsername(username: string): User | undefined {
+    const cleanUsername = username.trim().toLowerCase();
+    return this.data.users.find(u => u.username.toLowerCase() === cleanUsername);
+  }
+
+  public saveUser(user: User): User {
+    user.updatedAt = new Date().toISOString();
+    const idx = this.data.users.findIndex(u => u.id === user.id);
+    if (idx >= 0) {
+      this.data.users[idx] = user;
+    } else {
+      if (!user.id) user.id = 'usr-' + Date.now();
+      if (!user.createdAt) user.createdAt = new Date().toISOString();
+      this.data.users.push(user);
+    }
+    this.persist();
+    return user;
+  }
+
+  public updateUserLastLogin(id: string): void {
+    const user = this.getUserById(id);
+    if (user) {
+      user.lastLoginAt = new Date().toISOString();
+      this.persist();
+    }
+  }
+
+  public deleteUser(id: string): boolean {
+    const initialLen = this.data.users.length;
+    this.data.users = this.data.users.filter(u => u.id !== id);
+    if (this.data.users.length !== initialLen) {
+      this.persist();
+      return true;
+    }
+    return false;
   }
 }
 
