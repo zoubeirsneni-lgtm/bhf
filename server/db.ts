@@ -166,23 +166,53 @@ class DatabaseManager {
           ...parsed
         };
 
-        // If users collection does not exist or is empty in db.json, initialize with initial users
+        // Ensure default categories, ingredients, supplements, and products are present
+        let dataUpdated = false;
+
+        initialCategories.forEach(cat => {
+          if (!this.data.categories.some(c => c.id === cat.id)) {
+            this.data.categories.push(cat);
+            dataUpdated = true;
+          }
+        });
+
+        initialIngredients.forEach(ing => {
+          if (!this.data.ingredients.some(i => i.id === ing.id)) {
+            this.data.ingredients.push(ing);
+            dataUpdated = true;
+          }
+        });
+
+        initialSupplements.forEach(sup => {
+          if (!this.data.supplements.some(s => s.id === sup.id)) {
+            this.data.supplements.push(sup);
+            dataUpdated = true;
+          }
+        });
+
+        initialProducts.forEach(prod => {
+          if (!this.data.products.some(p => p.id === prod.id)) {
+            this.data.products.push(prod);
+            dataUpdated = true;
+          }
+        });
+
+        // If users collection does not exist or is empty in db.json, initialize with default users
         if (!this.data.users || this.data.users.length === 0) {
           this.data.users = this.getDefaultUsers();
-          this.persist();
+          dataUpdated = true;
         } else {
-          // Users already exist from persistent storage.
-          // NEVER overwrite or reset existing user passwordHash on reboot!
-          // Ensure driverId relation is preserved for driver accounts if missing.
-          let changed = false;
           this.data.users.forEach(u => {
             if (u.role === 'driver' && !u.driverId) {
-              if (u.username === 'livreur1') { u.driverId = 'drv-1'; changed = true; }
-              else if (u.username === 'livreur2') { u.driverId = 'drv-2'; changed = true; }
-              else if (u.username === 'livreur3') { u.driverId = 'drv-3'; changed = true; }
+              if (u.username === 'livreur1') { u.driverId = 'drv-1'; dataUpdated = true; }
+              else if (u.username === 'livreur2') { u.driverId = 'drv-2'; dataUpdated = true; }
+              else if (u.username === 'livreur3') { u.driverId = 'drv-3'; dataUpdated = true; }
             }
           });
-          if (changed) this.persist();
+        }
+
+        if (dataUpdated) {
+          this.persist();
         }
       } else {
         // Fresh database creation: initialize with default users from environment
@@ -209,28 +239,71 @@ class DatabaseManager {
 
   public resetToDefaults() {
     this.data = this.getDefaultData();
+    this.data.users = this.getDefaultUsers();
     this.persist();
     return this.data;
   }
 
   // --- Categories ---
-  public getCategories(): Category[] {
-    return this.data.categories.sort((a, b) => a.order - b.order);
+  public getCategories(options?: { activeOnly?: boolean }): Category[] {
+    let cats = [...this.data.categories];
+    if (options?.activeOnly) {
+      cats = cats.filter(c => c.active);
+    }
+    return cats.sort((a, b) => {
+      const orderA = a.sortOrder !== undefined ? a.sortOrder : (a.order || 0);
+      const orderB = b.sortOrder !== undefined ? b.sortOrder : (b.order || 0);
+      return orderA - orderB;
+    });
   }
 
-  public saveCategory(category: Category): Category {
-    const idx = this.data.categories.findIndex(c => c.id === category.id);
-    if (idx >= 0) {
-      this.data.categories[idx] = category;
-    } else {
-      if (!category.id) category.id = 'cat-' + Date.now();
-      this.data.categories.push(category);
+  public getCategoryById(id: string): Category | undefined {
+    return this.data.categories.find(c => c.id === id);
+  }
+
+  public saveCategory(category: Partial<Category> & { name: string }): Category {
+    if (!category.name || typeof category.name !== 'string' || !category.name.trim()) {
+      throw new Error('Le nom de la catégorie est obligatoire.');
     }
+
+    const now = new Date().toISOString();
+    const sortOrder = category.sortOrder !== undefined ? Number(category.sortOrder) : (category.order !== undefined ? Number(category.order) : this.data.categories.length + 1);
+    const slug = category.slug || category.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    const completeCategory: Category = {
+      id: category.id || 'cat-' + Date.now(),
+      name: category.name.trim(),
+      slug: slug || 'cat-item',
+      icon: category.icon || 'Utensils',
+      image: category.image || category.imageUrl || '',
+      imageUrl: category.imageUrl || category.image || '',
+      description: category.description || '',
+      active: category.active !== false,
+      order: sortOrder,
+      sortOrder: sortOrder,
+      createdAt: category.createdAt || now,
+      updatedAt: now
+    };
+
+    const idx = this.data.categories.findIndex(c => c.id === completeCategory.id);
+    if (idx >= 0) {
+      completeCategory.createdAt = this.data.categories[idx].createdAt || now;
+      this.data.categories[idx] = completeCategory;
+    } else {
+      this.data.categories.push(completeCategory);
+    }
+
     this.persist();
-    return category;
+    return completeCategory;
   }
 
   public deleteCategory(id: string): boolean {
+    // Check if any product is assigned to this category
+    const hasProducts = this.data.products.some(p => p.categoryId === id);
+    if (hasProducts) {
+      throw new Error('Impossible de supprimer cette catégorie car des produits y sont rattachés.');
+    }
+
     const initialLen = this.data.categories.length;
     this.data.categories = this.data.categories.filter(c => c.id !== id);
     if (this.data.categories.length !== initialLen) {
@@ -279,6 +352,7 @@ class DatabaseManager {
       this.data.ingredients[idx] = ingredient;
     } else {
       if (!ingredient.id) ingredient.id = 'ing-' + Date.now();
+      if (!ingredient.createdAt) ingredient.createdAt = new Date().toISOString();
       this.data.ingredients.push(ingredient);
     }
     this.persist();
@@ -333,58 +407,165 @@ class DatabaseManager {
   }
 
   // --- Supplements ---
-  public getSupplements(): Supplement[] {
-    return this.data.supplements;
+  public getSupplements(options?: { activeOnly?: boolean; availableOnly?: boolean }): Supplement[] {
+    let list = [...this.data.supplements];
+    if (options?.activeOnly) {
+      list = list.filter(s => s.active);
+    }
+    if (options?.availableOnly) {
+      list = list.filter(s => s.available && s.isAvailable !== false);
+    }
+    return list.sort((a, b) => {
+      const orderA = a.sortOrder !== undefined ? a.sortOrder : (a.order || 0);
+      const orderB = b.sortOrder !== undefined ? b.sortOrder : (b.order || 0);
+      return orderA - orderB;
+    });
   }
 
-  public saveSupplement(sup: Supplement): Supplement {
-    const ing = this.getIngredientById(sup.ingredientId);
-    if (ing) {
-      sup.ingredientName = ing.name;
-      sup.unit = ing.unit;
+  public getSupplementById(id: string): Supplement | undefined {
+    return this.data.supplements.find(s => s.id === id);
+  }
+
+  public saveSupplement(sup: Partial<Supplement> & { name: string; price: number }): Supplement {
+    if (!sup.name || typeof sup.name !== 'string' || !sup.name.trim()) {
+      throw new Error('Le nom du supplément est obligatoire.');
     }
-    const idx = this.data.supplements.findIndex(s => s.id === sup.id);
+    if (typeof sup.price !== 'number' || isNaN(sup.price) || sup.price < 0) {
+      throw new Error('Le prix du supplément doit être un nombre positif.');
+    }
+
+    const now = new Date().toISOString();
+    const sortOrder = sup.sortOrder !== undefined ? Number(sup.sortOrder) : (sup.order !== undefined ? Number(sup.order) : this.data.supplements.length + 1);
+    const quantityConsumed = sup.quantityConsumed !== undefined ? Number(sup.quantityConsumed) : (sup.quantity !== undefined ? Number(sup.quantity) : 100);
+
+    const ing = sup.ingredientId ? this.getIngredientById(sup.ingredientId) : undefined;
+    const isAvailable = sup.available !== false && sup.isAvailable !== false;
+
+    const completeSup: Supplement = {
+      id: sup.id || 'sup-' + Date.now(),
+      name: sup.name.trim(),
+      description: sup.description || '',
+      price: Math.round(sup.price * 10) / 10,
+      ingredientId: sup.ingredientId || (ing ? ing.id : 'ing-legumes'),
+      ingredientName: ing ? ing.name : (sup.ingredientName || 'Ingrédient'),
+      quantityConsumed: quantityConsumed,
+      quantity: quantityConsumed,
+      unit: ing ? ing.unit : (sup.unit || 'g'),
+      available: isAvailable,
+      isAvailable: isAvailable,
+      active: sup.active !== false,
+      order: sortOrder,
+      sortOrder: sortOrder,
+      createdAt: sup.createdAt || now,
+      updatedAt: now
+    };
+
+    const idx = this.data.supplements.findIndex(s => s.id === completeSup.id);
     if (idx >= 0) {
-      this.data.supplements[idx] = sup;
+      completeSup.createdAt = this.data.supplements[idx].createdAt || now;
+      this.data.supplements[idx] = completeSup;
     } else {
-      if (!sup.id) sup.id = 'sup-' + Date.now();
-      this.data.supplements.push(sup);
+      this.data.supplements.push(completeSup);
     }
+
     this.persist();
-    return sup;
+    return completeSup;
   }
 
   public deleteSupplement(id: string): boolean {
+    const initialLen = this.data.supplements.length;
     this.data.supplements = this.data.supplements.filter(s => s.id !== id);
-    this.persist();
-    return true;
+    if (this.data.supplements.length !== initialLen) {
+      this.persist();
+      return true;
+    }
+    return false;
   }
 
   // --- Products ---
-  public getProducts(): Product[] {
-    return this.data.products;
+  public getProducts(options?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Product[] {
+    let prods = [...this.data.products];
+    if (options?.categoryId && options.categoryId !== 'all') {
+      prods = prods.filter(p => p.categoryId === options.categoryId);
+    }
+    if (options?.activeOnly) {
+      prods = prods.filter(p => p.active);
+    }
+    if (options?.availableOnly) {
+      prods = prods.filter(p => p.available && p.isAvailable !== false);
+    }
+    return prods.sort((a, b) => {
+      const orderA = a.sortOrder !== undefined ? a.sortOrder : (a.order || 0);
+      const orderB = b.sortOrder !== undefined ? b.sortOrder : (b.order || 0);
+      return orderA - orderB;
+    });
   }
 
   public getProductById(id: string): Product | undefined {
     return this.data.products.find(p => p.id === id);
   }
 
-  public saveProduct(prod: Product): Product {
-    const idx = this.data.products.findIndex(p => p.id === prod.id);
-    if (idx >= 0) {
-      this.data.products[idx] = prod;
-    } else {
-      if (!prod.id) prod.id = 'prod-' + Date.now();
-      this.data.products.push(prod);
+  public saveProduct(prod: Partial<Product> & { name: string; basePrice: number; categoryId: string }): Product {
+    if (!prod.name || typeof prod.name !== 'string' || !prod.name.trim()) {
+      throw new Error('Le nom du produit est obligatoire.');
     }
+    if (typeof prod.basePrice !== 'number' || isNaN(prod.basePrice) || prod.basePrice < 0) {
+      throw new Error('Le prix de base du produit doit être un nombre positif.');
+    }
+    if (!prod.categoryId) {
+      throw new Error('La catégorie du produit est obligatoire.');
+    }
+
+    const now = new Date().toISOString();
+    const sortOrder = prod.sortOrder !== undefined ? Number(prod.sortOrder) : (prod.order !== undefined ? Number(prod.order) : this.data.products.length + 1);
+    const isAvailable = prod.available !== false && prod.isAvailable !== false;
+
+    const completeProduct: Product = {
+      id: prod.id || 'prod-' + Date.now(),
+      name: prod.name.trim(),
+      description: prod.description || '',
+      categoryId: prod.categoryId,
+      basePrice: Math.round(prod.basePrice * 10) / 10,
+      imageUrl: prod.imageUrl || prod.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80',
+      image: prod.imageUrl || prod.image || '',
+      calories: prod.calories,
+      proteinGrams: prod.proteinGrams,
+      carbsGrams: prod.carbsGrams,
+      fatGrams: prod.fatGrams,
+      active: prod.active !== false,
+      available: isAvailable,
+      isAvailable: isAvailable,
+      isPopular: prod.isPopular || false,
+      order: sortOrder,
+      sortOrder: sortOrder,
+      createdAt: prod.createdAt || now,
+      updatedAt: now,
+      baseIngredients: Array.isArray(prod.baseIngredients) ? prod.baseIngredients : [],
+      customization: prod.customization || {
+        allowedSupplementIds: []
+      }
+    };
+
+    const idx = this.data.products.findIndex(p => p.id === completeProduct.id);
+    if (idx >= 0) {
+      completeProduct.createdAt = this.data.products[idx].createdAt || now;
+      this.data.products[idx] = completeProduct;
+    } else {
+      this.data.products.push(completeProduct);
+    }
+
     this.persist();
-    return prod;
+    return completeProduct;
   }
 
   public deleteProduct(id: string): boolean {
+    const initialLen = this.data.products.length;
     this.data.products = this.data.products.filter(p => p.id !== id);
-    this.persist();
-    return true;
+    if (this.data.products.length !== initialLen) {
+      this.persist();
+      return true;
+    }
+    return false;
   }
 
   // --- Drivers ---
@@ -406,22 +587,67 @@ class DatabaseManager {
 
   // --- Order Computation & Creation ---
   public computePreparationSheet(
-    product: Product,
-    proteinOption?: { label: string; extraPrice: number; extraGrams: number },
+    productOrId: Product | string,
+    proteinOptionOrOptions?: any,
     veggiesOption?: { label: string; extraPrice: number; extraGrams: number },
     baseChoice?: { label: string; extraPrice: number },
     supplements: Array<{ id: string; quantity: number }> = [],
     specialInstructions?: string
   ): {
     totalIngredients: PreparationIngredient[];
+    ingredientConsumptions: PreparationIngredient[];
     summaryLines: string[];
     enrichedSupplements: any[];
     itemPrice: number;
+    unitPrice: number;
+    itemTotalPrice: number;
   } {
+    const product: Product | undefined =
+      typeof productOrId === 'string'
+        ? this.getProductById(productOrId)
+        : productOrId;
+
+    if (!product) {
+      throw new Error(`Produit introuvable pour la préparation.`);
+    }
+
+    let actualProteinOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
+    let actualVeggiesOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
+    let actualBaseChoice: { label: string; extraPrice: number } | undefined = undefined;
+    let actualSupplements: Array<{ id: string; quantity: number }> = [];
+    let actualSpecialInstructions: string | undefined = undefined;
+    let quantityMultiplier = 1;
+
+    // Check if options passed as single configuration object
+    if (
+      proteinOptionOrOptions &&
+      typeof proteinOptionOrOptions === 'object' &&
+      ('proteinOption' in proteinOptionOrOptions ||
+        'supplements' in proteinOptionOrOptions ||
+        'quantity' in proteinOptionOrOptions ||
+        'baseChoice' in proteinOptionOrOptions ||
+        'veggiesOption' in proteinOptionOrOptions)
+    ) {
+      actualProteinOption = proteinOptionOrOptions.proteinOption;
+      actualVeggiesOption = proteinOptionOrOptions.veggiesOption;
+      actualBaseChoice = proteinOptionOrOptions.baseChoice;
+      actualSupplements = proteinOptionOrOptions.supplements || [];
+      actualSpecialInstructions = proteinOptionOrOptions.specialInstructions;
+      quantityMultiplier = Number(proteinOptionOrOptions.quantity) || 1;
+    } else {
+      actualProteinOption = proteinOptionOrOptions;
+      actualVeggiesOption = veggiesOption;
+      actualBaseChoice = baseChoice;
+      actualSupplements = supplements || [];
+      actualSpecialInstructions = specialInstructions;
+      quantityMultiplier = 1;
+    }
+
     const ingredientMap = new Map<string, { name: string; quantity: number; unit: string }>();
 
-    // 1. Base recipe ingredients
-    for (const base of product.baseIngredients) {
+    // 1. Base recipe ingredients (safe array fallback)
+    const baseIngredientsList = product.baseIngredients || [];
+    for (const base of baseIngredientsList) {
       ingredientMap.set(base.ingredientId, {
         name: base.ingredientName,
         quantity: base.quantity,
@@ -430,72 +656,88 @@ class DatabaseManager {
     }
 
     // 2. Extra protein option grams
-    if (proteinOption && proteinOption.extraGrams > 0) {
-      // Find main protein ingredient (e.g. poulet or boeuf)
-      const proteinBase = product.baseIngredients.find(b => b.ingredientId.includes('poulet') || b.ingredientId.includes('boeuf') || b.ingredientId.includes('halloumi'));
+    if (actualProteinOption && actualProteinOption.extraGrams > 0) {
+      const proteinBase = baseIngredientsList.find(b =>
+        b.ingredientId.includes('poulet') ||
+        b.ingredientId.includes('boeuf') ||
+        b.ingredientId.includes('dinde') ||
+        b.ingredientId.includes('saumon') ||
+        b.ingredientId.includes('halloumi') ||
+        b.ingredientId.includes('ing-1') ||
+        b.ingredientId.includes('ing-2') ||
+        b.ingredientId.includes('ing-3')
+      );
       if (proteinBase) {
         const existing = ingredientMap.get(proteinBase.ingredientId);
         if (existing) {
-          existing.quantity += proteinOption.extraGrams;
+          existing.quantity += actualProteinOption.extraGrams;
         }
       }
     }
 
     // 3. Extra veggies option grams
-    if (veggiesOption && veggiesOption.extraGrams > 0) {
-      const veggiesBase = product.baseIngredients.find(b => b.ingredientId.includes('legumes'));
+    if (actualVeggiesOption && actualVeggiesOption.extraGrams > 0) {
+      const veggiesBase = baseIngredientsList.find(b =>
+        b.ingredientId.includes('legumes') || b.ingredientId.includes('ing-4') || b.ingredientId.includes('ing-5')
+      );
       if (veggiesBase) {
         const existing = ingredientMap.get(veggiesBase.ingredientId);
         if (existing) {
-          existing.quantity += veggiesOption.extraGrams;
+          existing.quantity += actualVeggiesOption.extraGrams;
         }
       }
     }
 
     // 4. Base choice replacements if applicable
-    if (baseChoice && baseChoice.label.includes('Quinoa')) {
-      // replace rice with quinoa
-      const riceBase = product.baseIngredients.find(b => b.ingredientId === 'ing-riz');
+    if (actualBaseChoice && actualBaseChoice.label.includes('Quinoa')) {
+      const riceBase = baseIngredientsList.find(b => b.ingredientId === 'ing-riz' || b.ingredientId === 'ing-6');
       if (riceBase) {
         const qty = riceBase.quantity;
-        ingredientMap.delete('ing-riz');
+        ingredientMap.delete(riceBase.ingredientId);
         ingredientMap.set('ing-quinoa', {
           name: 'Quinoa royal aux graines',
           quantity: qty,
           unit: 'g'
         });
       }
-    } else if (baseChoice && baseChoice.label.includes('Patates douces')) {
-      const riceBase = product.baseIngredients.find(b => b.ingredientId === 'ing-riz');
+    } else if (actualBaseChoice && actualBaseChoice.label.includes('Patates douces')) {
+      const riceBase = baseIngredientsList.find(b => b.ingredientId === 'ing-riz' || b.ingredientId === 'ing-6');
       if (riceBase) {
         const qty = riceBase.quantity;
-        ingredientMap.delete('ing-riz');
+        ingredientMap.delete(riceBase.ingredientId);
         ingredientMap.set('ing-patate-douce', {
           name: 'Patates douces rôties au romarin',
           quantity: qty,
           unit: 'g'
         });
       }
-    } else if (baseChoice && baseChoice.label.includes('100% Légumes')) {
-      const riceBase = product.baseIngredients.find(b => b.ingredientId === 'ing-riz' || b.ingredientId === 'ing-patate-douce');
+    } else if (actualBaseChoice && actualBaseChoice.label.includes('100% Légumes')) {
+      const riceBase = baseIngredientsList.find(b => b.ingredientId === 'ing-riz' || b.ingredientId === 'ing-6' || b.ingredientId === 'ing-patate-douce');
       if (riceBase) {
         const qty = riceBase.quantity;
         ingredientMap.delete(riceBase.ingredientId);
-        const leg = ingredientMap.get('ing-legumes');
+        const leg = ingredientMap.get('ing-legumes') || ingredientMap.get('ing-5');
         if (leg) {
           leg.quantity += qty;
         }
       }
     }
 
-    // 5. Supplements
+    // 5. Supplements calculation & stock tracking
     const enrichedSupplements: any[] = [];
     let supplementsPrice = 0;
 
-    for (const itemSup of supplements) {
+    for (const itemSup of actualSupplements) {
       const supDef = this.getSupplements().find(s => s.id === itemSup.id);
       if (supDef && itemSup.quantity > 0) {
-        const totalSupQty = supDef.quantityConsumed * itemSup.quantity;
+        if (!supDef.active) {
+          throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
+        }
+        if (supDef.available === false || supDef.isAvailable === false) {
+          throw new Error(`Le supplément "${supDef.name}" est actuellement indisponible.`);
+        }
+
+        const totalSupQty = (supDef.quantityConsumed || supDef.quantity || 100) * itemSup.quantity;
         supplementsPrice += supDef.price * itemSup.quantity;
 
         const existing = ingredientMap.get(supDef.ingredientId);
@@ -503,9 +745,9 @@ class DatabaseManager {
           existing.quantity += totalSupQty;
         } else {
           ingredientMap.set(supDef.ingredientId, {
-            name: supDef.ingredientName,
+            name: supDef.ingredientName || supDef.name,
             quantity: totalSupQty,
-            unit: supDef.unit
+            unit: supDef.unit || 'g'
           });
         }
 
@@ -515,21 +757,23 @@ class DatabaseManager {
           price: supDef.price,
           quantity: itemSup.quantity,
           ingredientId: supDef.ingredientId,
-          ingredientName: supDef.ingredientName,
+          ingredientName: supDef.ingredientName || supDef.name,
           quantityConsumed: totalSupQty,
-          unit: supDef.unit
+          unit: supDef.unit || 'g'
         });
       }
     }
 
-    // Calculate total price
-    const proteinExtraPrice = proteinOption ? proteinOption.extraPrice : 0;
-    const veggiesExtraPrice = veggiesOption ? veggiesOption.extraPrice : 0;
-    const baseExtraPrice = baseChoice ? baseChoice.extraPrice : 0;
-    const itemPrice = product.basePrice + proteinExtraPrice + veggiesExtraPrice + baseExtraPrice + supplementsPrice;
+    // Calculate unit price and total item price
+    const proteinExtraPrice = actualProteinOption ? (actualProteinOption.extraPrice || 0) : 0;
+    const veggiesExtraPrice = actualVeggiesOption ? (actualVeggiesOption.extraPrice || 0) : 0;
+    const baseExtraPrice = actualBaseChoice ? (actualBaseChoice.extraPrice || 0) : 0;
+    const unitPrice = Math.round((product.basePrice + proteinExtraPrice + veggiesExtraPrice + baseExtraPrice + supplementsPrice) * 10) / 10;
+    const itemTotalPrice = Math.round(unitPrice * quantityMultiplier * 10) / 10;
 
-    // Formatted list for kitchen
+    // Formatted list for single unit & total consumed
     const totalIngredients: PreparationIngredient[] = [];
+    const ingredientConsumptions: PreparationIngredient[] = [];
     const summaryLines: string[] = [];
 
     ingredientMap.forEach((val, key) => {
@@ -540,10 +784,21 @@ class DatabaseManager {
         unit: val.unit
       });
 
+      ingredientConsumptions.push({
+        ingredientId: key,
+        ingredientName: val.name,
+        totalQuantity: Math.round(val.quantity * quantityMultiplier * 10) / 10,
+        unit: val.unit
+      });
+
       const icon = val.name.includes('Poulet')
         ? '🍗'
         : val.name.includes('Bœuf')
         ? '🥩'
+        : val.name.includes('Dinde')
+        ? '🍗'
+        : val.name.includes('Saumon')
+        ? '🐟'
         : val.name.includes('Riz') || val.name.includes('Quinoa')
         ? '🍚'
         : val.name.includes('Légumes')
@@ -558,18 +813,21 @@ class DatabaseManager {
         ? '🥣'
         : '🌿';
 
-      summaryLines.push(`${icon} ${val.name}: ${Math.round(val.quantity)} ${val.unit}`);
+      summaryLines.push(`${icon} ${val.name}: ${Math.round(val.quantity * quantityMultiplier)} ${val.unit}`);
     });
 
-    if (specialInstructions && specialInstructions.trim()) {
-      summaryLines.push(`⚠️ NOTE CLIENT: « ${specialInstructions.trim()} »`);
+    if (actualSpecialInstructions && actualSpecialInstructions.trim()) {
+      summaryLines.push(`⚠️ NOTE CLIENT: « ${actualSpecialInstructions.trim()} »`);
     }
 
     return {
       totalIngredients,
+      ingredientConsumptions,
       summaryLines,
       enrichedSupplements,
-      itemPrice
+      itemPrice: unitPrice,
+      unitPrice,
+      itemTotalPrice
     };
   }
 
@@ -582,7 +840,7 @@ class DatabaseManager {
       proteinOption?: { label: string; extraPrice: number; extraGrams: number };
       veggiesOption?: { label: string; extraPrice: number; extraGrams: number };
       baseChoice?: { label: string; extraPrice: number };
-      supplements: Array<{ id: string; quantity: number }>;
+      supplements?: Array<{ id: string; quantity: number }>;
       specialInstructions?: string;
     }>;
   }): Order {
@@ -604,7 +862,17 @@ class DatabaseManager {
     for (const rawItem of payload.items) {
       const product = this.getProductById(rawItem.productId);
       if (!product) {
-        throw new Error(`Produit #${rawItem.productId} non trouvé.`);
+        throw new Error(`Produit #${rawItem.productId} introuvable.`);
+      }
+
+      // Check product active status
+      if (!product.active) {
+        throw new Error(`Le produit "${product.name}" n'est plus actif au catalogue.`);
+      }
+
+      // Check product availability
+      if (product.available === false || product.isAvailable === false) {
+        throw new Error(`Le produit "${product.name}" est actuellement indisponible / en rupture de stock.`);
       }
 
       const prep = this.computePreparationSheet(
@@ -612,12 +880,12 @@ class DatabaseManager {
         rawItem.proteinOption,
         rawItem.veggiesOption,
         rawItem.baseChoice,
-        rawItem.supplements,
+        rawItem.supplements || [],
         rawItem.specialInstructions
       );
 
       const qty = Math.max(1, rawItem.quantity || 1);
-      const itemTotalPrice = prep.itemPrice * qty;
+      const itemTotalPrice = Math.round(prep.itemPrice * qty * 10) / 10;
       subtotal += itemTotalPrice;
 
       computedItems.push({

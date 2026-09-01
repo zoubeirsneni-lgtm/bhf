@@ -10,10 +10,15 @@ export interface Category {
   id: string;
   name: string;
   slug: string;
-  icon: string;
+  icon?: string;
+  image?: string;
+  imageUrl?: string;
   description: string;
   active: boolean;
   order: number;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Ingredient {
@@ -26,6 +31,7 @@ export interface Ingredient {
   supplierId?: string;
   supplierName?: string;
   category?: string;
+  createdAt?: string;
   updatedAt: string;
 }
 
@@ -53,9 +59,15 @@ export interface Supplement {
   ingredientId: string;
   ingredientName: string;
   quantityConsumed: number;
+  quantity?: number;
   unit: string;
   available: boolean;
+  isAvailable?: boolean;
   active: boolean;
+  order?: number;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BaseIngredient {
@@ -88,13 +100,19 @@ export interface Product {
   categoryId: string;
   basePrice: number; // in DT
   imageUrl: string;
+  image?: string;
   calories?: number;
   proteinGrams?: number;
   carbsGrams?: number;
   fatGrams?: number;
   active: boolean;
   isAvailable: boolean;
+  available?: boolean;
   isPopular?: boolean;
+  order?: number;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
   baseIngredients: BaseIngredient[];
   customization: ProductCustomizationConfig;
 }

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Product } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { cleanClientText } from '../../utils/clientFormatters';
 import { Plus, Flame, Sparkles, Utensils, ShoppingBag } from 'lucide-react';
 
 interface ProductCardProps {
@@ -8,12 +9,16 @@ interface ProductCardProps {
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
-  const { setSelectedProductForCustomization, addToCart } = useApp();
+  const { setSelectedProductForCustomization, addToCart, openProductDetail } = useApp();
+  const isOutOfStock = product.available === false || product.isAvailable === false;
 
   return (
     <article
       id={`product-card-${product.id}`}
-      className="bg-white rounded-3xl overflow-hidden border border-stone-200/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative"
+      onClick={() => openProductDetail(product.id)}
+      className={`bg-white rounded-3xl overflow-hidden border border-stone-200/80 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col group relative cursor-pointer ${
+        isOutOfStock ? 'opacity-75' : ''
+      }`}
     >
       {/* Image container */}
       <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-100">
@@ -24,6 +29,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           loading="lazy"
           referrerPolicy="no-referrer"
         />
+
+        {/* Out of stock overlay */}
+        {isOutOfStock && (
+          <div className="absolute inset-0 bg-stone-950/60 backdrop-blur-xs flex items-center justify-center z-20">
+            <span className="px-3.5 py-1.5 rounded-full bg-rose-600 text-white text-xs font-extrabold tracking-wide uppercase shadow-lg">
+              Épuisé / Indisponible
+            </span>
+          </div>
+        )}
 
         {/* Nutritional badge */}
         {(product.calories || product.proteinGrams) && (
@@ -41,7 +55,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </div>
         )}
 
-        {product.isPopular && (
+        {product.isPopular && !isOutOfStock && (
           <div className="absolute top-3 right-3 z-10">
             <span className="px-2.5 py-1 rounded-full bg-amber-500 text-stone-950 text-[11px] font-extrabold flex items-center gap-1 shadow-md">
               <Sparkles className="w-3 h-3" />
@@ -75,7 +89,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                   key={ing.ingredientId}
                   className="inline-block px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 text-[11px] font-medium"
                 >
-                  {ing.ingredientName.split(' ')[0]} ({ing.quantity}{ing.unit})
+                  {cleanClientText(ing.ingredientName.split(' ')[0])}
                 </span>
               ))}
               {product.baseIngredients.length > 3 && (
@@ -89,40 +103,56 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
         {/* CTA Actions */}
         <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <button
-            id={`btn-order-${product.id}`}
-            onClick={() => {
-              const defaultProtein = product.customization?.proteinOptions?.[0];
-              const defaultVeggies = product.customization?.veggiesOptions?.[0];
-              const defaultBase = product.customization?.baseChoices?.[0];
-              const extraCost = (defaultProtein?.extraPrice || 0) + (defaultVeggies?.extraPrice || 0) + (defaultBase?.extraPrice || 0);
-              const unitPrice = product.basePrice + extraCost;
+          {isOutOfStock ? (
+            <button
+              disabled
+              onClick={e => e.stopPropagation()}
+              className="w-full py-2.5 rounded-xl bg-stone-200 text-stone-500 text-xs sm:text-sm font-bold cursor-not-allowed text-center"
+            >
+              Victime de son succès
+            </button>
+          ) : (
+            <>
+              <button
+                id={`btn-order-${product.id}`}
+                onClick={e => {
+                  e.stopPropagation();
+                  const defaultProtein = product.customization?.proteinOptions?.[0];
+                  const defaultVeggies = product.customization?.veggiesOptions?.[0];
+                  const defaultBase = product.customization?.baseChoices?.[0];
+                  const extraCost = (defaultProtein?.extraPrice || 0) + (defaultVeggies?.extraPrice || 0) + (defaultBase?.extraPrice || 0);
+                  const unitPrice = product.basePrice + extraCost;
 
-              addToCart({
-                product,
-                quantity: 1,
-                proteinOption: defaultProtein,
-                veggiesOption: defaultVeggies,
-                baseChoice: defaultBase,
-                supplements: [],
-                specialInstructions: '',
-                itemTotalPrice: unitPrice
-              });
-            }}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <ShoppingBag className="w-4 h-4" />
-            <span>Commander</span>
-          </button>
+                  addToCart({
+                    product,
+                    quantity: 1,
+                    proteinOption: defaultProtein,
+                    veggiesOption: defaultVeggies,
+                    baseChoice: defaultBase,
+                    supplements: [],
+                    specialInstructions: '',
+                    itemTotalPrice: unitPrice
+                  });
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>Commander</span>
+              </button>
 
-          <button
-            id={`btn-customize-${product.id}`}
-            onClick={() => setSelectedProductForCustomization(product)}
-            className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-stone-100 hover:bg-emerald-50 hover:text-emerald-800 active:bg-emerald-100 border border-stone-200 hover:border-emerald-300 text-stone-800 text-xs sm:text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
-          >
-            <Plus className="w-4 h-4 text-emerald-600" />
-            <span>Personnaliser</span>
-          </button>
+              <button
+                id={`btn-customize-${product.id}`}
+                onClick={e => {
+                  e.stopPropagation();
+                  setSelectedProductForCustomization(product);
+                }}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-stone-100 hover:bg-emerald-50 hover:text-emerald-800 active:bg-emerald-100 border border-stone-200 hover:border-emerald-300 text-stone-800 text-xs sm:text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <Plus className="w-4 h-4 text-emerald-600" />
+                <span>Personnaliser</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
     </article>

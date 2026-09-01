@@ -4,6 +4,7 @@ import { ClientHeader } from './ClientHeader';
 import { HeroSection } from './HeroSection';
 import { ProductCard } from './ProductCard';
 import { ProductModal } from './ProductModal';
+import { ProductDetailView } from './ProductDetailView';
 import { CartDrawer } from './CartDrawer';
 import { OrderTrackingView } from './OrderTrackingView';
 import {
@@ -21,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export const ClientView: React.FC = () => {
-  const { categories, products, activeClientTab } = useApp();
+  const { categories, products, activeClientTab, selectedProductId } = useApp();
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const menuSectionRef = useRef<HTMLDivElement>(null);
@@ -65,6 +66,10 @@ export const ClientView: React.FC = () => {
 
         {activeClientTab === 'tracking' ? (
           <OrderTrackingView />
+        ) : selectedProductId ? (
+          <main className="py-4">
+            <ProductDetailView productId={selectedProductId} />
+          </main>
         ) : (
           <main>
             {/* Hero Section */}

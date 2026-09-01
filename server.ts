@@ -91,7 +91,22 @@ async function startServer() {
   // GET /api/categories (Public for menu browsing)
   app.get('/api/categories', (req, res) => {
     try {
-      res.json(db.getCategories());
+      const activeOnly = req.query.activeOnly === 'true' || req.query.active === 'true';
+      res.json(db.getCategories({ activeOnly }));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/categories/:id
+  app.get('/api/categories/:id', (req, res) => {
+    try {
+      const cat = db.getCategoryById(req.params.id);
+      if (!cat) {
+        res.status(404).json({ error: 'Catégorie non trouvée.' });
+        return;
+      }
+      res.json(cat);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -101,7 +116,7 @@ async function startServer() {
   app.post('/api/categories', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveCategory(req.body);
-      res.json(saved);
+      res.status(201).json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -132,7 +147,24 @@ async function startServer() {
   // GET /api/products (Public for catalog browsing)
   app.get('/api/products', (req, res) => {
     try {
-      res.json(db.getProducts());
+      const categoryId = req.query.categoryId as string | undefined;
+      const activeOnly = req.query.activeOnly === 'true' || req.query.active === 'true';
+      const availableOnly = req.query.availableOnly === 'true' || req.query.available === 'true';
+      res.json(db.getProducts({ categoryId, activeOnly, availableOnly }));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/products/:id
+  app.get('/api/products/:id', (req, res) => {
+    try {
+      const prod = db.getProductById(req.params.id);
+      if (!prod) {
+        res.status(404).json({ error: 'Produit non trouvé.' });
+        return;
+      }
+      res.json(prod);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -142,7 +174,7 @@ async function startServer() {
   app.post('/api/products', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveProduct(req.body);
-      res.json(saved);
+      res.status(201).json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
@@ -173,7 +205,23 @@ async function startServer() {
   // GET /api/supplements (Public for menu customization)
   app.get('/api/supplements', (req, res) => {
     try {
-      res.json(db.getSupplements());
+      const activeOnly = req.query.activeOnly === 'true' || req.query.active === 'true';
+      const availableOnly = req.query.availableOnly === 'true' || req.query.available === 'true';
+      res.json(db.getSupplements({ activeOnly, availableOnly }));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/supplements/:id
+  app.get('/api/supplements/:id', (req, res) => {
+    try {
+      const sup = db.getSupplementById(req.params.id);
+      if (!sup) {
+        res.status(404).json({ error: 'Supplément non trouvé.' });
+        return;
+      }
+      res.json(sup);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -183,7 +231,7 @@ async function startServer() {
   app.post('/api/supplements', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const saved = db.saveSupplement(req.body);
-      res.json(saved);
+      res.status(201).json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }

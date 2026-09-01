@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product, Ingredient, Order, OrderStatus } from '../../types';
+import { CatalogManager } from './CatalogManager';
 import {
   ShieldCheck,
   TrendingUp,
@@ -31,8 +32,8 @@ export const AdminView: React.FC = () => {
     orders,
     drivers,
     supplements,
-    restockIngredient,
-    updateProduct,
+    adjustStock,
+    saveProduct,
     updateOrderStatus,
     showToast,
     resetDemoData
@@ -88,7 +89,7 @@ export const AdminView: React.FC = () => {
     if (!qty || qty <= 0) return;
     try {
       setIsRestocking(ing.id);
-      await restockIngredient(ing.id, Number(qty));
+      await adjustStock(ing.id, 'restock', Number(qty), 'Réapprovisionnement manuel cuisine');
       setRestockAmount(prev => ({ ...prev, [ing.id]: 0 }));
       showToast('Stock réapprovisionné', `+${qty} ${ing.unit} ajoutés à "${ing.name}".`, 'success');
     } catch (err: any) {
@@ -100,7 +101,7 @@ export const AdminView: React.FC = () => {
 
   const toggleProductActive = async (product: Product) => {
     try {
-      await updateProduct(product.id, { active: !product.active });
+      await saveProduct({ ...product, active: !product.active });
       showToast(
         product.active ? 'Produit masqué' : 'Produit activé',
         `Le plat "${product.name}" a été mis à jour sur le menu client.`,
@@ -554,49 +555,7 @@ export const AdminView: React.FC = () => {
 
       {/* 4. CATALOG MANAGEMENT TAB */}
       {activeAdminTab === 'catalog' && (
-        <div className="bg-white rounded-3xl border border-stone-200 p-6 space-y-6 shadow-xs">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-stone-900 font-display">Catalogue Plats &amp; Suppléments</h2>
-              <p className="text-xs text-stone-500">Activer ou désactiver les plats en vente.</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {products.map(product => (
-              <div
-                key={product.id}
-                className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
-                  product.active ? 'border-stone-200 bg-white' : 'border-stone-200 bg-stone-100 opacity-60'
-                }`}
-              >
-                <div>
-                  <div className="flex items-start justify-between gap-2">
-                    <h4 className="font-bold text-sm text-stone-900">{product.name}</h4>
-                    <span className="font-extrabold text-sm text-emerald-700">{product.basePrice.toFixed(1)} DT</span>
-                  </div>
-                  <p className="text-xs text-stone-500 mt-1 line-clamp-2">{product.description}</p>
-                </div>
-
-                <div className="pt-4 flex items-center justify-between border-t border-stone-100 mt-3">
-                  <span className={`text-[11px] font-bold ${product.active ? 'text-emerald-700' : 'text-stone-500'}`}>
-                    {product.active ? '● Actif au menu' : '○ Masqué'}
-                  </span>
-                  <button
-                    onClick={() => toggleProductActive(product)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
-                      product.active
-                        ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-700'
-                    }`}
-                  >
-                    {product.active ? 'Désactiver' : 'Activer'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <CatalogManager />
       )}
 
     </div>

@@ -72,6 +72,12 @@ interface AppContextType {
   selectedProductForCustomization: Product | null;
   setSelectedProductForCustomization: (p: Product | null) => void;
 
+  // Detailed Product View Navigation
+  selectedProductId: string | null;
+  setSelectedProductId: (id: string | null) => void;
+  openProductDetail: (id: string) => void;
+  backToMenu: () => void;
+
   // Tracking
   activeTrackingToken: string | null;
   setActiveTrackingToken: (token: string | null) => void;
@@ -153,6 +159,56 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
   const [selectedProductForCustomization, setSelectedProductForCustomization] = useState<Product | null>(null);
+
+  // Detailed Product View Navigation
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname;
+      if (path.startsWith('/menu/')) {
+        const id = path.replace('/menu/', '').trim();
+        return id || null;
+      }
+      if (window.location.hash.startsWith('#/menu/')) {
+        return window.location.hash.replace('#/menu/', '').trim() || null;
+      }
+    }
+    return null;
+  });
+
+  const openProductDetail = useCallback((id: string) => {
+    setSelectedProductId(id);
+    setActiveClientTab('menu');
+    try {
+      window.history.pushState({ productId: id }, '', `/menu/${id}`);
+    } catch (e) {}
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
+  const backToMenu = useCallback(() => {
+    setSelectedProductId(null);
+    try {
+      window.history.pushState({}, '', '/');
+    } catch (e) {}
+  }, []);
+
+  // Listen to browser Back/Forward (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path.startsWith('/menu/')) {
+        const id = path.replace('/menu/', '').trim();
+        setSelectedProductId(id || null);
+        setActiveClientTab('menu');
+      } else {
+        setSelectedProductId(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Active tracking
   const [activeTrackingToken, setActiveTrackingToken] = useState<string | null>(() => {
@@ -561,6 +617,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIsCartOpen,
         selectedProductForCustomization,
         setSelectedProductForCustomization,
+        selectedProductId,
+        setSelectedProductId,
+        openProductDetail,
+        backToMenu,
         activeTrackingToken,
         setActiveTrackingToken,
         activeTrackingOrder,

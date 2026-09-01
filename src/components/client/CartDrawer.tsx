@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { cleanClientText } from '../../utils/clientFormatters';
 import {
   X,
   Trash2,
@@ -129,21 +130,21 @@ export const CartDrawer: React.FC = () => {
                             <div className="flex items-center gap-1 text-[11px]">
                               <span className="text-stone-400">•</span>
                               <span className="font-medium text-stone-700">Protéine :</span>
-                              <span>{item.proteinOption.label}</span>
+                              <span>{cleanClientText(item.proteinOption.label)}</span>
                             </div>
                           )}
                           {item.baseChoice && (
                             <div className="flex items-center gap-1 text-[11px]">
                               <span className="text-stone-400">•</span>
                               <span className="font-medium text-stone-700">Base :</span>
-                              <span>{item.baseChoice.label}</span>
+                              <span>{cleanClientText(item.baseChoice.label)}</span>
                             </div>
                           )}
                           {item.veggiesOption && (
                             <div className="flex items-center gap-1 text-[11px]">
                               <span className="text-stone-400">•</span>
                               <span className="font-medium text-stone-700">Légumes :</span>
-                              <span>{item.veggiesOption.label}</span>
+                              <span>{cleanClientText(item.veggiesOption.label)}</span>
                             </div>
                           )}
                           {(item.supplements || []).length > 0 && (
@@ -152,7 +153,7 @@ export const CartDrawer: React.FC = () => {
                               <span className="font-medium">Suppléments :</span>
                               <span>
                                 {(item.supplements || [])
-                                  .map(s => `${s.supplement.name} (x${s.quantity})`)
+                                  .map(s => `${cleanClientText(s.supplement.name)} (x${s.quantity})`)
                                   .join(', ')}
                               </span>
                             </div>

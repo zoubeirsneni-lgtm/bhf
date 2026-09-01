@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Order, OrderStatus } from '../../types';
+import { cleanClientText } from '../../utils/clientFormatters';
 import {
   CheckCircle2,
   Clock,
@@ -453,17 +454,17 @@ export const OrderTrackingView: React.FC = () => {
                     {/* Customizations */}
                     <div className="text-xs text-stone-600 space-y-0.5 bg-stone-50 p-2.5 rounded-xl">
                       {item.proteinOption && (
-                        <p>• Protéine : <strong className="text-stone-800">{item.proteinOption.label}</strong></p>
+                        <p>• Protéine : <strong className="text-stone-800">{cleanClientText(item.proteinOption.label)}</strong></p>
                       )}
                       {item.baseChoice && (
-                        <p>• Base : <strong className="text-stone-800">{item.baseChoice.label}</strong></p>
+                        <p>• Base : <strong className="text-stone-800">{cleanClientText(item.baseChoice.label)}</strong></p>
                       )}
                       {item.veggiesOption && (
-                        <p>• Légumes : <strong className="text-stone-800">{item.veggiesOption.label}</strong></p>
+                        <p>• Légumes : <strong className="text-stone-800">{cleanClientText(item.veggiesOption.label)}</strong></p>
                       )}
                       {item.supplements && item.supplements.length > 0 && (
                         <p className="text-emerald-800 font-medium">
-                          • Suppléments : {item.supplements.map(s => `${s.name} (x${s.quantity})`).join(', ')}
+                          • Suppléments : {item.supplements.map(s => `${cleanClientText(s.name)} (x${s.quantity})`).join(', ')}
                         </p>
                       )}
                       {item.specialInstructions && (

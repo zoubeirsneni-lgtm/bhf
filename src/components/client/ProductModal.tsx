@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Product, Supplement } from '../../types';
+import { cleanClientText, cleanClientDescription } from '../../utils/clientFormatters';
 import {
   X,
   Plus,
@@ -178,9 +179,9 @@ export const ProductModal: React.FC = () => {
           <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/70 text-xs text-emerald-900 flex items-start gap-2.5">
             <ChefHat className="w-5 h-5 text-emerald-700 flex-shrink-0 mt-0.5" />
             <div>
-              <strong className="font-bold">Composition de base (pesée cuisine) :</strong>
+              <strong className="font-bold">Composition de base :</strong>
               <p className="mt-0.5 text-stone-700">
-                {product.baseIngredients.map(i => `${i.ingredientName.split(' ')[0]} (${i.quantity}${i.unit})`).join(' • ')}
+                {product.baseIngredients.map(i => cleanClientText(i.ingredientName)).join(' • ')}
               </p>
             </div>
           </div>
@@ -210,7 +211,7 @@ export const ProductModal: React.FC = () => {
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold">{opt.label}</span>
+                        <span className="text-xs font-bold">{cleanClientText(opt.label)}</span>
                         {isSelected && <Check className="w-4 h-4 text-emerald-700" />}
                       </div>
                       <span className="text-xs text-emerald-700 font-bold mt-1">
@@ -247,7 +248,7 @@ export const ProductModal: React.FC = () => {
                           : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
                       }`}
                     >
-                      <span className="text-xs font-medium">{bChoice.label}</span>
+                      <span className="text-xs font-medium">{cleanClientText(bChoice.label)}</span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-emerald-700 font-bold">
                           {bChoice.extraPrice > 0 ? `+${bChoice.extraPrice.toFixed(1)} DT` : 'Inclus'}
@@ -281,7 +282,7 @@ export const ProductModal: React.FC = () => {
                           : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
                       }`}
                     >
-                      <span className="text-xs font-medium">{opt.label}</span>
+                      <span className="text-xs font-medium">{cleanClientText(opt.label)}</span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs text-emerald-700 font-bold">
                           {opt.extraPrice > 0 ? `+${opt.extraPrice.toFixed(1)} DT` : 'Inclus'}
@@ -318,14 +319,16 @@ export const ProductModal: React.FC = () => {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-2">
-                          <h4 className="text-xs font-bold text-stone-900">{sup.name}</h4>
+                          <h4 className="text-xs font-bold text-stone-900">{cleanClientText(sup.name)}</h4>
                           <span className="text-xs font-extrabold text-emerald-700">
                             +{sup.price.toFixed(1)} DT
                           </span>
                         </div>
-                        <p className="text-[11px] text-stone-500">
-                          {sup.description} • Impact cuisine : +{sup.quantityConsumed}{sup.unit}
-                        </p>
+                        {sup.description && (
+                          <p className="text-[11px] text-stone-500">
+                            {cleanClientDescription(sup.description)}
+                          </p>
+                        )}
                       </div>
 
                       {/* Quantity buttons */}
@@ -391,19 +394,19 @@ export const ProductModal: React.FC = () => {
             </div>
             {priceBreakdown.protein > 0 && (
               <div className="flex justify-between text-emerald-700">
-                <span>Option protéine ({selectedProteinOption?.label}) :</span>
+                <span>Option protéine ({cleanClientText(selectedProteinOption?.label)}) :</span>
                 <span>+{priceBreakdown.protein.toFixed(1)} DT</span>
               </div>
             )}
             {priceBreakdown.baseChoice > 0 && (
               <div className="flex justify-between text-emerald-700">
-                <span>Accompagnement ({selectedBaseChoice?.label}) :</span>
+                <span>Accompagnement ({cleanClientText(selectedBaseChoice?.label)}) :</span>
                 <span>+{priceBreakdown.baseChoice.toFixed(1)} DT</span>
               </div>
             )}
             {priceBreakdown.veggies > 0 && (
               <div className="flex justify-between text-emerald-700">
-                <span>Option légumes ({selectedVeggiesOption?.label}) :</span>
+                <span>Option légumes ({cleanClientText(selectedVeggiesOption?.label)}) :</span>
                 <span>+{priceBreakdown.veggies.toFixed(1)} DT</span>
               </div>
             )}

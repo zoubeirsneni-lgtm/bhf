@@ -3,7 +3,12 @@ import { useApp } from '../../context/AppContext';
 import { ShoppingBag, Salad, MapPin, Search, Navigation } from 'lucide-react';
 
 export const ClientHeader: React.FC = () => {
-  const { cartCount, setIsCartOpen, activeClientTab, setActiveClientTab, activeTrackingOrder } = useApp();
+  const { cartCount, setIsCartOpen, activeClientTab, setActiveClientTab, activeTrackingOrder, backToMenu, selectedProductId } = useApp();
+
+  const handleMenuClick = () => {
+    backToMenu();
+    setActiveClientTab('menu');
+  };
 
   return (
     <header className="bg-white/95 backdrop-blur-md sticky top-10 z-40 border-b border-stone-200/80 transition-all">
@@ -12,7 +17,7 @@ export const ClientHeader: React.FC = () => {
           {/* Logo & Brand Name */}
           <div
             className="flex items-center gap-3 cursor-pointer group"
-            onClick={() => setActiveClientTab('menu')}
+            onClick={handleMenuClick}
           >
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center text-white shadow-md shadow-emerald-700/20 group-hover:scale-105 transition-transform">
               <Salad className="w-6 h-6" />
@@ -36,9 +41,9 @@ export const ClientHeader: React.FC = () => {
           <div className="flex items-center gap-2 sm:gap-4">
             <button
               id="client-tab-menu-btn"
-              onClick={() => setActiveClientTab('menu')}
-              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ${
-                activeClientTab === 'menu'
+              onClick={handleMenuClick}
+              className={`px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                activeClientTab === 'menu' && !selectedProductId
                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/80'
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
               }`}
