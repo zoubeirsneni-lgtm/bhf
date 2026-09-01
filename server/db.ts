@@ -56,13 +56,17 @@ class DatabaseManager {
 
   private getDefaultUsers(): User[] {
     const adminUsername = (process.env.INITIAL_ADMIN_USERNAME || 'admin').trim().toLowerCase();
-    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'Bebba@Admin2026!';
-    const kitchenPassword = process.env.INITIAL_KITCHEN_PASSWORD || 'Bebba@Kitchen2026!';
-    const driverPassword = process.env.INITIAL_DRIVER_PASSWORD || 'Bebba@Driver2026!';
+    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD;
+    const kitchenPassword = process.env.INITIAL_KITCHEN_PASSWORD;
+    const driverPassword = process.env.INITIAL_DRIVER_PASSWORD;
+
+    if (!adminPassword || adminPassword.trim() === '') {
+      throw new Error("Variable d'environnement INITIAL_ADMIN_PASSWORD obligatoire manquante pour initialiser le compte administrateur.");
+    }
 
     const now = new Date().toISOString();
 
-    return [
+    const users: User[] = [
       {
         id: 'usr-admin-1',
         username: adminUsername,
@@ -73,8 +77,11 @@ class DatabaseManager {
         active: true,
         createdAt: now,
         updatedAt: now
-      },
-      {
+      }
+    ];
+
+    if (kitchenPassword && kitchenPassword.trim() !== '') {
+      users.push({
         id: 'usr-kitchen-1',
         username: 'cuisine',
         name: 'Chef de Cuisine BEBBA',
@@ -84,44 +91,51 @@ class DatabaseManager {
         active: true,
         createdAt: now,
         updatedAt: now
-      },
-      {
-        id: 'usr-driver-1',
-        username: 'livreur1',
-        name: 'Yassine Ben Amor',
-        phone: '+216 98 123 456',
-        passwordHash: bcrypt.hashSync(driverPassword, 10),
-        role: 'driver',
-        driverId: 'drv-1',
-        active: true,
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        id: 'usr-driver-2',
-        username: 'livreur2',
-        name: 'Amine Trabelsi',
-        phone: '+216 55 987 654',
-        passwordHash: bcrypt.hashSync(driverPassword, 10),
-        role: 'driver',
-        driverId: 'drv-2',
-        active: true,
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        id: 'usr-driver-3',
-        username: 'livreur3',
-        name: 'Karim Bouazizi',
-        phone: '+216 22 456 789',
-        passwordHash: bcrypt.hashSync(driverPassword, 10),
-        role: 'driver',
-        driverId: 'drv-3',
-        active: true,
-        createdAt: now,
-        updatedAt: now
-      }
-    ];
+      });
+    }
+
+    if (driverPassword && driverPassword.trim() !== '') {
+      users.push(
+        {
+          id: 'usr-driver-1',
+          username: 'livreur1',
+          name: 'Yassine Ben Amor',
+          phone: '+216 98 123 456',
+          passwordHash: bcrypt.hashSync(driverPassword, 10),
+          role: 'driver',
+          driverId: 'drv-1',
+          active: true,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: 'usr-driver-2',
+          username: 'livreur2',
+          name: 'Amine Trabelsi',
+          phone: '+216 55 987 654',
+          passwordHash: bcrypt.hashSync(driverPassword, 10),
+          role: 'driver',
+          driverId: 'drv-2',
+          active: true,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: 'usr-driver-3',
+          username: 'livreur3',
+          name: 'Karim Bouazizi',
+          phone: '+216 22 456 789',
+          passwordHash: bcrypt.hashSync(driverPassword, 10),
+          role: 'driver',
+          driverId: 'drv-3',
+          active: true,
+          createdAt: now,
+          updatedAt: now
+        }
+      );
+    }
+
+    return users;
   }
 
   private getDefaultData(): DatabaseSchema {
@@ -134,7 +148,7 @@ class DatabaseManager {
       drivers: JSON.parse(JSON.stringify(initialDrivers)),
       orders: JSON.parse(JSON.stringify(initialOrders)),
       stockMovements: JSON.parse(JSON.stringify(initialStockMovements)),
-      users: this.getDefaultUsers(),
+      users: [],
       nextOrderSeq: 1050
     };
   }
@@ -152,39 +166,33 @@ class DatabaseManager {
           ...parsed
         };
 
-        // Ensure users collection exists and default users are synchronized
+        // If users collection does not exist or is empty in db.json, initialize with initial users
         if (!this.data.users || this.data.users.length === 0) {
           this.data.users = this.getDefaultUsers();
           this.persist();
         } else {
+          // Users already exist from persistent storage.
+          // NEVER overwrite or reset existing user passwordHash on reboot!
+          // Ensure driverId relation is preserved for driver accounts if missing.
           let changed = false;
-          const defaultUsers = this.getDefaultUsers();
-          defaultUsers.forEach(defUser => {
-            const existingIdx = this.data.users.findIndex(u => u.username === defUser.username);
-            if (existingIdx === -1) {
-              this.data.users.push(defUser);
-              changed = true;
-            } else {
-              // Sync driverId and update hash if needed
-              if (defUser.driverId && this.data.users[existingIdx].driverId !== defUser.driverId) {
-                this.data.users[existingIdx].driverId = defUser.driverId;
-                changed = true;
-              }
-              // Sync default password hashes
-              this.data.users[existingIdx].passwordHash = defUser.passwordHash;
-              changed = true;
+          this.data.users.forEach(u => {
+            if (u.role === 'driver' && !u.driverId) {
+              if (u.username === 'livreur1') { u.driverId = 'drv-1'; changed = true; }
+              else if (u.username === 'livreur2') { u.driverId = 'drv-2'; changed = true; }
+              else if (u.username === 'livreur3') { u.driverId = 'drv-3'; changed = true; }
             }
           });
           if (changed) this.persist();
         }
       } else {
+        // Fresh database creation: initialize with default users from environment
+        this.data.users = this.getDefaultUsers();
         this.persist();
       }
       this.isLoaded = true;
     } catch (err) {
-      console.warn('Could not load database file, using in-memory default store:', err);
-      this.data = this.getDefaultData();
-      this.isLoaded = true;
+      console.error('[DB Initialization Error]:', err);
+      throw err;
     }
   }
 

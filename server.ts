@@ -3,6 +3,7 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { db } from './server/db';
 import {
+  getJwtSecret,
   authenticateUser,
   requireRole,
   comparePassword,
@@ -14,6 +15,9 @@ import {
 } from './server/auth';
 
 async function startServer() {
+  // Ensure JWT_SECRET is configured; refuse to start if missing
+  getJwtSecret();
+
   const app = express();
   const PORT = 3000;
 

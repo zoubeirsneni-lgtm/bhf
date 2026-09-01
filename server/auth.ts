@@ -4,8 +4,15 @@ import jwt from 'jsonwebtoken';
 import { User, SafeUser, InternalRole, OrderStatus } from '../src/types';
 import { db } from './db';
 
-// JWT Configuration
-const JWT_SECRET: string = process.env.JWT_SECRET || 'bebba_healthy_food_jwt_secure_secret_2026';
+// JWT Configuration & Strict Environment Validation
+export function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.trim() === '') {
+    throw new Error("Variable d'environnement JWT_SECRET obligatoire manquante. Le serveur refuse de démarrer sans clé secrète JWT configurée.");
+  }
+  return secret;
+}
+
 const JWT_EXPIRES_IN = '24h';
 
 export interface TokenPayload {
@@ -52,7 +59,7 @@ export function generateToken(user: SafeUser): string {
     role: user.role,
     ...(user.driverId ? { driverId: user.driverId } : {})
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  return jwt.sign(payload, getJwtSecret(), { expiresIn: JWT_EXPIRES_IN });
 }
 
 /**
@@ -60,7 +67,7 @@ export function generateToken(user: SafeUser): string {
  */
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    return jwt.verify(token, getJwtSecret()) as TokenPayload;
   } catch {
     return null;
   }
