@@ -5297,7 +5297,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-01T08:40:56.206Z"
+      "lastLoginAt": "2026-09-02T16:11:24.814Z"
     },
     {
       "id": "usr-kitchen-1",
@@ -5309,7 +5309,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-01T08:40:56.322Z"
+      "lastLoginAt": "2026-09-02T16:11:24.939Z"
     },
     {
       "id": "usr-driver-1",
@@ -5322,7 +5322,7 @@
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
       "driverId": "drv-1",
-      "lastLoginAt": "2026-09-01T08:40:56.449Z"
+      "lastLoginAt": "2026-09-02T16:11:25.066Z"
     },
     {
       "id": "usr-driver-2",

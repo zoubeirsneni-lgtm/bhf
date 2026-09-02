@@ -10,7 +10,8 @@ import {
   StockMovement,
   DashboardStats,
   UserRole,
-  OrderStatus
+  OrderStatus,
+  SafeUser
 } from '../types';
 import {
   initialCategories,
@@ -37,6 +38,16 @@ export interface CartItem {
 }
 
 interface AppContextType {
+  // Authentication & Session
+  isAuthenticated: boolean;
+  authLoading: boolean;
+  currentUser: SafeUser | null;
+  token: string | null;
+  authError: string | null;
+  clearAuthError: () => void;
+  login: (username: string, password: string) => Promise<SafeUser>;
+  logout: () => Promise<void>;
+
   // Navigation & Role
   currentRole: UserRole;
   setCurrentRole: (role: UserRole) => void;
@@ -113,14 +124,37 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-// Safe fetch helper to prevent HTML parsing errors when server is reloading
-async function safeFetchJson<T>(url: string, fallback: T): Promise<T> {
+// Safe fetch helper to prevent HTML parsing errors when server is reloading and enforce JWT auth
+async function safeFetchJson<T>(
+  url: string,
+  fallback: T,
+  authToken?: string | null,
+  onAuthError?: () => void
+): Promise<T> {
   try {
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'application/json'
+    const headers: Record<string, string> = {
+      Accept: 'application/json'
+    };
+
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
+    const res = await fetch(url, { headers });
+
+    // Handle 401: unauthorized / token expired / missing token on protected route
+    if (res.status === 401) {
+      if (onAuthError) {
+        onAuthError();
       }
-    });
+      // IMPORTANT: Une erreur d'authentification ne doit plus être masquée par un fallback silencieux vers initialData pour les routes protégées.
+      throw new Error(`Accès non autorisé (401) sur ${url}`);
+    }
+
+    // Handle 403: forbidden (e.g. kitchen or driver attempting admin route)
+    if (res.status === 403) {
+      throw new Error(`Accès interdit (403) sur ${url}`);
+    }
 
     if (!res.ok) {
       return fallback;
@@ -128,18 +162,41 @@ async function safeFetchJson<T>(url: string, fallback: T): Promise<T> {
 
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      // Returned HTML or other text, ignore gracefully
       return fallback;
     }
 
     const data = await res.json();
     return data !== undefined && data !== null ? data : fallback;
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message && (err.message.includes('401') || err.message.includes('403'))) {
+      throw err;
+    }
     return fallback;
   }
 }
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  // Authentication & Session State
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('bebba_auth_token');
+    }
+    return null;
+  });
+  const [currentUser, setCurrentUser] = useState<SafeUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authLoading, setAuthLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return !!localStorage.getItem('bebba_auth_token');
+    }
+    return false;
+  });
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  const clearAuthError = useCallback(() => {
+    setAuthError(null);
+  }, []);
+
   const [currentRole, setCurrentRole] = useState<UserRole>('client');
   const [activeClientTab, setActiveClientTab] = useState<'menu' | 'tracking'>('menu');
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'orders' | 'products' | 'supplements' | 'stock' | 'drivers' | 'suppliers'>('dashboard');
@@ -147,12 +204,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [products, setProducts] = useState<Product[]>(initialProducts);
   const [supplements, setSupplements] = useState<Supplement[]>(initialSupplements);
-  const [ingredients, setIngredients] = useState<Ingredient[]>(initialIngredients);
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>(initialStockMovements);
-  const [drivers, setDrivers] = useState<Driver[]>(initialDrivers);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [stats, setStats] = useState<DashboardStats | null>(initialStats);
+  // Protected collections are initialized empty for security (no silent mock data leakage)
+  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // Cart
@@ -223,16 +281,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const showToast = useCallback((title: string, body: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setToastMessage({ title, body, type });
-    // If native Notification API is supported and granted
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted' && notificationsEnabled) {
       try {
         new Notification(title, {
           body,
           icon: '/favicon.ico'
         });
-      } catch (e) {
-        // ignore notification constructor failure in some iframe sandbox
-      }
+      } catch (e) {}
     }
   }, [notificationsEnabled]);
 
@@ -240,49 +295,264 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setToastMessage(null);
   }, []);
 
+  // Handle 401 Session Expiry
+  const handleSessionExpired = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('bebba_auth_token');
+    }
+    setToken(null);
+    setCurrentUser(null);
+    setIsAuthenticated(false);
+    setAuthError('Votre session a expiré ou est non autorisée. Veuillez vous reconnecter.');
+    // Clear protected collections
+    setOrders([]);
+    setIngredients([]);
+    setStockMovements([]);
+    setDrivers([]);
+    setSuppliers([]);
+    setStats(null);
+  }, []);
+
+  // Restore session from token on mount / reload (F5)
+  useEffect(() => {
+    const restoreSession = async () => {
+      const storedToken = typeof window !== 'undefined' ? localStorage.getItem('bebba_auth_token') : null;
+      if (!storedToken) {
+        setAuthLoading(false);
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        return;
+      }
+
+      setAuthLoading(true);
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: {
+            Authorization: `Bearer ${storedToken}`,
+            Accept: 'application/json'
+          }
+        });
+
+        if (res.status === 401 || !res.ok) {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('bebba_auth_token');
+          }
+          setToken(null);
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+          setAuthError('Votre session a expiré. Veuillez vous reconnecter.');
+          return;
+        }
+
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          setAuthLoading(false);
+          return;
+        }
+
+        const data = await res.json();
+        if (data?.user) {
+          setToken(storedToken);
+          setCurrentUser(data.user);
+          setIsAuthenticated(true);
+          setAuthError(null);
+          setCurrentRole(data.user.role);
+        } else {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('bebba_auth_token');
+          }
+          setToken(null);
+          setCurrentUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch (err) {
+        // Network failure
+        setAuthError('Serveur inaccessible lors de la vérification de session.');
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    restoreSession();
+  }, []);
+
+  // Authenticated fetch wrapper for data mutations
+  const authFetch = useCallback(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const headers = new Headers(init?.headers);
+    headers.set('Accept', 'application/json');
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch(input, {
+      ...init,
+      headers
+    });
+
+    if (response.status === 401) {
+      handleSessionExpired();
+      throw new Error('Session expirée ou non autorisée (401).');
+    }
+
+    return response;
+  }, [token, handleSessionExpired]);
+
+  // Login handler
+  const login = async (username: string, password: string): Promise<SafeUser> => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({ username: username.trim(), password })
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Identifiants invalides. Veuillez vérifier votre nom d’utilisateur et mot de passe.');
+        }
+        let errorMsg = 'Erreur lors de la connexion.';
+        try {
+          const errData = await res.json();
+          if (errData?.error) errorMsg = errData.error;
+        } catch (e) {}
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
+      if (!data?.token || !data?.user) {
+        throw new Error('Réponse d’authentification serveur invalide.');
+      }
+
+      const receivedToken: string = data.token;
+      const safeUser: SafeUser = data.user;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('bebba_auth_token', receivedToken);
+      }
+
+      setToken(receivedToken);
+      setCurrentUser(safeUser);
+      setIsAuthenticated(true);
+      setAuthError(null);
+      setCurrentRole(safeUser.role);
+
+      showToast('Connexion réussie', `Bienvenue ${safeUser.name} (${safeUser.role})`, 'success');
+
+      return safeUser;
+    } catch (err: any) {
+      const message = err.message || 'Serveur inaccessible. Veuillez vérifier votre connexion.';
+      setAuthError(message);
+      throw err;
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Logout handler
+  const logout = async (): Promise<void> => {
+    try {
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${token}`
+          }
+        }).catch(() => {});
+      }
+    } catch (e) {
+      // Ignore server logout response
+    } finally {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('bebba_auth_token');
+      }
+      setToken(null);
+      setCurrentUser(null);
+      setIsAuthenticated(false);
+      setAuthError(null);
+
+      // Clear protected collections
+      setOrders([]);
+      setIngredients([]);
+      setStockMovements([]);
+      setDrivers([]);
+      setSuppliers([]);
+      setStats(null);
+
+      // Revert view to client
+      setCurrentRole('client');
+      showToast('Déconnexion', 'Vous avez été déconnecté de l’espace personnel.', 'info');
+    }
+  };
+
+  // Refresh all data based on authentication status and verified role
   const refreshAllData = useCallback(async () => {
     try {
-      const [
-        catsRes,
-        prodsRes,
-        supsRes,
-        ingsRes,
-        movsRes,
-        drvsRes,
-        suppsRes,
-        ordsRes,
-        statsRes
-      ] = await Promise.all([
-        safeFetchJson<Category[]>('/api/categories', categories),
-        safeFetchJson<Product[]>('/api/products', products),
-        safeFetchJson<Supplement[]>('/api/supplements', supplements),
-        safeFetchJson<Ingredient[]>('/api/ingredients', ingredients),
-        safeFetchJson<StockMovement[]>('/api/stock-movements', stockMovements),
-        safeFetchJson<Driver[]>('/api/drivers', drivers),
-        safeFetchJson<Supplier[]>('/api/suppliers', suppliers),
-        safeFetchJson<Order[]>('/api/orders', orders),
-        safeFetchJson<DashboardStats | null>('/api/stats', stats)
+      // 1. Always fetch public catalog for client
+      const [catsRes, prodsRes, supsRes] = await Promise.all([
+        safeFetchJson<Category[]>('/api/categories', categories, token, handleSessionExpired),
+        safeFetchJson<Product[]>('/api/products', products, token, handleSessionExpired),
+        safeFetchJson<Supplement[]>('/api/supplements', supplements, token, handleSessionExpired)
       ]);
 
       if (Array.isArray(catsRes) && catsRes.length > 0) setCategories(catsRes);
       if (Array.isArray(prodsRes) && prodsRes.length > 0) setProducts(prodsRes);
       if (Array.isArray(supsRes) && supsRes.length > 0) setSupplements(supsRes);
-      if (Array.isArray(ingsRes) && ingsRes.length > 0) setIngredients(ingsRes);
-      if (Array.isArray(movsRes)) setStockMovements(movsRes);
-      if (Array.isArray(drvsRes) && drvsRes.length > 0) setDrivers(drvsRes);
-      if (Array.isArray(suppsRes) && suppsRes.length > 0) setSuppliers(suppsRes);
-      if (Array.isArray(ordsRes)) setOrders(ordsRes);
-      if (statsRes) setStats(statsRes);
+
+      // 2. Fetch protected data ONLY if authenticated
+      if (token && currentUser) {
+        const userRole = currentUser.role;
+
+        // Fetch orders if admin, kitchen, or driver
+        if (userRole === 'admin' || userRole === 'kitchen' || userRole === 'driver') {
+          try {
+            const ordsRes = await safeFetchJson<Order[]>('/api/orders', [], token, handleSessionExpired);
+            if (Array.isArray(ordsRes)) setOrders(ordsRes);
+          } catch (e) {}
+        }
+
+        // Fetch ingredients and drivers if admin or kitchen
+        if (userRole === 'admin' || userRole === 'kitchen') {
+          try {
+            const [ingsRes, drvsRes] = await Promise.all([
+              safeFetchJson<Ingredient[]>('/api/ingredients', [], token, handleSessionExpired),
+              safeFetchJson<Driver[]>('/api/drivers', [], token, handleSessionExpired)
+            ]);
+            if (Array.isArray(ingsRes)) setIngredients(ingsRes);
+            if (Array.isArray(drvsRes)) setDrivers(drvsRes);
+          } catch (e) {}
+        }
+
+        // Fetch admin-only resources if admin
+        if (userRole === 'admin') {
+          try {
+            const [movsRes, suppsRes, statsRes] = await Promise.all([
+              safeFetchJson<StockMovement[]>('/api/stock-movements', [], token, handleSessionExpired),
+              safeFetchJson<Supplier[]>('/api/suppliers', [], token, handleSessionExpired),
+              safeFetchJson<DashboardStats | null>('/api/stats', null, token, handleSessionExpired)
+            ]);
+            if (Array.isArray(movsRes)) setStockMovements(movsRes);
+            if (Array.isArray(suppsRes)) setSuppliers(suppsRes);
+            if (statsRes) setStats(statsRes);
+          } catch (e) {}
+        }
+      }
     } catch (err) {
       // Graceful background sync error handling
     } finally {
       setIsLoading(false);
     }
-  }, [categories, products, supplements, ingredients, stockMovements, drivers, suppliers, orders, stats]);
+  }, [categories, products, supplements, token, currentUser, handleSessionExpired]);
 
   useEffect(() => {
     refreshAllData();
-    // Live polling every 5s so Kitchen, Driver, and Client stay synced in real time
+    // Live polling every 5s
     const interval = setInterval(refreshAllData, 5000);
     return () => clearInterval(interval);
   }, [refreshAllData]);
@@ -351,7 +621,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Active tracking order derived from orders list or token
   const activeTrackingOrder = orders.find(o => o.trackingToken === activeTrackingToken) || null;
 
-  // Order actions
+  // Order actions (Public / Client)
   const createOrder = async (payload: {
     client: { name: string; phone: string; deliveryAddress: string; notes?: string };
   }): Promise<Order> => {
@@ -367,7 +637,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     const response = await fetch('/api/orders', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
       body: JSON.stringify({
         client: payload.client,
         items: orderItemsPayload
@@ -379,9 +653,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       try {
         const err = await response.json();
         errorMsg = err.error || errorMsg;
-      } catch (e) {
-        // ignore json parse error on non-ok status
-      }
+      } catch (e) {}
       throw new Error(errorMsg);
     }
 
@@ -401,6 +673,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return createdOrder;
   };
 
+  // Protected operations requiring JWT
   const updateOrderStatus = async (
     orderId: string,
     status: OrderStatus,
@@ -408,7 +681,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     updatedBy?: string,
     assignedDriverId?: string
   ): Promise<Order> => {
-    const response = await fetch(`/api/orders/${orderId}/status`, {
+    const response = await authFetch(`/api/orders/${orderId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, note, updatedBy, assignedDriverId })
@@ -448,10 +721,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     quantity: number,
     notes: string
   ) => {
-    const res = await fetch(`/api/ingredients/${ingredientId}/stock`, {
+    const res = await authFetch(`/api/ingredients/${ingredientId}/stock`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, quantity, notes, performedBy: currentRole === 'admin' ? 'Administrateur' : 'Gestionnaire' })
+      body: JSON.stringify({
+        type,
+        quantity,
+        notes,
+        performedBy: currentUser ? currentUser.name : (currentRole === 'admin' ? 'Administrateur' : 'Gestionnaire')
+      })
     });
     if (!res.ok) {
       const err = await res.json();
@@ -466,7 +744,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : '/api/products';
     const method = product.id && products.some(p => p.id === product.id) ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(product)
@@ -476,7 +754,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteProduct = async (id: string) => {
-    const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/products/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Erreur suppression produit');
     await refreshAllData();
   };
@@ -487,7 +765,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : '/api/categories';
     const method = category.id && categories.some(c => c.id === category.id) ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(category)
@@ -497,7 +775,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteCategory = async (id: string) => {
-    const res = await fetch(`/api/categories/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/categories/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Erreur suppression catégorie');
     await refreshAllData();
   };
@@ -508,7 +786,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : '/api/supplements';
     const method = sup.id && supplements.some(s => s.id === sup.id) ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sup)
@@ -518,7 +796,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteSupplement = async (id: string) => {
-    const res = await fetch(`/api/supplements/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/supplements/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Erreur suppression supplément');
     await refreshAllData();
   };
@@ -529,7 +807,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : '/api/ingredients';
     const method = ing.id && ingredients.some(i => i.id === ing.id) ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ing)
@@ -539,7 +817,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteIngredient = async (id: string) => {
-    const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/ingredients/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Erreur suppression matière première');
     await refreshAllData();
   };
@@ -550,7 +828,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : '/api/drivers';
     const method = driver.id && drivers.some(d => d.id === driver.id) ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(driver)
@@ -565,7 +843,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       : '/api/suppliers';
     const method = sup.id && suppliers.some(s => s.id === sup.id) ? 'PUT' : 'POST';
 
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sup)
@@ -575,13 +853,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   const deleteSupplier = async (id: string) => {
-    const res = await fetch(`/api/suppliers/${id}`, { method: 'DELETE' });
+    const res = await authFetch(`/api/suppliers/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Erreur suppression fournisseur');
     await refreshAllData();
   };
 
   const resetDemoData = async () => {
-    const res = await fetch('/api/reset-demo-data', { method: 'POST' });
+    const res = await authFetch('/api/reset-demo-data', { method: 'POST' });
     if (!res.ok) throw new Error('Erreur réinitialisation données');
     await refreshAllData();
     showToast('Données réinitialisées', 'Toutes les données de démo ont été restaurées.', 'info');
@@ -590,6 +868,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider
       value={{
+        isAuthenticated,
+        authLoading,
+        currentUser,
+        token,
+        authError,
+        clearAuthError,
+        login,
+        logout,
         currentRole,
         setCurrentRole,
         activeClientTab,

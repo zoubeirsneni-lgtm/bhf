@@ -16,11 +16,25 @@ import {
 } from 'lucide-react';
 
 export const DriverView: React.FC = () => {
-  const { orders, drivers, updateOrderStatus, showToast } = useApp();
-  const [selectedDriverId, setSelectedDriverId] = useState<string>(drivers[0]?.id || 'drv_1');
+  const { orders, drivers, updateOrderStatus, showToast, currentUser } = useApp();
+  const [selectedDriverId, setSelectedDriverId] = useState<string>(() => {
+    return currentUser?.driverId || drivers[0]?.id || 'drv_1';
+  });
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
-  const currentDriver = drivers.find(d => d.id === selectedDriverId) || drivers[0];
+  // If logged in as driver, enforce their own driverId
+  const activeDriverId = (currentUser?.role === 'driver' && currentUser.driverId)
+    ? currentUser.driverId
+    : selectedDriverId;
+
+  const currentDriver = drivers.find(d => d.id === activeDriverId) || (currentUser ? {
+    id: currentUser.driverId || 'drv_1',
+    name: currentUser.name,
+    phone: currentUser.phone || '',
+    vehicle: 'Scooter / Vélo',
+    status: 'available' as const,
+    activeDeliveriesCount: 0
+  } : drivers[0]);
 
   // Orders relevant to drivers (Ready for pickup or currently being delivered)
   const availableOrders = (orders || []).filter(o => o.status === 'ready');
@@ -36,8 +50,7 @@ export const DriverView: React.FC = () => {
         'delivering',
         `Prise en charge par le livreur ${driverName}`,
         driverName,
-        currentDriver?.id,
-        driverName
+        currentDriver?.id
       );
       showToast('Course acceptée', `La commande #${order.orderNumber} est en cours d'acheminement.`, 'info');
     } catch (err: any) {
@@ -56,9 +69,7 @@ export const DriverView: React.FC = () => {
         'delivered',
         `Livré au client avec encaissement en espèces de ${order.totalAmount.toFixed(1)} DT`,
         driverName,
-        currentDriver?.id,
-        driverName,
-        'paid'
+        currentDriver?.id
       );
       showToast('Livraison Confirmée !', `Commande #${order.orderNumber} livrée et ${order.totalAmount.toFixed(1)} DT encaissés.`, 'success');
     } catch (err: any) {
