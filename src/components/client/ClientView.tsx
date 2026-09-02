@@ -100,18 +100,18 @@ export const ClientView: React.FC = () => {
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="Rechercher un plat, ingrédient..."
-                    className="w-full pl-9 pr-4 py-2.5 rounded-2xl border border-stone-200 bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                    className="w-full min-h-[44px] pl-9 pr-4 py-2.5 rounded-2xl border border-stone-200 bg-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-2xs"
                   />
                   <Search className="w-4 h-4 text-stone-400 absolute left-3 top-3" />
                 </div>
               </div>
 
               {/* Dynamic Categories Selector */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none w-full min-w-0 max-w-full">
                 <button
                   id="category-pill-all"
                   onClick={() => setSelectedCategoryId('all')}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all shadow-2xs ${
+                  className={`min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all shadow-2xs cursor-pointer ${
                     selectedCategoryId === 'all'
                       ? 'bg-emerald-700 text-white shadow-md shadow-emerald-800/20'
                       : 'bg-white text-stone-700 border border-stone-200 hover:border-stone-300 hover:bg-stone-50'
@@ -131,7 +131,7 @@ export const ClientView: React.FC = () => {
                         key={category.id}
                         id={`category-pill-${category.id}`}
                         onClick={() => setSelectedCategoryId(category.id)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all shadow-2xs ${
+                        className={`min-h-[44px] flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all shadow-2xs cursor-pointer ${
                           isSelected
                             ? 'bg-emerald-700 text-white shadow-md shadow-emerald-800/20'
                             : 'bg-white text-stone-700 border border-stone-200 hover:border-stone-300 hover:bg-stone-50'
@@ -159,7 +159,7 @@ export const ClientView: React.FC = () => {
                       setSelectedCategoryId('all');
                       setSearchQuery('');
                     }}
-                    className="px-4 py-2 rounded-xl bg-stone-900 text-white text-xs font-bold hover:bg-emerald-700 transition-colors"
+                    className="min-h-[44px] px-5 py-2.5 rounded-xl bg-stone-900 text-white text-xs font-bold hover:bg-emerald-700 transition-colors inline-flex items-center justify-center cursor-pointer"
                   >
                     Réinitialiser les filtres
                   </button>

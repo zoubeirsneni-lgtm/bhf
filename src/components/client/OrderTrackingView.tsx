@@ -183,21 +183,21 @@ export const OrderTrackingView: React.FC = () => {
         </div>
 
         {/* Search input for token */}
-        <form onSubmit={handleManualSearch} className="flex items-center gap-2">
-          <div className="relative">
+        <form onSubmit={handleManualSearch} className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-56">
             <input
               type="text"
               id="tracking-token-input"
               value={tokenInput}
               onChange={e => setTokenInput(e.target.value)}
               placeholder="Code suivi (ex: tk_...)"
-              className="w-48 sm:w-56 px-3 py-2 pl-8 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500 bg-stone-50"
+              className="w-full min-h-[44px] px-3 py-2 pl-8 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500 bg-stone-50"
             />
-            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-3" />
+            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-3.5" />
           </div>
           <button
             type="submit"
-            className="px-3.5 py-2 rounded-xl bg-stone-900 text-white font-bold text-xs hover:bg-emerald-700 transition-colors"
+            className="min-h-[44px] px-4 py-2 rounded-xl bg-stone-900 text-white font-bold text-xs hover:bg-emerald-700 transition-colors inline-flex items-center justify-center cursor-pointer flex-shrink-0"
           >
             Vérifier
           </button>
@@ -252,7 +252,7 @@ export const OrderTrackingView: React.FC = () => {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={manualRefresh}
-                  className="p-2.5 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  className="min-h-[44px] p-2.5 px-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   title="Actualiser le statut"
                 >
                   <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-emerald-600' : ''}`} />
@@ -261,7 +261,7 @@ export const OrderTrackingView: React.FC = () => {
 
                 <button
                   onClick={handleCopyLink}
-                  className="p-2.5 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  className="min-h-[44px] p-2.5 px-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                   <span>{copied ? 'Lien copié' : 'Lien direct'}</span>
@@ -269,7 +269,7 @@ export const OrderTrackingView: React.FC = () => {
 
                 <button
                   onClick={handleToggleNotifications}
-                  className={`p-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  className={`min-h-[44px] p-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                     notificationsEnabled
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'border border-stone-200 text-stone-600 hover:bg-stone-50'
@@ -527,7 +527,7 @@ export const OrderTrackingView: React.FC = () => {
           <div className="text-center pt-2">
             <button
               onClick={() => setActiveClientTab('menu')}
-              className="px-6 py-3 rounded-2xl bg-stone-900 text-white font-bold text-xs sm:text-sm hover:bg-emerald-700 transition-colors shadow-sm"
+              className="min-h-[44px] px-6 py-3 rounded-2xl bg-stone-900 text-white font-bold text-xs sm:text-sm hover:bg-emerald-700 transition-colors shadow-sm inline-flex items-center justify-center cursor-pointer"
             >
               Commander un autre plat
             </button>
@@ -547,7 +547,7 @@ export const OrderTrackingView: React.FC = () => {
           </div>
           <button
             onClick={() => setActiveClientTab('menu')}
-            className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors"
+            className="min-h-[44px] px-6 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs hover:bg-emerald-700 transition-colors inline-flex items-center justify-center cursor-pointer"
           >
             Découvrir le Menu
           </button>

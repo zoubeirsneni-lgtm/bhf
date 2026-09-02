@@ -107,7 +107,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             <button
               disabled
               onClick={e => e.stopPropagation()}
-              className="w-full py-2.5 rounded-xl bg-stone-200 text-stone-500 text-xs sm:text-sm font-bold cursor-not-allowed text-center"
+              className="w-full min-h-[44px] py-2.5 px-3.5 rounded-xl bg-stone-200 text-stone-500 text-xs sm:text-sm font-bold cursor-not-allowed text-center flex items-center justify-center"
             >
               Victime de son succès
             </button>
@@ -134,7 +134,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     itemTotalPrice: unitPrice
                   });
                 }}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
+                className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-bold shadow-xs hover:shadow-md transition-all active:scale-[0.98] cursor-pointer"
               >
                 <ShoppingBag className="w-4 h-4" />
                 <span>Commander</span>
@@ -146,7 +146,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                   e.stopPropagation();
                   setSelectedProductForCustomization(product);
                 }}
-                className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-stone-100 hover:bg-emerald-50 hover:text-emerald-800 active:bg-emerald-100 border border-stone-200 hover:border-emerald-300 text-stone-800 text-xs sm:text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
+                className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-stone-100 hover:bg-emerald-50 hover:text-emerald-800 active:bg-emerald-100 border border-stone-200 hover:border-emerald-300 text-stone-800 text-xs sm:text-sm font-bold transition-all active:scale-[0.98] cursor-pointer"
               >
                 <Plus className="w-4 h-4 text-emerald-600" />
                 <span>Personnaliser</span>

@@ -279,7 +279,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
           <button
             id="btn-back-from-not-found"
             onClick={backToMenu}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-stone-900 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer"
+            className="min-h-[44px] inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-stone-900 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>← Retour au menu</span>
@@ -298,7 +298,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
         <button
           id="btn-back-to-menu"
           onClick={backToMenu}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-stone-200 text-stone-700 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50/50 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer"
+          className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-stone-200 text-stone-700 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50/50 font-bold text-xs sm:text-sm shadow-2xs transition-all cursor-pointer"
         >
           <ArrowLeft className="w-4 h-4 text-emerald-700" />
           <span>← Retour au menu</span>
@@ -521,7 +521,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                         key={idx}
                         type="button"
                         onClick={() => setSelectedProteinOption(opt)}
-                        className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between cursor-pointer ${
+                        className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col justify-between min-h-[52px] cursor-pointer ${
                           isSelected
                             ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 font-semibold ring-2 ring-emerald-600/20 shadow-xs'
                             : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
@@ -556,7 +556,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                         key={idx}
                         type="button"
                         onClick={() => setSelectedBaseChoice(bChoice)}
-                        className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                        className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between min-h-[48px] cursor-pointer ${
                           isSelected
                             ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 font-semibold ring-2 ring-emerald-600/20 shadow-xs'
                             : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
@@ -591,7 +591,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                         key={idx}
                         type="button"
                         onClick={() => setSelectedVeggiesOption(opt)}
-                        className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between cursor-pointer ${
+                        className={`p-3.5 rounded-2xl border text-left transition-all flex items-center justify-between min-h-[48px] cursor-pointer ${
                           isSelected
                             ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 font-semibold ring-2 ring-emerald-600/20 shadow-xs'
                             : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
@@ -657,7 +657,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                             <button
                               type="button"
                               onClick={() => handleSupplementChange(sup.id, -1)}
-                              className="w-8 h-8 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 flex items-center justify-center font-bold text-xs cursor-pointer"
+                              className="w-11 h-11 sm:w-8 sm:h-8 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 flex items-center justify-center font-bold text-xs cursor-pointer active:scale-95 transition-all"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
@@ -669,7 +669,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                         <button
                           type="button"
                           onClick={() => handleSupplementChange(sup.id, 1)}
-                          className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-colors cursor-pointer ${
+                          className={`w-11 h-11 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all active:scale-95 cursor-pointer ${
                             qty > 0
                               ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                               : 'bg-stone-100 text-stone-800 hover:bg-emerald-600 hover:text-white border border-stone-200'
@@ -740,7 +740,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
               <button
                 id="btn-detail-out-of-stock"
                 disabled
-                className="w-full py-4 rounded-2xl bg-stone-200 text-stone-500 font-bold text-sm cursor-not-allowed text-center"
+                className="w-full min-h-[48px] py-4 rounded-2xl bg-stone-200 text-stone-500 font-bold text-sm cursor-not-allowed text-center flex items-center justify-center"
               >
                 Victime de son succès — Produit temporairement indisponible
               </button>
@@ -752,7 +752,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                     type="button"
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
                     disabled={quantity <= 1}
-                    className="w-10 h-10 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-xs hover:bg-stone-50 disabled:opacity-40 cursor-pointer"
+                    className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-xs hover:bg-stone-50 disabled:opacity-40 cursor-pointer active:scale-95 transition-all"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
@@ -762,7 +762,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                   <button
                     type="button"
                     onClick={() => setQuantity(quantity + 1)}
-                    className="w-10 h-10 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-xs hover:bg-stone-50 cursor-pointer"
+                    className="w-11 h-11 sm:w-10 sm:h-10 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-xs hover:bg-stone-50 cursor-pointer active:scale-95 transition-all"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -773,7 +773,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                   id="btn-detail-customize"
                   type="button"
                   onClick={() => setSelectedProductForCustomization(product)}
-                  className="flex-1 py-4 px-5 rounded-2xl bg-stone-100 hover:bg-emerald-50 hover:text-emerald-800 border border-stone-200 hover:border-emerald-300 text-stone-900 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer shadow-xs"
+                  className="flex-1 min-h-[48px] py-4 px-5 rounded-2xl bg-stone-100 hover:bg-emerald-50 hover:text-emerald-800 border border-stone-200 hover:border-emerald-300 text-stone-900 font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer shadow-xs"
                 >
                   <Sliders className="w-5 h-5 text-emerald-600" />
                   <span>PERSONNALISER</span>
@@ -784,7 +784,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                   id="btn-detail-order"
                   type="button"
                   onClick={handleAddToCart}
-                  className="flex-1 py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-700/25 flex items-center justify-between gap-3 transition-all active:scale-[0.98] cursor-pointer"
+                  className="flex-1 min-h-[48px] py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-700/25 flex items-center justify-between gap-3 transition-all active:scale-[0.98] cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
                     <ShoppingBag className="w-5 h-5" />

@@ -69,21 +69,21 @@ export const DriverView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-in fade-in duration-300">
       
       {/* Driver Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-stone-900 text-white p-6 rounded-3xl shadow-md border border-stone-800">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-stone-900 text-white p-4 sm:p-6 rounded-3xl shadow-md border border-stone-800">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center text-white shadow-md">
             <Bike className="w-7 h-7" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold font-display">
+              <h1 className="text-xl sm:text-2xl font-extrabold font-display">
                 Espace Livreur
               </h1>
               <span className="px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono text-xs font-bold border border-blue-500/40">
-                Paiement à la livraison
+                Paiement livraison
               </span>
             </div>
             <p className="text-xs text-stone-400 mt-0.5">
@@ -93,7 +93,7 @@ export const DriverView: React.FC = () => {
         </div>
 
         {/* Driver Selector */}
-        <div className="flex items-center gap-2 bg-stone-950 p-2 rounded-2xl border border-stone-800">
+        <div className="flex flex-wrap items-center gap-2 bg-stone-950 p-2 rounded-2xl border border-stone-800">
           <UserCheck className="w-4 h-4 text-blue-400 ml-2" />
           <span className="text-xs text-stone-400 font-medium">Livreur actif :</span>
           <select

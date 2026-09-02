@@ -154,7 +154,7 @@ export const ProductModal: React.FC = () => {
           <button
             id="close-customization-modal-btn"
             onClick={() => setSelectedProductForCustomization(null)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-stone-900/80 text-white hover:bg-stone-900 transition-colors z-10"
+            className="absolute top-4 right-4 w-11 h-11 rounded-full bg-stone-900/80 text-white hover:bg-stone-900 transition-colors z-10 flex items-center justify-center cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -204,7 +204,7 @@ export const ProductModal: React.FC = () => {
                       key={idx}
                       type="button"
                       onClick={() => setSelectedProteinOption(opt)}
-                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between ${
+                      className={`p-3 rounded-2xl border text-left transition-all flex flex-col justify-between min-h-[48px] cursor-pointer ${
                         isSelected
                           ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 font-semibold ring-2 ring-emerald-600/20'
                           : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
@@ -242,7 +242,7 @@ export const ProductModal: React.FC = () => {
                       key={idx}
                       type="button"
                       onClick={() => setSelectedBaseChoice(bChoice)}
-                      className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                      className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between min-h-[44px] cursor-pointer ${
                         isSelected
                           ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 font-semibold ring-2 ring-emerald-600/20'
                           : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
@@ -276,7 +276,7 @@ export const ProductModal: React.FC = () => {
                       key={idx}
                       type="button"
                       onClick={() => setSelectedVeggiesOption(opt)}
-                      className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between ${
+                      className={`p-3 rounded-2xl border text-left transition-all flex items-center justify-between min-h-[44px] cursor-pointer ${
                         isSelected
                           ? 'border-emerald-600 bg-emerald-50/80 text-emerald-950 font-semibold ring-2 ring-emerald-600/20'
                           : 'border-stone-200 hover:border-stone-300 bg-stone-50/50 text-stone-700'
@@ -338,7 +338,7 @@ export const ProductModal: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleSupplementChange(sup.id, -1)}
-                              className="w-7 h-7 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-800 flex items-center justify-center font-bold text-xs"
+                              className="w-11 h-11 sm:w-8 sm:h-8 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-800 flex items-center justify-center font-bold text-xs cursor-pointer active:scale-95 transition-all"
                             >
                               <Minus className="w-3.5 h-3.5" />
                             </button>
@@ -350,7 +350,7 @@ export const ProductModal: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleSupplementChange(sup.id, 1)}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs transition-colors ${
+                          className={`w-11 h-11 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center font-bold text-xs transition-all active:scale-95 cursor-pointer ${
                             qty > 0
                               ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                               : 'bg-stone-100 text-stone-800 hover:bg-emerald-600 hover:text-white border border-stone-200'
@@ -427,7 +427,7 @@ export const ProductModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setQuantity(Math.max(1, quantity - 1))}
-              className="w-9 h-9 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-sm hover:bg-stone-50 disabled:opacity-50"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-sm hover:bg-stone-50 disabled:opacity-50 cursor-pointer active:scale-95 transition-all"
               disabled={quantity <= 1}
             >
               <Minus className="w-4 h-4" />
@@ -438,7 +438,7 @@ export const ProductModal: React.FC = () => {
             <button
               type="button"
               onClick={() => setQuantity(quantity + 1)}
-              className="w-9 h-9 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-sm hover:bg-stone-50"
+              className="w-11 h-11 sm:w-9 sm:h-9 rounded-xl bg-white text-stone-800 flex items-center justify-center font-bold text-sm shadow-sm hover:bg-stone-50 cursor-pointer active:scale-95 transition-all"
             >
               <Plus className="w-4 h-4" />
             </button>
@@ -449,7 +449,7 @@ export const ProductModal: React.FC = () => {
             id="add-customized-to-cart-btn"
             type="button"
             onClick={handleAddToCart}
-            className="flex-1 py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm sm:text-base shadow-md shadow-emerald-700/20 flex items-center justify-between transition-all active:scale-[0.98]"
+            className="flex-1 min-h-[48px] py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm sm:text-base shadow-md shadow-emerald-700/20 flex items-center justify-between transition-all active:scale-[0.98] cursor-pointer"
           >
             <span className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5" />

@@ -36,8 +36,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOrderNowClick }) => 
             </p>
 
             {/* Core commitments badges */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-stone-800/80 border border-stone-700/60 text-left">
+            <div className="grid grid-cols-1 min-[420px]:grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 pt-2">
+              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl bg-stone-800/80 border border-stone-700/60 text-left">
                 <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 flex-shrink-0">
                   <ChefHat className="w-4 h-4" />
                 </div>
@@ -47,7 +47,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOrderNowClick }) => 
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-stone-800/80 border border-stone-700/60 text-left">
+              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl bg-stone-800/80 border border-stone-700/60 text-left">
                 <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400 flex-shrink-0">
                   <Flame className="w-4 h-4" />
                 </div>
@@ -57,7 +57,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOrderNowClick }) => 
                 </div>
               </div>
 
-              <div className="flex items-center gap-2.5 p-3 rounded-xl bg-stone-800/80 border border-stone-700/60 text-left col-span-2 sm:col-span-1">
+              <div className="flex items-center gap-2.5 p-2.5 sm:p-3 rounded-xl bg-stone-800/80 border border-stone-700/60 text-left min-[420px]:col-span-2 sm:col-span-1">
                 <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400 flex-shrink-0">
                   <Banknote className="w-4 h-4" />
                 </div>

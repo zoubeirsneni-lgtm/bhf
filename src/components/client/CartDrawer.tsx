@@ -61,7 +61,7 @@ export const CartDrawer: React.FC = () => {
               <button
                 id="close-cart-drawer-btn"
                 onClick={() => setIsCartOpen(false)}
-                className="p-2 rounded-full text-stone-400 hover:text-white hover:bg-stone-800 transition-colors"
+                className="w-11 h-11 flex items-center justify-center rounded-full text-stone-400 hover:text-white hover:bg-stone-800 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -82,7 +82,7 @@ export const CartDrawer: React.FC = () => {
                   </div>
                   <button
                     onClick={() => setIsCartOpen(false)}
-                    className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm hover:bg-emerald-700 transition-colors"
+                    className="min-h-[44px] px-6 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm hover:bg-emerald-700 transition-colors inline-flex items-center justify-center cursor-pointer"
                   >
                     Parcourir le Menu
                   </button>
@@ -117,7 +117,7 @@ export const CartDrawer: React.FC = () => {
                           </div>
                           <button
                             onClick={() => removeFromCart(item.id)}
-                            className="text-stone-400 hover:text-rose-600 p-1 transition-colors"
+                            className="text-stone-400 hover:text-rose-600 w-11 h-11 sm:w-8 sm:h-8 -mr-2 -mt-2 flex items-center justify-center transition-colors cursor-pointer"
                             title="Supprimer"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -171,18 +171,18 @@ export const CartDrawer: React.FC = () => {
                           <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-xl border border-stone-200 shadow-2xs">
                             <button
                               onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
-                              className="w-6 h-6 rounded-lg text-stone-700 hover:bg-stone-100 flex items-center justify-center font-bold text-xs"
+                              className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-stone-700 hover:bg-stone-100 flex items-center justify-center font-bold text-xs cursor-pointer active:scale-95 transition-all"
                             >
-                              <Minus className="w-3 h-3" />
+                              <Minus className="w-3.5 h-3.5" />
                             </button>
-                            <span className="w-5 text-center font-bold text-xs text-stone-900">
+                            <span className="w-6 text-center font-bold text-xs text-stone-900">
                               {item.quantity}
                             </span>
                             <button
                               onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
-                              className="w-6 h-6 rounded-lg text-stone-700 hover:bg-stone-100 flex items-center justify-center font-bold text-xs"
+                              className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg text-stone-700 hover:bg-stone-100 flex items-center justify-center font-bold text-xs cursor-pointer active:scale-95 transition-all"
                             >
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
@@ -221,7 +221,7 @@ export const CartDrawer: React.FC = () => {
                 <button
                   id="checkout-open-modal-btn"
                   onClick={() => setIsCheckoutModalOpen(true)}
-                  className="w-full py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-900/30 flex items-center justify-between transition-all active:scale-[0.98]"
+                  className="w-full min-h-[48px] py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-900/30 flex items-center justify-between transition-all active:scale-[0.98] cursor-pointer"
                 >
                   <span>Passer la Commande</span>
                   <span className="flex items-center gap-1.5">
