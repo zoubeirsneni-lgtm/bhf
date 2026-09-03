@@ -143,12 +143,17 @@ export function isValidStatusTransition(
   targetStatus: OrderStatus,
   role: InternalRole
 ): boolean {
+  if (currentStatus === targetStatus) {
+    return true; // Cleanly ignored as a no-op
+  }
+
   if (role === 'admin') {
-    // Admin can perform all valid lifecycle transitions
+    // Admin can perform all valid lifecycle transitions (Strict Workflow: no step jumping, no backward)
     const validLifecycle: Record<OrderStatus, OrderStatus[]> = {
       received: ['preparing', 'cancelled'],
       preparing: ['ready', 'cancelled'],
-      ready: ['delivering', 'cancelled'],
+      ready: ['waiting_for_driver', 'cancelled'],
+      waiting_for_driver: ['delivering', 'cancelled'],
       delivering: ['delivered', 'cancelled'],
       delivered: [],
       cancelled: []
@@ -157,15 +162,16 @@ export function isValidStatusTransition(
   }
 
   if (role === 'kitchen') {
-    // Kitchen is strictly limited to preparation workflow
+    // Kitchen is strictly limited to preparation & readying workflow (Rules 1, 2)
+    // Responsibility ends strictly at 'ready'. The system then automatically handles transition to 'waiting_for_driver'.
     if (currentStatus === 'received' && targetStatus === 'preparing') return true;
     if (currentStatus === 'preparing' && targetStatus === 'ready') return true;
     return false;
   }
 
   if (role === 'driver') {
-    // Driver is strictly limited to delivery workflow
-    if (currentStatus === 'ready' && targetStatus === 'delivering') return true;
+    // Driver is strictly limited to confirming physical delivery (Rule 5)
+    // Rule 4: Seul l'Admin assigne le livreur. Le livreur ne choisit jamais lui-même une commande.
     if (currentStatus === 'delivering' && targetStatus === 'delivered') return true;
     return false;
   }

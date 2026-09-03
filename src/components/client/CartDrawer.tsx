@@ -109,7 +109,7 @@ export const CartDrawer: React.FC = () => {
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <h4 className="font-bold text-sm text-stone-900 leading-snug">
-                              {item.product.name}
+                              {item.product?.name || 'Article'}
                             </h4>
                             <span className="text-xs font-bold text-emerald-700">
                               {item.itemTotalPrice.toFixed(1)} DT
@@ -153,7 +153,7 @@ export const CartDrawer: React.FC = () => {
                               <span className="font-medium">Suppléments :</span>
                               <span>
                                 {(item.supplements || [])
-                                  .map(s => `${cleanClientText(s.supplement.name)} (x${s.quantity})`)
+                                  .map(s => `${cleanClientText(s.supplement?.name || (s as any).name || 'Supplément')} (x${s.quantity})`)
                                   .join(', ')}
                               </span>
                             </div>

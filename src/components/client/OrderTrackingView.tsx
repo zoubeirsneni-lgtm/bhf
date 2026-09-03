@@ -141,6 +141,12 @@ export const OrderTrackingView: React.FC = () => {
       icon: <PackageCheck className="w-5 h-5" />
     },
     {
+      id: 'waiting_for_driver',
+      title: 'En attente de livreur',
+      description: 'Prête en cuisine, en cours d’attribution au livreur',
+      icon: <Clock className="w-5 h-5" />
+    },
+    {
       id: 'delivering',
       title: 'En cours de livraison',
       description: 'Le livreur est en route vers votre adresse',
@@ -158,8 +164,9 @@ export const OrderTrackingView: React.FC = () => {
     if (status === 'received') return 0;
     if (status === 'preparing') return 1;
     if (status === 'ready') return 2;
-    if (status === 'delivering') return 3;
-    if (status === 'delivered') return 4;
+    if (status === 'waiting_for_driver') return 3;
+    if (status === 'delivering') return 4;
+    if (status === 'delivered') return 5;
     return -1;
   };
 
@@ -230,6 +237,8 @@ export const OrderTrackingView: React.FC = () => {
                       ? 'bg-blue-100 text-blue-800 animate-pulse'
                       : currentOrder.status === 'ready'
                       ? 'bg-purple-100 text-purple-800'
+                      : currentOrder.status === 'waiting_for_driver'
+                      ? 'bg-amber-100 text-amber-800'
                       : currentOrder.status === 'preparing'
                       ? 'bg-amber-100 text-amber-800 animate-pulse'
                       : 'bg-stone-100 text-stone-800'

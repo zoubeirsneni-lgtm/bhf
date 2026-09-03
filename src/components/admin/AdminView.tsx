@@ -7,23 +7,33 @@ import {
   TrendingUp,
   Package,
   AlertTriangle,
-  Banknote,
-  Clock,
-  Layers,
+  AlertCircle,
   Search,
-  Plus,
-  Edit2,
-  CheckCircle2,
-  XCircle,
-  Eye,
-  RotateCcw,
   Sparkles,
-  ArrowUpRight,
-  Filter,
-  DollarSign,
   Phone,
-  MapPin
+  MapPin,
+  Bike
 } from 'lucide-react';
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  received: 'Reçue',
+  preparing: 'En préparation',
+  ready: 'Prête',
+  waiting_for_driver: 'En attente de livreur',
+  delivering: 'En livraison',
+  delivered: 'Livrée',
+  cancelled: 'Annulée'
+};
+
+const ALLOWED_ADMIN_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
+  received: ['preparing', 'cancelled'],
+  preparing: ['ready', 'cancelled'],
+  ready: ['waiting_for_driver', 'cancelled'],
+  waiting_for_driver: ['delivering', 'cancelled'],
+  delivering: ['delivered', 'cancelled'],
+  delivered: [],
+  cancelled: []
+};
 
 export const AdminView: React.FC = () => {
   const {
@@ -44,6 +54,8 @@ export const AdminView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [restockAmount, setRestockAmount] = useState<Record<string, number>>({});
   const [isRestocking, setIsRestocking] = useState<string | null>(null);
+  const [selectedDrivers, setSelectedDrivers] = useState<Record<string, string>>({});
+  const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
 
   // Compute key metrics
   const totalRevenue = useMemo(() => {
@@ -65,7 +77,10 @@ export const AdminView: React.FC = () => {
   }, [orders]);
 
   const lowStockIngredients = useMemo(() => {
-    return (ingredients || []).filter(i => i.currentStock <= i.minimumAlertStock);
+    return (ingredients || []).filter(i => {
+      const threshold = i.minThreshold ?? (i as any).minimumAlertStock ?? 0;
+      return i.currentStock <= threshold;
+    });
   }, [ingredients]);
 
   const topProducts = useMemo(() => {
@@ -73,11 +88,12 @@ export const AdminView: React.FC = () => {
     (orders || []).forEach(o => {
       if (o.status === 'cancelled') return;
       (o.items || []).forEach(item => {
-        if (!counts[item.productId]) {
-          counts[item.productId] = { name: item.productName, count: 0, revenue: 0 };
+        const prodId = item.productId || 'unknown';
+        if (!counts[prodId]) {
+          counts[prodId] = { name: item.productName || 'Plat', count: 0, revenue: 0 };
         }
-        counts[item.productId].count += item.quantity;
-        counts[item.productId].revenue += item.itemTotalPrice;
+        counts[prodId].count += item.quantity || 1;
+        counts[prodId].revenue += item.itemTotalPrice || 0;
       });
     });
     return Object.values(counts).sort((a, b) => b.count - a.count).slice(0, 5);
@@ -112,14 +128,66 @@ export const AdminView: React.FC = () => {
     }
   };
 
+  const handleDriverSelect = (orderId: string, driverId: string) => {
+    setSelectedDrivers(prev => ({ ...prev, [orderId]: driverId }));
+    const driver = drivers.find(d => d.id === driverId);
+    if (driver) {
+      showToast(
+        'Livreur sélectionné',
+        `${driver.name} attribué à la commande. Prêt pour le passage en livraison.`,
+        'info'
+      );
+    }
+  };
+
+  const handleStatusChange = async (order: Order, targetStatus: OrderStatus) => {
+    if (targetStatus === order.status) return;
+
+    const effectiveDriverId = selectedDrivers[order.id] || order.assignedDriverId;
+
+    if (targetStatus === 'delivering' && !effectiveDriverId) {
+      showToast(
+        'Livreur obligatoire',
+        'Veuillez attribuer un livreur à la commande avant de lancer la livraison.',
+        'warning'
+      );
+      return;
+    }
+
+    const chosenDriver = drivers.find(d => d.id === effectiveDriverId);
+
+    try {
+      setIsUpdatingOrder(order.id);
+      await updateOrderStatus(
+        order.id,
+        targetStatus,
+        targetStatus === 'delivering' && chosenDriver
+          ? `Attribuée au livreur ${chosenDriver.name}`
+          : 'Mise à jour administrateur',
+        'Admin BEBBA',
+        targetStatus === 'delivering' ? effectiveDriverId : undefined
+      );
+      showToast(
+        'Statut mis à jour',
+        `Commande #${order.orderNumber} passée à "${STATUS_LABELS[targetStatus]}".`,
+        'success'
+      );
+    } catch (err: any) {
+      showToast('Erreur statut', err.message || 'Impossible de mettre à jour le statut.', 'warning');
+    } finally {
+      setIsUpdatingOrder(null);
+    }
+  };
+
   const filteredOrders = useMemo(() => {
     return orders.filter(o => {
       const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
       const matchesSearch =
         orderSearch.trim() === '' ||
-        o.orderNumber.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.client.name.toLowerCase().includes(orderSearch.toLowerCase()) ||
-        o.client.phone.includes(orderSearch);
+        (o.orderNumber && o.orderNumber.toLowerCase().includes(orderSearch.toLowerCase())) ||
+        (o.client?.name && o.client.name.toLowerCase().includes(orderSearch.toLowerCase())) ||
+        (o.client?.phone && o.client.phone.includes(orderSearch)) ||
+        (o.assignedDriverName && o.assignedDriverName.toLowerCase().includes(orderSearch.toLowerCase()));
       return matchesStatus && matchesSearch;
     });
   }, [orders, statusFilter, orderSearch]);
@@ -320,7 +388,7 @@ export const AdminView: React.FC = () => {
                     <div key={drv.id} className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
                       <div>
                         <h4 className="font-bold text-xs sm:text-sm text-stone-900">{drv.name}</h4>
-                        <p className="text-xs text-stone-500">{drv.phone} • {drv.vehicleType}</p>
+                        <p className="text-xs text-stone-500">{drv.phone} • {drv.vehicle}</p>
                       </div>
                       <div className="text-right text-xs">
                         <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-bold">
@@ -347,7 +415,7 @@ export const AdminView: React.FC = () => {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-bold text-stone-900 font-display">Toutes les Commandes ({filteredOrders.length})</h2>
-              <p className="text-xs text-stone-500">Supervision en direct et changement de statut d'urgence.</p>
+              <p className="text-xs text-stone-500">Supervision en direct, attribution des livreurs et avancement du workflow.</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -356,7 +424,7 @@ export const AdminView: React.FC = () => {
                   type="text"
                   value={orderSearch}
                   onChange={e => setOrderSearch(e.target.value)}
-                  placeholder="Recherche n° ou client..."
+                  placeholder="Recherche n°, client, livreur..."
                   className="w-48 px-3 py-2 pl-8 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500"
                 />
                 <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-3" />
@@ -365,12 +433,13 @@ export const AdminView: React.FC = () => {
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-stone-300 text-xs font-bold focus:ring-2 focus:ring-emerald-500"
+                className="px-3 py-2 rounded-xl border border-stone-300 text-xs font-bold focus:ring-2 focus:ring-emerald-500 bg-white"
               >
                 <option value="all">Tous statuts</option>
                 <option value="received">Reçue</option>
                 <option value="preparing">En préparation</option>
                 <option value="ready">Prête</option>
+                <option value="waiting_for_driver">En attente de livreur</option>
                 <option value="delivering">En livraison</option>
                 <option value="delivered">Livrée</option>
                 <option value="cancelled">Annulée</option>
@@ -384,84 +453,203 @@ export const AdminView: React.FC = () => {
                 <tr>
                   <th className="p-3.5 rounded-l-xl">N° Commande</th>
                   <th className="p-3.5">Client &amp; Contact</th>
-                  <th className="p-3.5">Articles &amp; Cuisson</th>
+                  <th className="p-3.5">Articles</th>
                   <th className="p-3.5">Montant</th>
                   <th className="p-3.5">Statut Actuel</th>
+                  <th className="p-3.5">Livreur</th>
                   <th className="p-3.5 rounded-r-xl">Action Statut</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {filteredOrders.map(order => (
-                  <tr key={order.id} className="hover:bg-stone-50/80 transition-colors">
-                    <td className="p-3.5 font-mono font-bold text-stone-900">
-                      #{order.orderNumber}
-                      <span className="block text-[10px] font-sans font-normal text-stone-400">
-                        {new Date(order.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="font-bold text-stone-900">{order.client.name}</div>
-                      <a
-                        href={`tel:${order.client.phone}`}
-                        className="inline-flex items-center gap-1 font-mono font-bold text-emerald-700 hover:text-emerald-900 text-[11px] my-0.5"
-                      >
-                        <Phone className="w-3 h-3" />
-                        <span>{order.client.phone}</span>
-                      </a>
-                      <div className="text-[11px] text-stone-600 flex items-start gap-1">
-                        <MapPin className="w-3 h-3 text-stone-400 flex-shrink-0 mt-0.5" />
-                        <span className="line-clamp-2">{order.client.deliveryAddress}</span>
-                      </div>
-                      {order.client.notes && (
-                        <div className="text-[10px] text-amber-700 italic mt-0.5">
-                          Note: « {order.client.notes} »
+                {filteredOrders.map(order => {
+                  const effectiveDriverId = selectedDrivers[order.id] ?? order.assignedDriverId ?? '';
+                  const assignedDriver = drivers.find(d => d.id === effectiveDriverId);
+                  const allowedTargets = ALLOWED_ADMIN_TRANSITIONS[order.status] || [];
+                  const isTerminated = order.status === 'delivered' || order.status === 'cancelled';
+
+                  return (
+                    <tr key={order.id} className="hover:bg-stone-50/80 transition-colors">
+                      <td className="p-3.5 font-mono font-bold text-stone-900 align-top">
+                        #{order.orderNumber}
+                        <span className="block text-[10px] font-sans font-normal text-stone-400">
+                          {new Date(order.createdAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </td>
+                      <td className="p-3.5 align-top">
+                        <div className="font-bold text-stone-900">{order.client?.name || 'Client'}</div>
+                        {order.client?.phone && (
+                          <a
+                            href={`tel:${order.client.phone}`}
+                            className="inline-flex items-center gap-1 font-mono font-bold text-emerald-700 hover:text-emerald-900 text-[11px] my-0.5"
+                          >
+                            <Phone className="w-3 h-3" />
+                            <span>{order.client.phone}</span>
+                          </a>
+                        )}
+                        <div className="text-[11px] text-stone-600 flex items-start gap-1">
+                          <MapPin className="w-3 h-3 text-stone-400 flex-shrink-0 mt-0.5" />
+                          <span className="line-clamp-2">{order.client?.deliveryAddress || 'Adresse non renseignée'}</span>
                         </div>
-                      )}
-                    </td>
-                    <td className="p-3.5">
-                      {order.items.map((it, idx) => (
-                        <div key={idx} className="line-clamp-1">
-                          • {it.productName} (x{it.quantity})
+                        {order.client?.notes && (
+                          <div className="text-[10px] text-amber-700 italic mt-0.5">
+                            Note: « {order.client.notes} »
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3.5 align-top">
+                        {order.items.map((it, idx) => (
+                          <div key={idx} className="line-clamp-1">
+                            • {it.productName} (x{it.quantity})
+                          </div>
+                        ))}
+                      </td>
+                      <td className="p-3.5 align-top">
+                        <span className="font-extrabold text-emerald-700">{order.totalAmount.toFixed(1)} DT</span>
+                        <span className={`block text-[10px] font-bold ${order.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {order.paymentStatus === 'paid' ? 'Encaissé' : 'À encaisser'}
+                        </span>
+                      </td>
+                      <td className="p-3.5 align-top">
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1.5 border ${
+                            order.status === 'delivered'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : order.status === 'delivering'
+                              ? 'bg-blue-50 text-blue-800 border-blue-200'
+                              : order.status === 'waiting_for_driver'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : order.status === 'ready'
+                              ? 'bg-purple-50 text-purple-800 border-purple-200'
+                              : order.status === 'preparing'
+                              ? 'bg-orange-50 text-orange-800 border-orange-200'
+                              : order.status === 'cancelled'
+                              ? 'bg-rose-50 text-rose-800 border-rose-200'
+                              : 'bg-stone-100 text-stone-800 border-stone-200'
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              order.status === 'delivered'
+                                ? 'bg-emerald-500'
+                                : order.status === 'delivering'
+                                ? 'bg-blue-500 animate-pulse'
+                                : order.status === 'waiting_for_driver'
+                                ? 'bg-amber-500 animate-pulse'
+                                : order.status === 'ready'
+                                ? 'bg-purple-500'
+                                : order.status === 'preparing'
+                                ? 'bg-orange-500 animate-pulse'
+                                : order.status === 'cancelled'
+                                ? 'bg-rose-500'
+                                : 'bg-stone-400'
+                            }`}
+                          />
+                          <span>{STATUS_LABELS[order.status] || order.status}</span>
+                        </span>
+                      </td>
+
+                      {/* LIVREUR COLUMN */}
+                      <td className="p-3.5 align-top">
+                        <div className="space-y-1.5 min-w-[170px]">
+                          {assignedDriver ? (
+                            <div>
+                              <div className="font-bold text-stone-900 text-xs flex items-center gap-1.5">
+                                <Bike className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                                <span>{assignedDriver.name}</span>
+                              </div>
+                              {assignedDriver.phone && (
+                                <a
+                                  href={`tel:${assignedDriver.phone}`}
+                                  className="inline-flex items-center gap-1 font-mono text-stone-500 hover:text-stone-800 text-[11px]"
+                                >
+                                  <Phone className="w-3 h-3 text-stone-400" />
+                                  <span>{assignedDriver.phone}</span>
+                                </a>
+                              )}
+                            </div>
+                          ) : order.assignedDriverName ? (
+                            <div>
+                              <div className="font-bold text-stone-900 text-xs flex items-center gap-1.5">
+                                <Bike className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
+                                <span>{order.assignedDriverName}</span>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-400 italic">
+                              <AlertCircle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                              <span>Aucun livreur attribué</span>
+                            </div>
+                          )}
+
+                          {!isTerminated && (
+                            <select
+                              aria-label={`Attribuer un livreur pour commande #${order.orderNumber}`}
+                              value={effectiveDriverId}
+                              onChange={e => handleDriverSelect(order.id, e.target.value)}
+                              className="block w-full px-2 py-1 text-xs rounded-lg border border-stone-300 bg-white font-medium text-stone-800 focus:ring-2 focus:ring-emerald-500"
+                            >
+                              <option value="">-- Aucun livreur --</option>
+                              {drivers.map(drv => drv ? (
+                                <option key={drv.id} value={drv.id}>
+                                  {drv.name} {drv.phone ? `(${drv.phone})` : ''}
+                                </option>
+                              ) : null)}
+                            </select>
+                          )}
                         </div>
-                      ))}
-                    </td>
-                    <td className="p-3.5">
-                      <span className="font-extrabold text-emerald-700">{order.totalAmount.toFixed(1)} DT</span>
-                      <span className={`block text-[10px] font-bold ${order.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                        {order.paymentStatus === 'paid' ? 'Encaissé' : 'À encaisser'}
-                      </span>
-                    </td>
-                    <td className="p-3.5">
-                      <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold inline-block ${
-                        order.status === 'delivered'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : order.status === 'delivering'
-                          ? 'bg-blue-100 text-blue-800'
-                          : order.status === 'ready'
-                          ? 'bg-purple-100 text-purple-800'
-                          : order.status === 'preparing'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-stone-100 text-stone-800'
-                      }`}>
-                        {order.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5">
-                      <select
-                        value={order.status}
-                        onChange={e => updateOrderStatus(order.id, e.target.value as OrderStatus, 'Modification manuelle administrateur', 'Admin BEBBA')}
-                        className="px-2.5 py-1.5 rounded-lg border border-stone-300 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 bg-white"
-                      >
-                        <option value="received">Reçue</option>
-                        <option value="preparing">En préparation</option>
-                        <option value="ready">Prête</option>
-                        <option value="delivering">En livraison</option>
-                        <option value="delivered">Livrée (Payée)</option>
-                        <option value="cancelled">Annulée</option>
-                      </select>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+
+                      {/* ACTION STATUT COLUMN */}
+                      <td className="p-3.5 align-top">
+                        {isTerminated ? (
+                          <span className="text-stone-400 text-xs italic">
+                            {order.status === 'delivered' ? 'Commande clôturée' : 'Commande annulée'}
+                          </span>
+                        ) : (
+                          <div className="space-y-1.5 min-w-[160px]">
+                            {order.status === 'waiting_for_driver' && effectiveDriverId ? (
+                              <button
+                                onClick={() => handleStatusChange(order, 'delivering')}
+                                disabled={isUpdatingOrder === order.id}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                              >
+                                <Bike className="w-3.5 h-3.5" />
+                                <span>Expédier ({assignedDriver?.name || order.assignedDriverName || 'Livreur'})</span>
+                              </button>
+                            ) : null}
+
+                            <select
+                              value={order.status}
+                              disabled={isUpdatingOrder === order.id}
+                              onChange={e => handleStatusChange(order, e.target.value as OrderStatus)}
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-stone-300 text-xs font-semibold focus:ring-2 focus:ring-emerald-500 bg-white"
+                            >
+                              <option value={order.status} disabled>
+                                {STATUS_LABELS[order.status]} (actuel)
+                              </option>
+                              {allowedTargets.map(target => (
+                                <option
+                                  key={target}
+                                  value={target}
+                                  disabled={target === 'delivering' && !effectiveDriverId}
+                                >
+                                  → {STATUS_LABELS[target]} {target === 'delivering' && !effectiveDriverId ? '(Livreur requis)' : ''}
+                                </option>
+                              ))}
+                            </select>
+
+                            {order.status === 'waiting_for_driver' && !effectiveDriverId && (
+                              <div className="text-[10px] text-amber-700 font-semibold flex items-center gap-1">
+                                <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                                <span>Attribuer un livreur ci-contre</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -477,7 +665,7 @@ export const AdminView: React.FC = () => {
                 Gestion des Ingrédients &amp; Stock Cuisine
               </h2>
               <p className="text-xs text-stone-500">
-                Déduction automatique à chaque commande passée selon les recettes et suppléments.
+                Déduction automatique du stock au démarrage de la préparation, selon les recettes et suppléments.
               </p>
             </div>
           </div>
@@ -496,7 +684,9 @@ export const AdminView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {ingredients.map(ing => {
-                  const isLow = ing.currentStock <= ing.minimumAlertStock;
+                  const alertThreshold = ing.minThreshold ?? (ing as any).minimumAlertStock ?? 0;
+                  const unitCost = (ing as any).costPerUnit ?? ing.purchaseCost ?? 0;
+                  const isLow = ing.currentStock <= alertThreshold;
                   const isCritical = ing.currentStock <= 0;
 
                   return (
@@ -520,10 +710,10 @@ export const AdminView: React.FC = () => {
                         </span>
                       </td>
                       <td className="p-3.5 text-stone-500 font-mono">
-                        {ing.minimumAlertStock} {ing.unit}
+                        {alertThreshold} {ing.unit}
                       </td>
                       <td className="p-3.5 text-stone-600">
-                        {ing.costPerUnit.toFixed(3)} DT / {ing.unit}
+                        {unitCost.toFixed(3)} DT / {ing.unit}
                       </td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-2">

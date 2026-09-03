@@ -37,28 +37,9 @@ export const DriverView: React.FC = () => {
   } : drivers[0]);
 
   // Orders relevant to drivers (Ready for pickup or currently being delivered)
-  const availableOrders = (orders || []).filter(o => o.status === 'ready');
-  const ongoingDeliveries = (orders || []).filter(o => o.status === 'delivering');
+  const availableOrders = (orders || []).filter(o => o.status === 'ready' || o.status === 'waiting_for_driver');
+  const ongoingDeliveries = (orders || []).filter(o => o.status === 'delivering' && (!currentDriver || o.assignedDriverId === currentDriver.id));
   const deliveredToday = (orders || []).filter(o => o.status === 'delivered');
-
-  const handleStartDelivery = async (order: Order) => {
-    try {
-      setUpdatingOrderId(order.id);
-      const driverName = currentDriver ? currentDriver.name : 'Livreur BEBBA';
-      await updateOrderStatus(
-        order.id,
-        'delivering',
-        `Prise en charge par le livreur ${driverName}`,
-        driverName,
-        currentDriver?.id
-      );
-      showToast('Course acceptée', `La commande #${order.orderNumber} est en cours d'acheminement.`, 'info');
-    } catch (err: any) {
-      showToast('Erreur', err.message || 'Impossible de démarrer la livraison.', 'warning');
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
 
   const handleCompleteDelivery = async (order: Order) => {
     try {
@@ -67,11 +48,11 @@ export const DriverView: React.FC = () => {
       await updateOrderStatus(
         order.id,
         'delivered',
-        `Livré au client avec encaissement en espèces de ${order.totalAmount.toFixed(1)} DT`,
+        `Remise physique effectuée au client par le livreur ${driverName}`,
         driverName,
         currentDriver?.id
       );
-      showToast('Livraison Confirmée !', `Commande #${order.orderNumber} livrée et ${order.totalAmount.toFixed(1)} DT encaissés.`, 'success');
+      showToast('Livraison Confirmée !', `Commande #${order.orderNumber} remise au client.`, 'success');
     } catch (err: any) {
       showToast('Erreur', err.message || 'Impossible de valider la livraison.', 'warning');
     } finally {
@@ -192,23 +173,25 @@ export const DriverView: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-xs text-stone-400">Client :</span>
-                      <h4 className="font-bold text-sm text-stone-900">{order.client.name}</h4>
+                      <h4 className="font-bold text-sm text-stone-900">{order.client?.name || 'Client'}</h4>
                     </div>
-                    <a
-                      href={`tel:${order.client.phone}`}
-                      className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
-                    >
-                      <Phone className="w-3.5 h-3.5" />
-                      <span>{order.client.phone}</span>
-                    </a>
+                    {order.client?.phone && (
+                      <a
+                        href={`tel:${order.client.phone}`}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm"
+                      >
+                        <Phone className="w-3.5 h-3.5" />
+                        <span>{order.client.phone}</span>
+                      </a>
+                    )}
                   </div>
 
                   <div className="pt-1 flex items-start gap-2 text-xs text-stone-700">
                     <MapPin className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <span>{order.client.deliveryAddress}</span>
+                    <span>{order.client?.deliveryAddress || 'Adresse non renseignée'}</span>
                   </div>
 
-                  {order.client.notes && (
+                  {order.client?.notes && (
                     <div className="text-xs text-amber-800 bg-amber-50/80 p-2 rounded-xl border border-amber-200/60 italic">
                       Note client : « {order.client.notes} »
                     </div>
@@ -230,7 +213,7 @@ export const DriverView: React.FC = () => {
                   className="w-full py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                 >
                   <Banknote className="w-5 h-5" />
-                  <span>Commande Livrée &amp; {order.totalAmount.toFixed(1)} DT Encaissés</span>
+                  <span>Confirmer la remise au client (Commande livrée)</span>
                 </button>
               </div>
             ))}
@@ -241,12 +224,12 @@ export const DriverView: React.FC = () => {
       {/* 2. Available Orders Ready for Pickup */}
       <div className="space-y-4">
         <h2 className="text-lg font-extrabold text-stone-900">
-          Commandes Prêtes à Récupérer en Cuisine ({availableOrders.length})
+          Commandes Prêtes / En attente d'attribution ({availableOrders.length})
         </h2>
 
         {availableOrders.length === 0 ? (
           <div className="p-8 rounded-3xl bg-white border border-stone-200 text-center text-stone-500 text-xs">
-            Aucune nouvelle commande prête en cuisine pour le moment.
+            Aucune commande prête ou en attente d'attribution pour le moment.
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -261,7 +244,7 @@ export const DriverView: React.FC = () => {
                       <span className="font-mono text-base font-extrabold text-stone-900">
                         #{order.orderNumber}
                       </span>
-                      <h4 className="text-xs font-bold text-stone-700 mt-0.5">{order.client.name}</h4>
+                      <h4 className="text-xs font-bold text-stone-700 mt-0.5">{order.client?.name || 'Client'}</h4>
                     </div>
                     <span className="text-sm font-extrabold text-emerald-700">
                       {order.totalAmount.toFixed(1)} DT
@@ -271,24 +254,22 @@ export const DriverView: React.FC = () => {
                   <div className="pt-3 space-y-2 text-xs text-stone-600">
                     <div className="flex items-start gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-stone-400 flex-shrink-0 mt-0.5" />
-                      <span className="line-clamp-2">{order.client.deliveryAddress}</span>
+                      <span className="line-clamp-2">{order.client?.deliveryAddress || 'Adresse non renseignée'}</span>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-stone-500">
-                      <Phone className="w-3.5 h-3.5 text-stone-400" />
-                      <span>{order.client.phone}</span>
-                    </div>
+                    {order.client?.phone && (
+                      <div className="flex items-center gap-1.5 text-stone-500">
+                        <Phone className="w-3.5 h-3.5 text-stone-400" />
+                        <span>{order.client.phone}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleStartDelivery(order)}
-                  disabled={updatingOrderId === order.id}
-                  className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-95 disabled:opacity-50"
-                >
-                  <Bike className="w-4 h-4" />
-                  <span>Prendre en charge la livraison</span>
-                </button>
+                <div className="w-full py-2.5 px-3 rounded-xl bg-stone-100 text-stone-500 font-semibold text-xs flex items-center justify-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Attribuée par l'administrateur</span>
+                </div>
               </div>
             ))}
           </div>

@@ -3,7 +3,7 @@
  * « Vos Plats santé en un clic »
  */
 
-export type OrderStatus = 'received' | 'preparing' | 'ready' | 'delivering' | 'delivered' | 'cancelled';
+export type OrderStatus = 'received' | 'preparing' | 'ready' | 'waiting_for_driver' | 'delivering' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'to_collect' | 'paid';
 
 export interface Category {

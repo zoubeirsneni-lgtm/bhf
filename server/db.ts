@@ -258,6 +258,7 @@ class DatabaseManager {
       fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
     } catch (err) {
       console.error('Error persisting database to disk:', err);
+      throw err;
     }
   }
 
@@ -397,14 +398,14 @@ class DatabaseManager {
     performedBy?: string;
     orderId?: string;
     orderNumber?: string;
+    skipPersist?: boolean;
   }): { ingredient: Ingredient; movement: StockMovement } {
     const ing = this.getIngredientById(params.ingredientId);
     if (!ing) {
       throw new Error(`Ingrédient #${params.ingredientId} introuvable.`);
     }
 
-    ing.currentStock += params.quantity;
-    if (ing.currentStock < 0) ing.currentStock = 0;
+    ing.currentStock = Math.round((ing.currentStock + params.quantity) * 10) / 10;
     ing.updatedAt = new Date().toISOString();
 
     const movement: StockMovement = {
@@ -422,7 +423,9 @@ class DatabaseManager {
     };
 
     this.data.stockMovements.unshift(movement);
-    this.persist();
+    if (!params.skipPersist) {
+      this.persist();
+    }
     return { ingredient: ing, movement };
   }
 
@@ -999,6 +1002,48 @@ class DatabaseManager {
 
     const previousStatus = order.status;
 
+    // Règle d'idempotence : si le statut demandé est identique au statut actuel,
+    // ignorer proprement et renvoyer la commande sans effet de bord ni doublon d'historique
+    if (previousStatus === params.status) {
+      return order;
+    }
+
+    // RÈGLES DE TRANSITION DU WORKFLOW STRICT (Bloc B) :
+    // Workflow cible : Reçue → En préparation → Prête → En attente de livreur → En cours de livraison → Livrée
+    // Interdictions absolues :
+    // - Sauter une étape est strictement interdit
+    // - Revenir en arrière est strictement interdit
+    const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
+      received: ['preparing', 'cancelled'],
+      preparing: ['ready', 'cancelled'],
+      ready: ['waiting_for_driver', 'cancelled'],
+      waiting_for_driver: ['delivering', 'cancelled'],
+      delivering: ['delivered', 'cancelled'],
+      delivered: [],
+      cancelled: []
+    };
+
+    if (!allowedTransitions[previousStatus]?.includes(params.status)) {
+      throw new Error(
+        `Transition interdite : Impossible de passer du statut '${previousStatus}' au statut '${params.status}'. Le saut d'étape et le retour en arrière sont strictement interdits.`
+      );
+    }
+
+    // RÈGLE 4 : En attente de livreur → En cours de livraison
+    // Une commande ne doit passer en livraison qu'après attribution d'un livreur
+    if (params.status === 'delivering') {
+      const driverIdToUse = params.assignedDriverId || order.assignedDriverId;
+      if (!driverIdToUse) {
+        throw new Error("Une commande ne peut pas passer en cours de livraison sans attribution préalable d'un livreur.");
+      }
+      const driver = this.data.drivers.find(d => d.id === driverIdToUse);
+      if (!driver) {
+        throw new Error(`Livreur #${driverIdToUse} introuvable.`);
+      }
+      order.assignedDriverId = driver.id;
+      order.assignedDriverName = driver.name;
+    }
+
     // --- CONSOMMATION DU STOCK AU PASSAGE 'Reçue' -> 'En préparation' ---
     if (params.status === 'preparing') {
       const alreadyConsumed = order.stockConsumed === true || this.data.stockMovements.some(
@@ -1082,42 +1127,104 @@ class DatabaseManager {
           throw new InsufficientStockError(missingStockDetails);
         }
 
-        // 3. TOUS les ingrédients sont disponibles : déduction atomique et enregistrement des mouvements
-        for (const item of order.items) {
-          const qty = Math.max(1, item.quantity || 1);
-          if (item.preparationSheet?.totalIngredients) {
-            for (const ingredientUsage of item.preparationSheet.totalIngredients) {
-              const totalUsed = Math.round(ingredientUsage.totalQuantity * qty * 10) / 10;
-              this.addStockMovement({
-                ingredientId: ingredientUsage.ingredientId,
-                type: 'order_consumption',
-                quantity: -totalUsed,
-                notes: `Préparation commande #${order.orderNumber} (${item.productName} x${qty})`,
-                performedBy: params.updatedBy || 'Cuisine BEBBA',
-                orderId: order.id,
-                orderNumber: order.orderNumber
-              });
+        // 3. TOUS les ingrédients sont disponibles : déduction en mémoire et mouvements (sans persistance intermédiaire)
+        const backupIngredients: Array<{ ing: Ingredient; originalStock: number; originalUpdatedAt: string }> = [];
+        const createdMovements: StockMovement[] = [];
+
+        try {
+          for (const item of order.items) {
+            const qty = Math.max(1, item.quantity || 1);
+            if (item.preparationSheet?.totalIngredients) {
+              for (const ingredientUsage of item.preparationSheet.totalIngredients) {
+                const totalUsed = Math.round(ingredientUsage.totalQuantity * qty * 10) / 10;
+                const ing = this.getIngredientById(ingredientUsage.ingredientId);
+                if (!ing) {
+                  throw new Error(`Ingrédient requis #${ingredientUsage.ingredientId} (${ingredientUsage.ingredientName}) introuvable dans le stock.`);
+                }
+
+                if (!backupIngredients.some(b => b.ing.id === ing.id)) {
+                  backupIngredients.push({
+                    ing,
+                    originalStock: ing.currentStock,
+                    originalUpdatedAt: ing.updatedAt
+                  });
+                }
+
+                const res = this.addStockMovement({
+                  ingredientId: ingredientUsage.ingredientId,
+                  type: 'order_consumption',
+                  quantity: -totalUsed,
+                  notes: `Préparation commande #${order.orderNumber} (${item.productName} x${qty})`,
+                  performedBy: params.updatedBy || 'Cuisine BEBBA',
+                  orderId: order.id,
+                  orderNumber: order.orderNumber,
+                  skipPersist: true
+                });
+                createdMovements.push(res.movement);
+              }
             }
           }
-        }
 
-        order.stockConsumed = true;
+          order.stockConsumed = true;
+        } catch (err) {
+          // ROLLBACK ATOMIQUE EN CAS D'ERREUR PENDANT LA CONSOMMATION
+          for (const b of backupIngredients) {
+            b.ing.currentStock = b.originalStock;
+            b.ing.updatedAt = b.originalUpdatedAt;
+          }
+          if (createdMovements.length > 0) {
+            const createdIds = new Set(createdMovements.map(m => m.id));
+            this.data.stockMovements = this.data.stockMovements.filter(m => !createdIds.has(m.id));
+          }
+          order.stockConsumed = false;
+          order.status = previousStatus;
+          throw err;
+        }
       }
+    }
+
+    const statusLabels: Record<OrderStatus, string> = {
+      received: 'Commande reçue',
+      preparing: 'En préparation en cuisine',
+      ready: 'Commande prête & emballée',
+      waiting_for_driver: 'En attente de livreur',
+      delivering: 'En cours de livraison',
+      delivered: 'Commande livrée au client',
+      cancelled: 'Commande annulée'
+    };
+
+    // RÈGLE 3 : Prête → En attente de livreur
+    // Après le passage d'une commande à 'ready', le système bascule AUTOMATIQUEMENT la commande
+    // en 'waiting_for_driver' dans TOUS LES CAS (même lorsqu'un livreur est disponible).
+    // Cette étape ne doit pas consommer de stock.
+    if (params.status === 'ready') {
+      order.statusHistory.push({
+        status: 'ready',
+        label: statusLabels.ready,
+        timestamp: new Date().toISOString(),
+        note: params.note || 'Plats préparés et emballés en sac thermique',
+        updatedBy: params.updatedBy || 'Cuisine BEBBA'
+      });
+
+      order.status = 'waiting_for_driver';
+      order.statusHistory.push({
+        status: 'waiting_for_driver',
+        label: statusLabels.waiting_for_driver,
+        timestamp: new Date().toISOString(),
+        note: 'Placée automatiquement en attente d\'attribution d\'un livreur',
+        updatedBy: 'Système BEBBA'
+      });
+
+      this.persist();
+      return order;
     }
 
     order.status = params.status;
 
-    if (params.assignedDriverId) {
-      const driver = this.data.drivers.find(d => d.id === params.assignedDriverId);
-      if (driver) {
-        order.assignedDriverId = driver.id;
-        order.assignedDriverName = driver.name;
-      }
-    }
-
-    // Auto update payment if marked as delivered
+    // RÈGLE 5 : En cours de livraison → Livrée
+    // Le livreur confirme que la commande a physiquement été remise au client.
+    // Cette étape ne signifie PAS automatiquement que le paiement est encaissé (Bloc C).
     if (params.status === 'delivered') {
-      order.paymentStatus = 'paid';
       if (order.assignedDriverId) {
         const driver = this.data.drivers.find(d => d.id === order.assignedDriverId);
         if (driver) {
@@ -1128,15 +1235,6 @@ class DatabaseManager {
 
     // RÈGLE 8 : En cas d'annulation ('cancelled'), NE PAS restaurer automatiquement le stock
     // (qu'elle soit annulée avant ou après préparation). Pas de mouvement inverse automatique.
-
-    const statusLabels: Record<OrderStatus, string> = {
-      received: 'Commande reçue',
-      preparing: 'En préparation en cuisine',
-      ready: 'Commande prête & emballée',
-      delivering: 'En cours de livraison',
-      delivered: 'Commande livrée & Paiement encaissé',
-      cancelled: 'Commande annulée'
-    };
 
     order.statusHistory.push({
       status: params.status,
@@ -1173,6 +1271,7 @@ class DatabaseManager {
       received: 0,
       preparing: 0,
       ready: 0,
+      waiting_for_driver: 0,
       delivering: 0,
       delivered: 0,
       cancelled: 0

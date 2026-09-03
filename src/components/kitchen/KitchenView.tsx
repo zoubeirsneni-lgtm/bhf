@@ -30,7 +30,7 @@ export const KitchenView: React.FC = () => {
       return o.status === 'received' || o.status === 'preparing';
     }
     if (kitchenFilter === 'ready') {
-      return o.status === 'ready';
+      return o.status === 'ready' || o.status === 'waiting_for_driver';
     }
     return o.status !== 'cancelled';
   });
@@ -103,7 +103,7 @@ export const KitchenView: React.FC = () => {
                 : 'text-stone-400 hover:text-white'
             }`}
           >
-            Prêtes ({orders.filter(o => o.status === 'ready').length})
+            Prêtes ({orders.filter(o => o.status === 'ready' || o.status === 'waiting_for_driver').length})
           </button>
           <button
             onClick={() => setKitchenFilter('all')}
@@ -175,7 +175,15 @@ export const KitchenView: React.FC = () => {
                       </span>
                     </div>
                     <div className="text-[11px] text-white/90 font-medium">
-                      Client : <strong>{order.client.name}</strong> • <a href={`tel:${order.client.phone}`} className="underline font-mono text-emerald-200 hover:text-white">{order.client.phone}</a>
+                      Client : <strong>{order.client?.name || 'Client'}</strong>
+                      {order.client?.phone && (
+                        <>
+                          {' • '}
+                          <a href={`tel:${order.client.phone}`} className="underline font-mono text-emerald-200 hover:text-white">
+                            {order.client.phone}
+                          </a>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -191,7 +199,7 @@ export const KitchenView: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 font-bold text-stone-900">
                       <MapPin className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                      <span className="line-clamp-1">{order.client.deliveryAddress}</span>
+                      <span className="line-clamp-1">{order.client?.deliveryAddress || 'Adresse non renseignée'}</span>
                     </div>
                     <a
                       href={`tel:${order.client.phone}`}

@@ -704,6 +704,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         received: 'Commande confirmée et enregistrée.',
         preparing: 'Votre commande est maintenant en préparation en cuisine.',
         ready: 'Votre commande est prête et sera bientôt remise au livreur.',
+        waiting_for_driver: 'Votre commande est prête et en attente d’attribution d’un livreur.',
         delivering: 'Votre commande est en route avec le livreur.',
         delivered: 'Votre commande a été livrée. Bon appétit !',
         cancelled: 'Votre commande a été annulée.'

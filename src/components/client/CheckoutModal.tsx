@@ -27,6 +27,11 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    phone?: string;
+    address?: string;
+  }>({});
 
   if (!isOpen) return null;
 
@@ -37,18 +42,33 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     setErrorMsg(null);
 
+    const errors: { name?: string; phone?: string; address?: string } = {};
+
+    // 1. Contrôle du nom
     if (!name.trim()) {
-      setErrorMsg('Veuillez saisir votre nom et prénom.');
+      errors.name = 'Nom obligatoire';
+    }
+
+    // 2. Contrôle du téléphone (minimum 8 chiffres utiles hors indicatif ou format standard)
+    const rawDigits = phone.replace(/\D/g, '');
+    const isPhoneEmptyOrShort = !phone.trim() || rawDigits.length < 8 || phone.trim() === '+216';
+    if (isPhoneEmptyOrShort) {
+      errors.phone = 'Téléphone obligatoire';
+    }
+
+    // 3. Contrôle de l'adresse de livraison
+    if (!address.trim()) {
+      errors.address = 'Adresse de livraison obligatoire';
+    }
+
+    // Si un ou plusieurs champs obligatoires sont manquants, bloquer l'envoi et afficher les erreurs
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setErrorMsg('Veuillez renseigner tous les champs obligatoires signalés ci-dessous.');
       return;
     }
-    if (!phone.trim() || phone.replace(/\D/g, '').length < 8) {
-      setErrorMsg('Veuillez saisir un numéro de téléphone valide pour le livreur.');
-      return;
-    }
-    if (!address.trim() || address.trim().length < 5) {
-      setErrorMsg('Veuillez préciser votre adresse de livraison complète.');
-      return;
-    }
+
+    setFieldErrors({});
 
     try {
       setIsSubmitting(true);
@@ -134,56 +154,120 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
             {/* Full Name */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-                <User className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Nom et Prénom *</span>
+              <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <User className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Nom et Prénom *</span>
+                </span>
+                {fieldErrors.name && (
+                  <span className="text-rose-600 text-[11px] font-bold flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {fieldErrors.name}
+                  </span>
+                )}
               </label>
               <input
                 type="text"
                 id="checkout-name-input"
-                required
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={e => {
+                  setName(e.target.value);
+                  if (fieldErrors.name) {
+                    setFieldErrors(prev => ({ ...prev, name: undefined }));
+                  }
+                }}
                 placeholder="Ex: Mohamed Ben Salem"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                className={`w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${
+                  fieldErrors.name
+                    ? 'border-2 border-rose-500 bg-rose-50/20 text-stone-900 focus:ring-2 focus:ring-rose-400'
+                    : 'border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-500'
+                }`}
               />
+              {fieldErrors.name && (
+                <p className="text-[11px] font-semibold text-rose-600">
+                  {fieldErrors.name}
+                </p>
+              )}
             </div>
 
             {/* Phone */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Numéro de Téléphone Mobile *</span>
+              <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Numéro de Téléphone Mobile *</span>
+                </span>
+                {fieldErrors.phone && (
+                  <span className="text-rose-600 text-[11px] font-bold flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {fieldErrors.phone}
+                  </span>
+                )}
               </label>
               <input
                 type="tel"
                 id="checkout-phone-input"
-                required
                 value={phone}
-                onChange={e => setPhone(e.target.value)}
+                onChange={e => {
+                  setPhone(e.target.value);
+                  if (fieldErrors.phone) {
+                    setFieldErrors(prev => ({ ...prev, phone: undefined }));
+                  }
+                }}
                 placeholder="+216 98 123 456 ou 22 345 678"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white font-mono"
+                className={`w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none font-mono transition-colors ${
+                  fieldErrors.phone
+                    ? 'border-2 border-rose-500 bg-rose-50/20 text-stone-900 focus:ring-2 focus:ring-rose-400'
+                    : 'border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-500'
+                }`}
               />
-              <p className="text-[11px] text-stone-500">
-                Indispensable : le livreur vous appellera sur ce numéro dès son arrivée.
-              </p>
+              {fieldErrors.phone ? (
+                <p className="text-[11px] font-semibold text-rose-600">
+                  {fieldErrors.phone}
+                </p>
+              ) : (
+                <p className="text-[11px] text-stone-500">
+                  Indispensable : le livreur vous appellera sur ce numéro dès son arrivée.
+                </p>
+              )}
             </div>
 
             {/* Delivery Address */}
             <div className="space-y-1">
-              <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Adresse de Livraison Complète *</span>
+              <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Adresse de Livraison Complète *</span>
+                </span>
+                {fieldErrors.address && (
+                  <span className="text-rose-600 text-[11px] font-bold flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    {fieldErrors.address}
+                  </span>
+                )}
               </label>
               <textarea
                 id="checkout-address-input"
-                required
                 rows={2}
                 value={address}
-                onChange={e => setAddress(e.target.value)}
+                onChange={e => {
+                  setAddress(e.target.value);
+                  if (fieldErrors.address) {
+                    setFieldErrors(prev => ({ ...prev, address: undefined }));
+                  }
+                }}
                 placeholder="Ex: Rue du Lac Biwa, Résidence Émeraude, Bloc B, Apt 12, Les Berges du Lac"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-stone-300 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                className={`w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${
+                  fieldErrors.address
+                    ? 'border-2 border-rose-500 bg-rose-50/20 text-stone-900 focus:ring-2 focus:ring-rose-400'
+                    : 'border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-500'
+                }`}
               />
+              {fieldErrors.address && (
+                <p className="text-[11px] font-semibold text-rose-600">
+                  {fieldErrors.address}
+                </p>
+              )}
             </div>
 
             {/* Notes for Driver */}

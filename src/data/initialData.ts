@@ -28,6 +28,7 @@ export const initialStats: DashboardStats = {
     received: 1,
     preparing: 1,
     ready: 0,
+    waiting_for_driver: 0,
     delivering: 1,
     delivered: 0,
     cancelled: 0

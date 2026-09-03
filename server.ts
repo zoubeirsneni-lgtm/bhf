@@ -584,6 +584,12 @@ async function startServer() {
         return;
       }
 
+      // Idempotency: if already in the requested status, cleanly return the order without side-effects
+      if (order.status === status) {
+        res.json(order);
+        return;
+      }
+
       // Check lifecycle transition permission for the current role
       if (!isValidStatusTransition(order.status, status, user.role)) {
         res.status(403).json({
@@ -596,8 +602,26 @@ async function startServer() {
       const roleLabel = user.role === 'admin' ? 'Admin' : user.role === 'kitchen' ? 'Cuisine' : 'Livreur';
       const verifiedUpdatedBy = `${user.name} (${roleLabel})`;
 
-      // Driver assignment can ONLY be performed by Admin
-      const validAssignedDriverId = user.role === 'admin' ? assignedDriverId : undefined;
+      // Driver assignment can ONLY be performed by Admin strictly upon transition to 'delivering'
+      const validAssignedDriverId = (user.role === 'admin' && status === 'delivering') ? assignedDriverId : undefined;
+
+      // Rule 4 & 5: Une commande ne doit passer en livraison qu'après attribution d'un livreur valide
+      if (status === 'delivering') {
+        const driverIdToUse = validAssignedDriverId || order.assignedDriverId;
+        if (!driverIdToUse) {
+          res.status(400).json({
+            error: "Une commande ne peut pas passer en cours de livraison sans attribution préalable d'un livreur."
+          });
+          return;
+        }
+        const driver = db.getDrivers().find(d => d.id === driverIdToUse);
+        if (!driver) {
+          res.status(400).json({
+            error: `Livreur #${driverIdToUse} introuvable.`
+          });
+          return;
+        }
+      }
 
       const updated = db.updateOrderStatus({
         orderId: req.params.id,
