@@ -45,6 +45,30 @@ interface DatabaseSchema {
 const DATA_DIR = path.join(process.cwd(), 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 
+export interface InsufficientStockDetail {
+  ingredientId: string;
+  ingredientName: string;
+  required: number;
+  available: number;
+  missing: number;
+  unit: string;
+}
+
+export class InsufficientStockError extends Error {
+  public statusCode = 409;
+  public status = 409;
+  public details: InsufficientStockDetail[];
+
+  constructor(details: InsufficientStockDetail[]) {
+    const summaryMsg = details
+      .map(d => `${d.ingredientName} (requis : ${d.required} ${d.unit}, disponible : ${d.available} ${d.unit}, manquant : ${d.missing} ${d.unit})`)
+      .join(', ');
+    super(`Stock insuffisant : ${summaryMsg}`);
+    this.name = 'InsufficientStockError';
+    this.details = details;
+  }
+}
+
 class DatabaseManager {
   private data: DatabaseSchema;
   private isLoaded = false;
@@ -367,7 +391,7 @@ class DatabaseManager {
 
   public addStockMovement(params: {
     ingredientId: string;
-    type: StockMovement['type'];
+    type: StockMovement['type'] | 'order_cancellation';
     quantity: number;
     notes: string;
     performedBy?: string;
@@ -387,7 +411,7 @@ class DatabaseManager {
       id: 'mov-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
       ingredientId: ing.id,
       ingredientName: ing.name,
-      type: params.type,
+      type: params.type as any,
       quantity: params.quantity,
       unit: ing.unit,
       orderId: params.orderId,
@@ -591,7 +615,7 @@ class DatabaseManager {
     proteinOptionOrOptions?: any,
     veggiesOption?: { label: string; extraPrice: number; extraGrams: number },
     baseChoice?: { label: string; extraPrice: number },
-    supplements: Array<{ id: string; quantity: number }> = [],
+    supplements: Array<{ id?: string; supplementId?: string; quantity: number }> = [],
     specialInstructions?: string
   ): {
     totalIngredients: PreparationIngredient[];
@@ -614,7 +638,7 @@ class DatabaseManager {
     let actualProteinOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
     let actualVeggiesOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
     let actualBaseChoice: { label: string; extraPrice: number } | undefined = undefined;
-    let actualSupplements: Array<{ id: string; quantity: number }> = [];
+    let actualSupplements: Array<{ id?: string; supplementId?: string; quantity: number }> = [];
     let actualSpecialInstructions: string | undefined = undefined;
     let quantityMultiplier = 1;
 
@@ -728,7 +752,8 @@ class DatabaseManager {
     let supplementsPrice = 0;
 
     for (const itemSup of actualSupplements) {
-      const supDef = this.getSupplements().find(s => s.id === itemSup.id);
+      const supId = itemSup.id || (itemSup as any).supplementId;
+      const supDef = this.getSupplements().find(s => s.id === supId);
       if (supDef && itemSup.quantity > 0) {
         if (!supDef.active) {
           throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
@@ -851,14 +876,10 @@ class DatabaseManager {
       throw new Error('Veuillez renseigner le nom, téléphone et adresse de livraison.');
     }
 
-    const orderSeq = this.data.nextOrderSeq++;
-    const orderNumber = `BEBBA-${orderSeq}`;
-    const trackingToken = 'tk_' + crypto.randomBytes(6).toString('hex');
-    const orderId = 'ord-' + Date.now();
-
     let subtotal = 0;
     const computedItems: OrderItem[] = [];
 
+    // 1. Valider tous les articles et calculer la fiche de préparation (sans déduire de stock)
     for (const rawItem of payload.items) {
       const product = this.getProductById(rawItem.productId);
       if (!product) {
@@ -905,21 +926,13 @@ class DatabaseManager {
           summaryLines: prep.summaryLines
         }
       });
-
-      // Deduct raw ingredients from inventory immediately upon order receipt
-      for (const ingredientUsage of prep.totalIngredients) {
-        const totalUsed = ingredientUsage.totalQuantity * qty;
-        this.addStockMovement({
-          ingredientId: ingredientUsage.ingredientId,
-          type: 'order_consumption',
-          quantity: -totalUsed,
-          notes: `Préparation commande #${orderNumber} (${product.name} x${qty})`,
-          performedBy: 'BEBBA KDS Moteur Automatique',
-          orderId: orderId,
-          orderNumber: orderNumber
-        });
-      }
     }
+
+    // 2. Création de la commande : Statut 'received', stock STRICTEMENT INCHANGÉ, AUCUN mouvement créé
+    const orderSeq = this.data.nextOrderSeq++;
+    const orderNumber = `BEBBA-${orderSeq}`;
+    const trackingToken = 'tk_' + crypto.randomBytes(6).toString('hex');
+    const orderId = 'ord-' + Date.now();
 
     const deliveryFee = 2.5; // Flat delivery fee in DT
     const totalAmount = Math.round((subtotal + deliveryFee) * 10) / 10;
@@ -940,6 +953,7 @@ class DatabaseManager {
       deliveryFee: deliveryFee,
       totalAmount: totalAmount,
       status: 'received',
+      stockConsumed: false,
       paymentMethod: 'cash_on_delivery',
       paymentStatus: 'to_collect',
       statusHistory: [
@@ -983,6 +997,114 @@ class DatabaseManager {
       throw new Error(`Commande #${params.orderId} introuvable.`);
     }
 
+    const previousStatus = order.status;
+
+    // --- CONSOMMATION DU STOCK AU PASSAGE 'Reçue' -> 'En préparation' ---
+    if (params.status === 'preparing') {
+      const alreadyConsumed = order.stockConsumed === true || this.data.stockMovements.some(
+        m => m.orderId === order.id && m.type === 'order_consumption'
+      );
+
+      // Protection stricte contre double consommation
+      if (!alreadyConsumed && previousStatus !== 'preparing') {
+        // 1. Calculer la totalité des besoins en matières premières de la commande
+        const requiredStockMap = new Map<string, { ingredient: Ingredient; required: number }>();
+
+        for (const item of order.items) {
+          const qty = Math.max(1, item.quantity || 1);
+          let prepIngredients = item.preparationSheet?.totalIngredients;
+
+          // Si la fiche n'est pas déjà présente, calculer via computePreparationSheet
+          if (!prepIngredients || prepIngredients.length === 0) {
+            const product = this.getProductById(item.productId);
+            if (product) {
+              const prep = this.computePreparationSheet(
+                product,
+                item.proteinOption,
+                item.veggiesOption,
+                item.baseChoice,
+                item.supplements,
+                item.specialInstructions
+              );
+              item.preparationSheet = {
+                totalIngredients: prep.totalIngredients,
+                summaryLines: prep.summaryLines
+              };
+              prepIngredients = prep.totalIngredients;
+            }
+          }
+
+          if (prepIngredients) {
+            for (const ingredientUsage of prepIngredients) {
+              const totalNeeded = Math.round(ingredientUsage.totalQuantity * qty * 10) / 10;
+              const ing = this.getIngredientById(ingredientUsage.ingredientId);
+              if (!ing) {
+                throw new Error(`Ingrédient requis #${ingredientUsage.ingredientId} (${ingredientUsage.ingredientName}) introuvable dans le stock.`);
+              }
+
+              const existing = requiredStockMap.get(ing.id);
+              if (existing) {
+                existing.required = Math.round((existing.required + totalNeeded) * 10) / 10;
+              } else {
+                requiredStockMap.set(ing.id, {
+                  ingredient: ing,
+                  required: totalNeeded
+                });
+              }
+            }
+          }
+        }
+
+        // 2. Vérification STRICTE et ATOMIQUE de la disponibilité AVANT toute déduction
+        const missingStockDetails: InsufficientStockDetail[] = [];
+
+        requiredStockMap.forEach(({ ingredient, required }) => {
+          const currentStock = Math.round(ingredient.currentStock * 10) / 10;
+          if (currentStock < required) {
+            const missing = Math.round((required - currentStock) * 10) / 10;
+            missingStockDetails.push({
+              ingredientId: ingredient.id,
+              ingredientName: ingredient.name,
+              required,
+              available: currentStock,
+              missing,
+              unit: ingredient.unit
+            });
+          }
+        });
+
+        if (missingStockDetails.length > 0) {
+          // L'opération est atomique :
+          // - La commande reste strictement à son statut précédent (ex: 'received')
+          // - Aucune quantité de stock n'est modifiée
+          // - Aucun mouvement de consommation n'est créé
+          // - Aucune déduction partielle n'est autorisée
+          throw new InsufficientStockError(missingStockDetails);
+        }
+
+        // 3. TOUS les ingrédients sont disponibles : déduction atomique et enregistrement des mouvements
+        for (const item of order.items) {
+          const qty = Math.max(1, item.quantity || 1);
+          if (item.preparationSheet?.totalIngredients) {
+            for (const ingredientUsage of item.preparationSheet.totalIngredients) {
+              const totalUsed = Math.round(ingredientUsage.totalQuantity * qty * 10) / 10;
+              this.addStockMovement({
+                ingredientId: ingredientUsage.ingredientId,
+                type: 'order_consumption',
+                quantity: -totalUsed,
+                notes: `Préparation commande #${order.orderNumber} (${item.productName} x${qty})`,
+                performedBy: params.updatedBy || 'Cuisine BEBBA',
+                orderId: order.id,
+                orderNumber: order.orderNumber
+              });
+            }
+          }
+        }
+
+        order.stockConsumed = true;
+      }
+    }
+
     order.status = params.status;
 
     if (params.assignedDriverId) {
@@ -1003,6 +1125,9 @@ class DatabaseManager {
         }
       }
     }
+
+    // RÈGLE 8 : En cas d'annulation ('cancelled'), NE PAS restaurer automatiquement le stock
+    // (qu'elle soit annulée avant ou après préparation). Pas de mouvement inverse automatique.
 
     const statusLabels: Record<OrderStatus, string> = {
       received: 'Commande reçue',

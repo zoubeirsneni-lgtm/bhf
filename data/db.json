@@ -143,25 +143,25 @@
       "id": "ing-poulet",
       "name": "Filet de Poulet mariné aux herbes",
       "unit": "g",
-      "currentStock": 13180,
+      "currentStock": 11430,
       "minThreshold": 4000,
       "purchaseCost": 0.016,
       "supplierId": "sup-2",
       "supplierName": "Volailles du Terroir",
       "category": "Protéines",
-      "updatedAt": "2026-09-01T08:56:14.692Z"
+      "updatedAt": "2026-09-03T12:41:40.120Z"
     },
     {
       "id": "ing-boeuf",
       "name": "Bœuf maigre mariné façon BEBBA",
       "unit": "g",
-      "currentStock": 9200,
+      "currentStock": 8340,
       "minThreshold": 3000,
       "purchaseCost": 0.034,
       "supplierId": "sup-2",
       "supplierName": "Volailles du Terroir",
       "category": "Protéines",
-      "updatedAt": "2026-09-01T08:05:32.382Z"
+      "updatedAt": "2026-09-03T12:41:40.105Z"
     },
     {
       "id": "ing-riz",
@@ -191,37 +191,37 @@
       "id": "ing-patate-douce",
       "name": "Patates douces rôties au romarin",
       "unit": "g",
-      "currentStock": 12000,
+      "currentStock": 10260,
       "minThreshold": 3000,
       "purchaseCost": 0.006,
       "supplierId": "sup-3",
       "supplierName": "Moulins & Grains Sélection",
       "category": "Féculents",
-      "updatedAt": "2026-09-01T08:05:32.382Z"
+      "updatedAt": "2026-09-03T12:41:40.122Z"
     },
     {
       "id": "ing-legumes",
       "name": "Légumes croquants de saison",
       "unit": "g",
-      "currentStock": 16860,
+      "currentStock": 15270,
       "minThreshold": 5000,
       "purchaseCost": 0.004,
       "supplierId": "sup-1",
       "supplierName": "Ferme Bio de Mornag",
       "category": "Légumes",
-      "updatedAt": "2026-09-01T08:40:56.719Z"
+      "updatedAt": "2026-09-03T12:41:40.124Z"
     },
     {
       "id": "ing-avocat",
       "name": "Avocat frais crémeux",
       "unit": "g",
-      "currentStock": 3140,
+      "currentStock": 3060,
       "minThreshold": 1500,
       "purchaseCost": 0.018,
       "supplierId": "sup-1",
       "supplierName": "Ferme Bio de Mornag",
       "category": "Légumes & Fruits",
-      "updatedAt": "2026-09-01T08:56:14.694Z"
+      "updatedAt": "2026-09-03T12:41:40.128Z"
     },
     {
       "id": "ing-oeuf",
@@ -239,7 +239,7 @@
       "id": "ing-halloumi",
       "name": "Fromage Halloumi grillé",
       "unit": "g",
-      "currentStock": 2800,
+      "currentStock": 10,
       "minThreshold": 1000,
       "purchaseCost": 0.025,
       "supplierId": "sup-1",
@@ -251,25 +251,25 @@
       "id": "ing-sauce-healthy",
       "name": "Sauce signature BEBBA (Herbes & Yaourt)",
       "unit": "ml",
-      "currentStock": 3695,
+      "currentStock": 3590,
       "minThreshold": 1000,
       "purchaseCost": 0.008,
       "supplierId": "sup-1",
       "supplierName": "Ferme Bio de Mornag",
       "category": "Sauces",
-      "updatedAt": "2026-09-01T08:40:56.720Z"
+      "updatedAt": "2026-09-03T12:41:40.113Z"
     },
     {
       "id": "ing-sauce-miel-moutarde",
       "name": "Sauce Miel & Moutarde à l’ancienne",
       "unit": "ml",
-      "currentStock": 3800,
+      "currentStock": 3520,
       "minThreshold": 1000,
       "purchaseCost": 0.009,
       "supplierId": "sup-1",
       "supplierName": "Ferme Bio de Mornag",
       "category": "Sauces",
-      "updatedAt": "2026-09-01T08:05:32.382Z"
+      "updatedAt": "2026-09-03T12:41:40.126Z"
     },
     {
       "id": "ing-fruits-frais",
@@ -1898,6 +1898,881 @@
     }
   ],
   "orders": [
+    {
+      "id": "ord-1788439300117",
+      "orderNumber": "BEBBA-1082",
+      "trackingToken": "tk_2c48bc64d355",
+      "createdAt": "2026-09-03T12:41:40.117Z",
+      "client": {
+        "name": "Test Client E",
+        "phone": "+216 99 000 005",
+        "deliveryAddress": "Test Address E",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-qqr5lax",
+          "productId": "prod-poulet-grille",
+          "productName": "Assiette Grillade Poulet Mariné",
+          "unitPrice": 19,
+          "quantity": 1,
+          "supplements": [
+            {
+              "supplementId": "sup-avocat-extra",
+              "name": "Demi-avocat tranché (+80g)",
+              "price": 3,
+              "quantity": 1,
+              "ingredientId": "ing-avocat",
+              "ingredientName": "Avocat frais crémeux",
+              "quantityConsumed": 80,
+              "unit": "g"
+            }
+          ],
+          "itemTotalPrice": 19,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 250,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-miel-moutarde",
+                "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+                "totalQuantity": 40,
+                "unit": "ml"
+              },
+              {
+                "ingredientId": "ing-avocat",
+                "ingredientName": "Avocat frais crémeux",
+                "totalQuantity": 80,
+                "unit": "g"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 250 g",
+              "🌿 Patates douces rôties au romarin: 180 g",
+              "🥦 Légumes croquants de saison: 150 g",
+              "🥣 Sauce Miel & Moutarde à l’ancienne: 40 ml",
+              "🥑 Avocat frais crémeux: 80 g"
+            ]
+          }
+        }
+      ],
+      "subtotal": 19,
+      "deliveryFee": 2.5,
+      "totalAmount": 21.5,
+      "status": "preparing",
+      "stockConsumed": true,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:40.117Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:41:40.131Z",
+          "note": "",
+          "updatedBy": "Chef Cuisine Test"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439300103",
+      "orderNumber": "BEBBA-1081",
+      "trackingToken": "tk_f7481a46c88a",
+      "createdAt": "2026-09-03T12:41:40.103Z",
+      "client": {
+        "name": "Test Client D",
+        "phone": "+216 99 000 004",
+        "deliveryAddress": "Test Address D",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-pxlpasz",
+          "productId": "prod-boeuf-grillade",
+          "productName": "Assiette Bœuf Grillé & Romarin",
+          "unitPrice": 24.5,
+          "quantity": 1,
+          "proteinOption": {
+            "label": "Portion Gourmet (+100g de bœuf)",
+            "extraPrice": 5,
+            "extraGrams": 100
+          },
+          "supplements": [],
+          "itemTotalPrice": 24.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-boeuf",
+                "ingredientName": "Bœuf maigre mariné façon BEBBA",
+                "totalQuantity": 320,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 160,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🥩 Bœuf maigre mariné façon BEBBA: 320 g",
+              "🌿 Patates douces rôties au romarin: 160 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 24.5,
+      "deliveryFee": 2.5,
+      "totalAmount": 27,
+      "status": "preparing",
+      "stockConsumed": true,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:40.103Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:41:40.115Z",
+          "note": "",
+          "updatedBy": "Chef Cuisine Test"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439300101",
+      "orderNumber": "BEBBA-1080",
+      "trackingToken": "tk_4520dce833b7",
+      "createdAt": "2026-09-03T12:41:40.101Z",
+      "client": {
+        "name": "Test Client C",
+        "phone": "+216 99 000 003",
+        "deliveryAddress": "Test Address C",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-zbhbfsk",
+          "productId": "prod-boeuf-grillade",
+          "productName": "Assiette Bœuf Grillé & Romarin",
+          "unitPrice": 23,
+          "quantity": 1,
+          "supplements": [
+            {
+              "supplementId": "sup-halloumi-extra",
+              "name": "Halloumi grillé doré (+80g)",
+              "price": 3.5,
+              "quantity": 1,
+              "ingredientId": "ing-halloumi",
+              "ingredientName": "Fromage Halloumi grillé",
+              "quantityConsumed": 80,
+              "unit": "g"
+            }
+          ],
+          "itemTotalPrice": 23,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-boeuf",
+                "ingredientName": "Bœuf maigre mariné façon BEBBA",
+                "totalQuantity": 220,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 160,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              },
+              {
+                "ingredientId": "ing-halloumi",
+                "ingredientName": "Fromage Halloumi grillé",
+                "totalQuantity": 80,
+                "unit": "g"
+              }
+            ],
+            "summaryLines": [
+              "🥩 Bœuf maigre mariné façon BEBBA: 220 g",
+              "🌿 Patates douces rôties au romarin: 160 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml",
+              "🧀 Fromage Halloumi grillé: 80 g"
+            ]
+          }
+        }
+      ],
+      "subtotal": 23,
+      "deliveryFee": 2.5,
+      "totalAmount": 25.5,
+      "status": "received",
+      "stockConsumed": false,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:40.101Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439300084",
+      "orderNumber": "BEBBA-1079",
+      "trackingToken": "tk_f6915b5cb17b",
+      "createdAt": "2026-09-03T12:41:40.084Z",
+      "client": {
+        "name": "Test Client A",
+        "phone": "+216 99 000 001",
+        "deliveryAddress": "Test Address A",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-290jebv",
+          "productId": "prod-poulet-grille",
+          "productName": "Assiette Grillade Poulet Mariné",
+          "unitPrice": 16,
+          "quantity": 2,
+          "supplements": [],
+          "itemTotalPrice": 32,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 250,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-miel-moutarde",
+                "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+                "totalQuantity": 40,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 250 g",
+              "🌿 Patates douces rôties au romarin: 180 g",
+              "🥦 Légumes croquants de saison: 150 g",
+              "🥣 Sauce Miel & Moutarde à l’ancienne: 40 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 32,
+      "deliveryFee": 2.5,
+      "totalAmount": 34.5,
+      "status": "cancelled",
+      "stockConsumed": true,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:40.084Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:41:40.098Z",
+          "note": "",
+          "updatedBy": "Chef Cuisine Test"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:41:40.134Z",
+          "note": "",
+          "updatedBy": "Tentative Doublon"
+        },
+        {
+          "status": "cancelled",
+          "label": "Commande annulée",
+          "timestamp": "2026-09-03T12:41:40.136Z",
+          "note": "",
+          "updatedBy": "Admin Test Annulation"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439286084",
+      "orderNumber": "BEBBA-1078",
+      "trackingToken": "tk_76c4438d1531",
+      "createdAt": "2026-09-03T12:41:26.084Z",
+      "client": {
+        "name": "Test Client E",
+        "phone": "+216 99 000 005",
+        "deliveryAddress": "Test Address E",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-i46rqfu",
+          "productId": "prod-poulet-grille",
+          "productName": "Assiette Grillade Poulet Mariné",
+          "unitPrice": 19,
+          "quantity": 1,
+          "supplements": [
+            {
+              "supplementId": "sup-avocat-extra",
+              "name": "Demi-avocat tranché (+80g)",
+              "price": 3,
+              "quantity": 1,
+              "ingredientId": "ing-avocat",
+              "ingredientName": "Avocat frais crémeux",
+              "quantityConsumed": 80,
+              "unit": "g"
+            }
+          ],
+          "itemTotalPrice": 19,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 250,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-miel-moutarde",
+                "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+                "totalQuantity": 40,
+                "unit": "ml"
+              },
+              {
+                "ingredientId": "ing-avocat",
+                "ingredientName": "Avocat frais crémeux",
+                "totalQuantity": 80,
+                "unit": "g"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 250 g",
+              "🌿 Patates douces rôties au romarin: 180 g",
+              "🥦 Légumes croquants de saison: 150 g",
+              "🥣 Sauce Miel & Moutarde à l’ancienne: 40 ml",
+              "🥑 Avocat frais crémeux: 80 g"
+            ]
+          }
+        }
+      ],
+      "subtotal": 19,
+      "deliveryFee": 2.5,
+      "totalAmount": 21.5,
+      "status": "received",
+      "stockConsumed": false,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:26.084Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439286071",
+      "orderNumber": "BEBBA-1077",
+      "trackingToken": "tk_e7d61ade6afc",
+      "createdAt": "2026-09-03T12:41:26.071Z",
+      "client": {
+        "name": "Test Client D",
+        "phone": "+216 99 000 004",
+        "deliveryAddress": "Test Address D",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-aefntg7",
+          "productId": "prod-boeuf-grillade",
+          "productName": "Assiette Bœuf Grillé & Romarin",
+          "unitPrice": 24.5,
+          "quantity": 1,
+          "proteinOption": {
+            "label": "Portion Gourmet (+100g de bœuf)",
+            "extraPrice": 5,
+            "extraGrams": 100
+          },
+          "supplements": [],
+          "itemTotalPrice": 24.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-boeuf",
+                "ingredientName": "Bœuf maigre mariné façon BEBBA",
+                "totalQuantity": 320,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 160,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🥩 Bœuf maigre mariné façon BEBBA: 320 g",
+              "🌿 Patates douces rôties au romarin: 160 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 24.5,
+      "deliveryFee": 2.5,
+      "totalAmount": 27,
+      "status": "preparing",
+      "stockConsumed": true,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:26.071Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:41:26.082Z",
+          "note": "",
+          "updatedBy": "Chef Cuisine Test"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439286068",
+      "orderNumber": "BEBBA-1076",
+      "trackingToken": "tk_838ebe53bc63",
+      "createdAt": "2026-09-03T12:41:26.068Z",
+      "client": {
+        "name": "Test Client C",
+        "phone": "+216 99 000 003",
+        "deliveryAddress": "Test Address C",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-u7nysxe",
+          "productId": "prod-boeuf-grillade",
+          "productName": "Assiette Bœuf Grillé & Romarin",
+          "unitPrice": 23,
+          "quantity": 1,
+          "supplements": [
+            {
+              "supplementId": "sup-halloumi-extra",
+              "name": "Halloumi grillé doré (+80g)",
+              "price": 3.5,
+              "quantity": 1,
+              "ingredientId": "ing-halloumi",
+              "ingredientName": "Fromage Halloumi grillé",
+              "quantityConsumed": 80,
+              "unit": "g"
+            }
+          ],
+          "itemTotalPrice": 23,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-boeuf",
+                "ingredientName": "Bœuf maigre mariné façon BEBBA",
+                "totalQuantity": 220,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 160,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              },
+              {
+                "ingredientId": "ing-halloumi",
+                "ingredientName": "Fromage Halloumi grillé",
+                "totalQuantity": 80,
+                "unit": "g"
+              }
+            ],
+            "summaryLines": [
+              "🥩 Bœuf maigre mariné façon BEBBA: 220 g",
+              "🌿 Patates douces rôties au romarin: 160 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml",
+              "🧀 Fromage Halloumi grillé: 80 g"
+            ]
+          }
+        }
+      ],
+      "subtotal": 23,
+      "deliveryFee": 2.5,
+      "totalAmount": 25.5,
+      "status": "received",
+      "stockConsumed": false,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:26.068Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439286051",
+      "orderNumber": "BEBBA-1075",
+      "trackingToken": "tk_1fe1815dc442",
+      "createdAt": "2026-09-03T12:41:26.051Z",
+      "client": {
+        "name": "Test Client A",
+        "phone": "+216 99 000 001",
+        "deliveryAddress": "Test Address A",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-30kr8ub",
+          "productId": "prod-poulet-grille",
+          "productName": "Assiette Grillade Poulet Mariné",
+          "unitPrice": 16,
+          "quantity": 2,
+          "supplements": [],
+          "itemTotalPrice": 32,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 250,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-miel-moutarde",
+                "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+                "totalQuantity": 40,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 250 g",
+              "🌿 Patates douces rôties au romarin: 180 g",
+              "🥦 Légumes croquants de saison: 150 g",
+              "🥣 Sauce Miel & Moutarde à l’ancienne: 40 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 32,
+      "deliveryFee": 2.5,
+      "totalAmount": 34.5,
+      "status": "preparing",
+      "stockConsumed": true,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:41:26.051Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:41:26.065Z",
+          "note": "",
+          "updatedBy": "Chef Cuisine Test"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439258789",
+      "orderNumber": "BEBBA-1074",
+      "trackingToken": "tk_50911e66af55",
+      "createdAt": "2026-09-03T12:40:58.789Z",
+      "client": {
+        "name": "Test Client C",
+        "phone": "+216 99 000 003",
+        "deliveryAddress": "Test Address C",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-8cti5rl",
+          "productId": "prod-boeuf-grillade",
+          "productName": "Assiette Bœuf Grillé & Romarin",
+          "unitPrice": 19.5,
+          "quantity": 1,
+          "supplements": [],
+          "itemTotalPrice": 19.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-boeuf",
+                "ingredientName": "Bœuf maigre mariné façon BEBBA",
+                "totalQuantity": 220,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 160,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🥩 Bœuf maigre mariné façon BEBBA: 220 g",
+              "🌿 Patates douces rôties au romarin: 160 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 19.5,
+      "deliveryFee": 2.5,
+      "totalAmount": 22,
+      "status": "preparing",
+      "stockConsumed": true,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:40:58.789Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:40:58.799Z",
+          "note": "",
+          "updatedBy": "Chef Cuisine Test"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788439258773",
+      "orderNumber": "BEBBA-1073",
+      "trackingToken": "tk_67e7bfd1a111",
+      "createdAt": "2026-09-03T12:40:58.773Z",
+      "client": {
+        "name": "Test Client A",
+        "phone": "+216 99 000 001",
+        "deliveryAddress": "Test Address A",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-giitfx9",
+          "productId": "prod-poulet-grille",
+          "productName": "Assiette Grillade Poulet Mariné",
+          "unitPrice": 16,
+          "quantity": 2,
+          "supplements": [],
+          "itemTotalPrice": 32,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 250,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-patate-douce",
+                "ingredientName": "Patates douces rôties au romarin",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-miel-moutarde",
+                "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+                "totalQuantity": 40,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 250 g",
+              "🌿 Patates douces rôties au romarin: 180 g",
+              "🥦 Légumes croquants de saison: 150 g",
+              "🥣 Sauce Miel & Moutarde à l’ancienne: 40 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 32,
+      "deliveryFee": 2.5,
+      "totalAmount": 34.5,
+      "status": "preparing",
+      "stockConsumed": true,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-03T12:40:58.773Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "preparing",
+          "label": "En préparation en cuisine",
+          "timestamp": "2026-09-03T12:40:58.786Z",
+          "note": "",
+          "updatedBy": "Chef Cuisine Test"
+        }
+      ]
+    },
     {
       "id": "ord-1788252974692",
       "orderNumber": "BEBBA-1072",
@@ -4105,6 +4980,383 @@
   ],
   "stockMovements": [
     {
+      "id": "mov-1788439300128-l1i3",
+      "ingredientId": "ing-avocat",
+      "ingredientName": "Avocat frais crémeux",
+      "type": "order_consumption",
+      "quantity": -80,
+      "unit": "g",
+      "orderId": "ord-1788439300117",
+      "orderNumber": "BEBBA-1082",
+      "notes": "Préparation commande #BEBBA-1082 (Assiette Grillade Poulet Mariné x1)",
+      "timestamp": "2026-09-03T12:41:40.128Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300126-bwn1",
+      "ingredientId": "ing-sauce-miel-moutarde",
+      "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+      "type": "order_consumption",
+      "quantity": -40,
+      "unit": "ml",
+      "orderId": "ord-1788439300117",
+      "orderNumber": "BEBBA-1082",
+      "notes": "Préparation commande #BEBBA-1082 (Assiette Grillade Poulet Mariné x1)",
+      "timestamp": "2026-09-03T12:41:40.126Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300124-lly5",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -150,
+      "unit": "g",
+      "orderId": "ord-1788439300117",
+      "orderNumber": "BEBBA-1082",
+      "notes": "Préparation commande #BEBBA-1082 (Assiette Grillade Poulet Mariné x1)",
+      "timestamp": "2026-09-03T12:41:40.124Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300122-47m8",
+      "ingredientId": "ing-patate-douce",
+      "ingredientName": "Patates douces rôties au romarin",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788439300117",
+      "orderNumber": "BEBBA-1082",
+      "notes": "Préparation commande #BEBBA-1082 (Assiette Grillade Poulet Mariné x1)",
+      "timestamp": "2026-09-03T12:41:40.122Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300120-b1ce",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -250,
+      "unit": "g",
+      "orderId": "ord-1788439300117",
+      "orderNumber": "BEBBA-1082",
+      "notes": "Préparation commande #BEBBA-1082 (Assiette Grillade Poulet Mariné x1)",
+      "timestamp": "2026-09-03T12:41:40.120Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300113-0olx",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788439300103",
+      "orderNumber": "BEBBA-1081",
+      "notes": "Préparation commande #BEBBA-1081 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:40.113Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300111-7571",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788439300103",
+      "orderNumber": "BEBBA-1081",
+      "notes": "Préparation commande #BEBBA-1081 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:40.111Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300107-w4of",
+      "ingredientId": "ing-patate-douce",
+      "ingredientName": "Patates douces rôties au romarin",
+      "type": "order_consumption",
+      "quantity": -160,
+      "unit": "g",
+      "orderId": "ord-1788439300103",
+      "orderNumber": "BEBBA-1081",
+      "notes": "Préparation commande #BEBBA-1081 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:40.107Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300105-xhgr",
+      "ingredientId": "ing-boeuf",
+      "ingredientName": "Bœuf maigre mariné façon BEBBA",
+      "type": "order_consumption",
+      "quantity": -320,
+      "unit": "g",
+      "orderId": "ord-1788439300103",
+      "orderNumber": "BEBBA-1081",
+      "notes": "Préparation commande #BEBBA-1081 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:40.105Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300096-dwyh",
+      "ingredientId": "ing-sauce-miel-moutarde",
+      "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+      "type": "order_consumption",
+      "quantity": -80,
+      "unit": "ml",
+      "orderId": "ord-1788439300084",
+      "orderNumber": "BEBBA-1079",
+      "notes": "Préparation commande #BEBBA-1079 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:40.096Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300094-zl2m",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -300,
+      "unit": "g",
+      "orderId": "ord-1788439300084",
+      "orderNumber": "BEBBA-1079",
+      "notes": "Préparation commande #BEBBA-1079 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:40.094Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300092-0rc2",
+      "ingredientId": "ing-patate-douce",
+      "ingredientName": "Patates douces rôties au romarin",
+      "type": "order_consumption",
+      "quantity": -360,
+      "unit": "g",
+      "orderId": "ord-1788439300084",
+      "orderNumber": "BEBBA-1079",
+      "notes": "Préparation commande #BEBBA-1079 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:40.092Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439300089-puja",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -500,
+      "unit": "g",
+      "orderId": "ord-1788439300084",
+      "orderNumber": "BEBBA-1079",
+      "notes": "Préparation commande #BEBBA-1079 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:40.089Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286079-co1f",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788439286071",
+      "orderNumber": "BEBBA-1077",
+      "notes": "Préparation commande #BEBBA-1077 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:26.079Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286077-sjaz",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788439286071",
+      "orderNumber": "BEBBA-1077",
+      "notes": "Préparation commande #BEBBA-1077 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:26.077Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286075-btan",
+      "ingredientId": "ing-patate-douce",
+      "ingredientName": "Patates douces rôties au romarin",
+      "type": "order_consumption",
+      "quantity": -160,
+      "unit": "g",
+      "orderId": "ord-1788439286071",
+      "orderNumber": "BEBBA-1077",
+      "notes": "Préparation commande #BEBBA-1077 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:26.075Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286073-mh6k",
+      "ingredientId": "ing-boeuf",
+      "ingredientName": "Bœuf maigre mariné façon BEBBA",
+      "type": "order_consumption",
+      "quantity": -320,
+      "unit": "g",
+      "orderId": "ord-1788439286071",
+      "orderNumber": "BEBBA-1077",
+      "notes": "Préparation commande #BEBBA-1077 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:41:26.073Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286063-wakh",
+      "ingredientId": "ing-sauce-miel-moutarde",
+      "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+      "type": "order_consumption",
+      "quantity": -80,
+      "unit": "ml",
+      "orderId": "ord-1788439286051",
+      "orderNumber": "BEBBA-1075",
+      "notes": "Préparation commande #BEBBA-1075 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:26.063Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286061-lxlm",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -300,
+      "unit": "g",
+      "orderId": "ord-1788439286051",
+      "orderNumber": "BEBBA-1075",
+      "notes": "Préparation commande #BEBBA-1075 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:26.061Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286059-75pg",
+      "ingredientId": "ing-patate-douce",
+      "ingredientName": "Patates douces rôties au romarin",
+      "type": "order_consumption",
+      "quantity": -360,
+      "unit": "g",
+      "orderId": "ord-1788439286051",
+      "orderNumber": "BEBBA-1075",
+      "notes": "Préparation commande #BEBBA-1075 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:26.059Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439286056-w1n0",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -500,
+      "unit": "g",
+      "orderId": "ord-1788439286051",
+      "orderNumber": "BEBBA-1075",
+      "notes": "Préparation commande #BEBBA-1075 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:41:26.056Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258796-lqg6",
+      "ingredientId": "ing-sauce-healthy",
+      "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+      "type": "order_consumption",
+      "quantity": -35,
+      "unit": "ml",
+      "orderId": "ord-1788439258789",
+      "orderNumber": "BEBBA-1074",
+      "notes": "Préparation commande #BEBBA-1074 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:40:58.796Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258794-uxb6",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -180,
+      "unit": "g",
+      "orderId": "ord-1788439258789",
+      "orderNumber": "BEBBA-1074",
+      "notes": "Préparation commande #BEBBA-1074 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:40:58.794Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258792-l1w9",
+      "ingredientId": "ing-patate-douce",
+      "ingredientName": "Patates douces rôties au romarin",
+      "type": "order_consumption",
+      "quantity": -160,
+      "unit": "g",
+      "orderId": "ord-1788439258789",
+      "orderNumber": "BEBBA-1074",
+      "notes": "Préparation commande #BEBBA-1074 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:40:58.792Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258790-vhno",
+      "ingredientId": "ing-boeuf",
+      "ingredientName": "Bœuf maigre mariné façon BEBBA",
+      "type": "order_consumption",
+      "quantity": -220,
+      "unit": "g",
+      "orderId": "ord-1788439258789",
+      "orderNumber": "BEBBA-1074",
+      "notes": "Préparation commande #BEBBA-1074 (Assiette Bœuf Grillé & Romarin x1)",
+      "timestamp": "2026-09-03T12:40:58.790Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258784-ishx",
+      "ingredientId": "ing-sauce-miel-moutarde",
+      "ingredientName": "Sauce Miel & Moutarde à l’ancienne",
+      "type": "order_consumption",
+      "quantity": -80,
+      "unit": "ml",
+      "orderId": "ord-1788439258773",
+      "orderNumber": "BEBBA-1073",
+      "notes": "Préparation commande #BEBBA-1073 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:40:58.784Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258783-ja92",
+      "ingredientId": "ing-legumes",
+      "ingredientName": "Légumes croquants de saison",
+      "type": "order_consumption",
+      "quantity": -300,
+      "unit": "g",
+      "orderId": "ord-1788439258773",
+      "orderNumber": "BEBBA-1073",
+      "notes": "Préparation commande #BEBBA-1073 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:40:58.783Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258781-ajua",
+      "ingredientId": "ing-patate-douce",
+      "ingredientName": "Patates douces rôties au romarin",
+      "type": "order_consumption",
+      "quantity": -360,
+      "unit": "g",
+      "orderId": "ord-1788439258773",
+      "orderNumber": "BEBBA-1073",
+      "notes": "Préparation commande #BEBBA-1073 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:40:58.781Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
+      "id": "mov-1788439258778-f1k5",
+      "ingredientId": "ing-poulet",
+      "ingredientName": "Filet de Poulet mariné aux herbes",
+      "type": "order_consumption",
+      "quantity": -500,
+      "unit": "g",
+      "orderId": "ord-1788439258773",
+      "orderNumber": "BEBBA-1073",
+      "notes": "Préparation commande #BEBBA-1073 (Assiette Grillade Poulet Mariné x2)",
+      "timestamp": "2026-09-03T12:40:58.778Z",
+      "performedBy": "Chef Cuisine Test"
+    },
+    {
       "id": "mov-1788252974694-1k3c",
       "ingredientId": "ing-avocat",
       "ingredientName": "Avocat frais crémeux",
@@ -5362,5 +6614,5 @@
       "lastLoginAt": "2026-09-01T08:40:52.263Z"
     }
   ],
-  "nextOrderSeq": 1073
+  "nextOrderSeq": 1083
 }

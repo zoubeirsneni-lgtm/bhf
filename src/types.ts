@@ -181,6 +181,7 @@ export interface Order {
   paymentStatus: PaymentStatus;
   assignedDriverId?: string;
   assignedDriverName?: string;
+  stockConsumed?: boolean;
   statusHistory: StatusHistoryEntry[];
 }
 
