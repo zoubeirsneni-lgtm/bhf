@@ -198,7 +198,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, []);
 
   const [currentRole, setCurrentRole] = useState<UserRole>('client');
-  const [activeClientTab, setActiveClientTab] = useState<'menu' | 'tracking'>('menu');
+  const [activeClientTab, setActiveClientTab] = useState<'menu' | 'tracking'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('token')) {
+        return 'tracking';
+      }
+    }
+    return 'menu';
+  });
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'orders' | 'products' | 'supplements' | 'stock' | 'drivers' | 'suppliers'>('dashboard');
 
   const [categories, setCategories] = useState<Category[]>(initialCategories);
@@ -270,8 +278,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Active tracking
   const [activeTrackingToken, setActiveTrackingToken] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken && urlToken.trim()) return urlToken.trim();
+    }
     return localStorage.getItem('bebba_last_tracking_token') || 'tk_bebba_1047_demo';
   });
+
+  // Sync token from URL if opened or changed
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken && urlToken.trim()) {
+        setActiveTrackingToken(urlToken.trim());
+        setActiveClientTab('tracking');
+        setCurrentRole('client');
+      }
+    }
+  }, []);
 
   // Notifications
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
@@ -356,7 +382,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           setCurrentUser(data.user);
           setIsAuthenticated(true);
           setAuthError(null);
-          setCurrentRole(data.user.role);
+
+          // Si un token public de suivi est présent dans l'URL, l'affichage CLIENT/TRACKING a priorité absolue
+          const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+          const hasUrlToken = Boolean(urlParams?.get('token')?.trim());
+
+          if (hasUrlToken) {
+            setCurrentRole('client');
+            setActiveClientTab('tracking');
+          } else {
+            setCurrentRole(data.user.role);
+          }
         } else {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('bebba_auth_token');

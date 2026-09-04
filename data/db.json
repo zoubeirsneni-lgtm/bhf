@@ -1899,6 +1899,197 @@
   ],
   "orders": [
     {
+      "id": "ord-1788531857440",
+      "orderNumber": "BEBBA-1100",
+      "trackingToken": "tk_e355ed9dd33a",
+      "createdAt": "2026-09-04T14:24:17.440Z",
+      "client": {
+        "name": "Test Diagnostic",
+        "phone": "+216 22 111 222",
+        "deliveryAddress": "Tunis",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-sy9o9hc",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": 14.5,
+          "quantity": 1,
+          "supplements": [],
+          "itemTotalPrice": 14.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 14.5,
+      "deliveryFee": 2.5,
+      "totalAmount": 17,
+      "status": "received",
+      "stockConsumed": false,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-04T14:24:17.440Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
+      "id": "ord-1788531280981",
+      "orderNumber": "BEBBA-1099",
+      "trackingToken": "tk_2714335c88b6",
+      "createdAt": "2026-09-04T14:14:40.981Z",
+      "client": {
+        "name": "test2",
+        "phone": "+216 22222222",
+        "deliveryAddress": "sousse",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-s4fj86t",
+          "productId": "prod-salade-fraicheur",
+          "productName": "Grande Salade BEBBA Croustillante",
+          "unitPrice": 18,
+          "quantity": 1,
+          "proteinOption": {
+            "label": "Poulet grillé (150g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          "veggiesOption": {
+            "label": "Portion généreuse (240g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          "supplements": [
+            {
+              "supplementId": "sup-oeuf-poche",
+              "name": "Œuf fermier poché bio (1 pièce)",
+              "price": 1.5,
+              "quantity": 1,
+              "ingredientId": "ing-oeuf",
+              "ingredientName": "Œufs fermiers bio pochés/durs",
+              "quantityConsumed": 1,
+              "unit": "piece"
+            },
+            {
+              "supplementId": "sup-halloumi-extra",
+              "name": "Halloumi grillé doré (+80g)",
+              "price": 3.5,
+              "quantity": 1,
+              "ingredientId": "ing-halloumi",
+              "ingredientName": "Fromage Halloumi grillé",
+              "quantityConsumed": 80,
+              "unit": "g"
+            }
+          ],
+          "itemTotalPrice": 18,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 240,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-avocat",
+                "ingredientName": "Avocat frais crémeux",
+                "totalQuantity": 50,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              },
+              {
+                "ingredientId": "ing-oeuf",
+                "ingredientName": "Œufs fermiers bio pochés/durs",
+                "totalQuantity": 1,
+                "unit": "piece"
+              },
+              {
+                "ingredientId": "ing-halloumi",
+                "ingredientName": "Fromage Halloumi grillé",
+                "totalQuantity": 80,
+                "unit": "g"
+              }
+            ],
+            "summaryLines": [
+              "🥦 Légumes croquants de saison: 240 g",
+              "🍗 Filet de Poulet mariné aux herbes: 150 g",
+              "🥑 Avocat frais crémeux: 50 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml",
+              "🥚 Œufs fermiers bio pochés/durs: 1 piece",
+              "🧀 Fromage Halloumi grillé: 80 g"
+            ]
+          }
+        }
+      ],
+      "subtotal": 18,
+      "deliveryFee": 2.5,
+      "totalAmount": 20.5,
+      "status": "received",
+      "stockConsumed": false,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-04T14:14:40.981Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        }
+      ]
+    },
+    {
       "id": "ord-1788443298337",
       "orderNumber": "BEBBA-1098",
       "trackingToken": "tk_303d9f5da290",
@@ -8746,7 +8937,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-02T16:11:24.814Z"
+      "lastLoginAt": "2026-09-04T14:16:49.556Z"
     },
     {
       "id": "usr-kitchen-1",
@@ -8811,5 +9002,5 @@
       "lastLoginAt": "2026-09-01T08:40:52.263Z"
     }
   ],
-  "nextOrderSeq": 1099
+  "nextOrderSeq": 1101
 }

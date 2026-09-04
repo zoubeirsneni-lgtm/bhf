@@ -45,6 +45,36 @@ export const OrderTrackingView: React.FC = () => {
 
   const currentOrder = activeTrackingOrder || searchedOrder;
 
+  // Auto-fetch order if token is present (e.g. from direct URL link or recent order)
+  useEffect(() => {
+    const tokenToFetch = activeTrackingToken?.trim();
+    if (!tokenToFetch) return;
+
+    if (currentOrder && (currentOrder.trackingToken === tokenToFetch || currentOrder.orderNumber.toLowerCase() === tokenToFetch.toLowerCase())) {
+      return;
+    }
+
+    let isMounted = true;
+    fetch(`/api/orders/track/${encodeURIComponent(tokenToFetch)}`, {
+      headers: { Accept: 'application/json' }
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Commande introuvable.');
+        return res.json();
+      })
+      .then(data => {
+        if (isMounted && data && !data.error) {
+          setSearchedOrder(data);
+          setSearchError(null);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTrackingToken, currentOrder]);
+
   const handleManualSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const query = tokenInput.trim();
@@ -71,7 +101,7 @@ export const OrderTrackingView: React.FC = () => {
         throw new Error('Erreur de communication avec le serveur.');
       }
       const data = await res.json();
-      setActiveTrackingToken(query);
+      setActiveTrackingToken(data.trackingToken || query);
       setSearchedOrder(data);
     } catch (err: any) {
       setSearchError(err.message || 'Commande introuvable.');
@@ -111,6 +141,19 @@ export const OrderTrackingView: React.FC = () => {
 
   const manualRefresh = async () => {
     setIsRefreshing(true);
+    if (currentOrder?.trackingToken) {
+      try {
+        const res = await fetch(`/api/orders/track/${encodeURIComponent(currentOrder.trackingToken)}`, {
+          headers: { Accept: 'application/json' }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && !data.error) {
+            setSearchedOrder(data);
+          }
+        }
+      } catch (e) {}
+    }
     await refreshAllData();
     setTimeout(() => setIsRefreshing(false), 600);
   };
@@ -349,7 +392,7 @@ export const OrderTrackingView: React.FC = () => {
             </div>
 
             {/* Driver Banner (if assigned) */}
-            {currentOrder.assignedDriverName && (
+            {(currentOrder.assignedDriverName || (currentOrder as any).assignedDriver?.name) && (
               <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0">
@@ -360,7 +403,7 @@ export const OrderTrackingView: React.FC = () => {
                       Livreur BEBBA Attribué
                     </span>
                     <h4 className="text-sm font-bold text-stone-900">
-                      {currentOrder.assignedDriverName}
+                      {currentOrder.assignedDriverName || (currentOrder as any).assignedDriver?.name}
                     </h4>
                     <p className="text-xs text-stone-600">
                       En route pour la livraison à votre adresse
@@ -385,7 +428,7 @@ export const OrderTrackingView: React.FC = () => {
                 <div className="flex items-baseline justify-between pt-1">
                   <span className="text-xs text-stone-600">Montant à régler au livreur :</span>
                   <span className="text-xl font-extrabold text-stone-900">
-                    {currentOrder.totalAmount.toFixed(1)} DT
+                    {(currentOrder.totalAmount ?? 0).toFixed(1)} DT
                   </span>
                 </div>
                 <div className="text-[11px] text-stone-500 flex items-center justify-between pt-1 border-t border-amber-200/60">
@@ -410,30 +453,36 @@ export const OrderTrackingView: React.FC = () => {
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex items-center gap-2 text-stone-900 font-semibold">
                     <User className="w-3.5 h-3.5 text-stone-400" />
-                    <span>Client : <strong>{currentOrder.client.name}</strong></span>
+                    <span>Client : <strong>{currentOrder.client?.name || (currentOrder as any).clientName || 'Client'}</strong></span>
                   </div>
                   <div className="flex items-center gap-2 text-stone-900 font-semibold">
                     <Phone className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Numéro de téléphone : </span>
-                    <a
-                      href={`tel:${currentOrder.client.phone}`}
-                      className="font-mono font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-200 px-2 py-0.5 rounded transition-colors"
-                    >
-                      {currentOrder.client.phone}
-                    </a>
+                    {(currentOrder.client?.phone || (currentOrder as any).phone) ? (
+                      <a
+                        href={`tel:${currentOrder.client?.phone || (currentOrder as any).phone}`}
+                        className="font-mono font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-200 px-2 py-0.5 rounded transition-colors"
+                      >
+                        {currentOrder.client?.phone || (currentOrder as any).phone}
+                      </a>
+                    ) : (
+                      <span className="text-stone-400 font-normal text-xs">Non renseigné</span>
+                    )}
                   </div>
                   <div className="flex items-start gap-2 text-stone-800 pt-1">
                     <MapPin className="w-3.5 h-3.5 text-stone-400 mt-0.5 flex-shrink-0" />
                     <div>
                       <span className="text-stone-500 font-normal">Adresse : </span>
-                      <strong className="text-stone-900">{currentOrder.client.deliveryAddress}</strong>
+                      <strong className="text-stone-900">
+                        {currentOrder.client?.deliveryAddress || (currentOrder as any).deliveryAddress || 'Adresse non renseignée'}
+                      </strong>
                     </div>
                   </div>
                 </div>
 
-                {currentOrder.client.notes && (
+                {(currentOrder.client?.notes || (currentOrder as any).notes) && (
                   <p className="text-[11px] text-stone-600 italic bg-amber-50/80 border border-amber-200/70 p-2 rounded-xl mt-1">
-                    Note pour le livreur : « {currentOrder.client.notes} »
+                    Note pour le livreur : « {currentOrder.client?.notes || (currentOrder as any).notes} »
                   </p>
                 )}
               </div>
@@ -447,15 +496,16 @@ export const OrderTrackingView: React.FC = () => {
               </h3>
 
               <div className="divide-y divide-stone-100 border border-stone-200 rounded-2xl overflow-hidden bg-stone-50/50">
-                {currentOrder.items.map((item, idx) => (
+                {(currentOrder.items || []).map((item: any, idx) => (
                   <div key={idx} className="p-3.5 sm:p-4 space-y-2 bg-white">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <h4 className="font-bold text-sm text-stone-900">
-                          {item.productName} <span className="text-stone-500 font-medium">x{item.quantity}</span>
+                          {item.productName || item.product?.name || 'Article'}{' '}
+                          <span className="text-stone-500 font-medium">x{item.quantity || 1}</span>
                         </h4>
                         <span className="text-xs font-bold text-emerald-700">
-                          {item.itemTotalPrice.toFixed(1)} DT
+                          {(item.itemTotalPrice ?? ((item.unitPrice || 0) * (item.quantity || 1))).toFixed(1)} DT
                         </span>
                       </div>
                     </div>
@@ -463,17 +513,30 @@ export const OrderTrackingView: React.FC = () => {
                     {/* Customizations */}
                     <div className="text-xs text-stone-600 space-y-0.5 bg-stone-50 p-2.5 rounded-xl">
                       {item.proteinOption && (
-                        <p>• Protéine : <strong className="text-stone-800">{cleanClientText(item.proteinOption.label)}</strong></p>
+                        <p>• Protéine : <strong className="text-stone-800">
+                          {cleanClientText(typeof item.proteinOption === 'object' ? (item.proteinOption.label || item.proteinOption.name || '') : String(item.proteinOption))}
+                        </strong></p>
                       )}
                       {item.baseChoice && (
-                        <p>• Base : <strong className="text-stone-800">{cleanClientText(item.baseChoice.label)}</strong></p>
+                        <p>• Base : <strong className="text-stone-800">
+                          {cleanClientText(typeof item.baseChoice === 'object' ? (item.baseChoice.label || item.baseChoice.name || '') : String(item.baseChoice))}
+                        </strong></p>
                       )}
                       {item.veggiesOption && (
-                        <p>• Légumes : <strong className="text-stone-800">{cleanClientText(item.veggiesOption.label)}</strong></p>
+                        <p>• Légumes : <strong className="text-stone-800">
+                          {cleanClientText(typeof item.veggiesOption === 'object' ? (item.veggiesOption.label || item.veggiesOption.name || '') : String(item.veggiesOption))}
+                        </strong></p>
                       )}
                       {item.supplements && item.supplements.length > 0 && (
                         <p className="text-emerald-800 font-medium">
-                          • Suppléments : {item.supplements.map(s => `${cleanClientText(s.name)} (x${s.quantity})`).join(', ')}
+                          • Suppléments : {item.supplements.map((s: any) => {
+                            if (typeof s === 'string') {
+                              return cleanClientText(s);
+                            }
+                            const name = s.name || s.supplement?.name || 'Supplément';
+                            const qty = s.quantity && s.quantity > 1 ? ` (x${s.quantity})` : '';
+                            return `${cleanClientText(name)}${qty}`;
+                          }).join(', ')}
                         </p>
                       )}
                       {item.specialInstructions && (
@@ -495,11 +558,11 @@ export const OrderTrackingView: React.FC = () => {
               </h3>
 
               <div className="space-y-2">
-                {currentOrder.statusHistory.map((hist, idx) => (
+                {(currentOrder.statusHistory || []).map((hist: any, idx) => (
                   <div key={idx} className="flex items-start gap-2.5 text-xs text-stone-600">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 flex-shrink-0" />
                     <span className="font-mono text-[11px] text-stone-400">
-                      {new Date(hist.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                      {hist.timestamp ? new Date(hist.timestamp).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : ''}
                     </span>
                     <span className="font-semibold text-stone-800">{hist.label}</span>
                     {hist.note && <span className="text-stone-500 italic">— {hist.note}</span>}

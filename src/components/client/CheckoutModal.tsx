@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { Order } from '../../types';
 import {
   X,
   Phone,
@@ -9,7 +10,9 @@ import {
   Banknote,
   ShieldCheck,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Copy,
+  Check
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -19,7 +22,7 @@ interface CheckoutModalProps {
 }
 
 export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
-  const { cart, cartTotal, createOrder } = useApp();
+  const { cart, cartTotal, createOrder, setActiveTrackingToken, setActiveClientTab } = useApp();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('+216 ');
@@ -28,12 +31,52 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
-    name?: string;
     phone?: string;
     address?: string;
   }>({});
+  const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleClose = () => {
+    setConfirmedOrder(null);
+    setCopiedCode(false);
+    setName('');
+    setPhone('+216 ');
+    setAddress('');
+    setNotes('');
+    setFieldErrors({});
+    setErrorMsg(null);
+    onClose();
+  };
+
+  const handleGoToTracking = () => {
+    if (confirmedOrder?.trackingToken) {
+      setActiveTrackingToken(confirmedOrder.trackingToken);
+    }
+    setActiveClientTab('tracking');
+    handleClose();
+  };
+
+  const handleCopyCode = async (token: string) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(token);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = token;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2500);
+    } catch (e) {
+      // fallback
+    }
+  };
 
   const deliveryFee = 2.5;
   const grandTotal = Math.round((cartTotal + deliveryFee) * 10) / 10;
@@ -42,29 +85,27 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
     e.preventDefault();
     setErrorMsg(null);
 
-    const errors: { name?: string; phone?: string; address?: string } = {};
+    const errors: { phone?: string; address?: string } = {};
 
-    // 1. Contrôle du nom
-    if (!name.trim()) {
-      errors.name = 'Nom obligatoire';
-    }
+    // Règle métier : Le nom/prénom est FACULTATIF.
+    // Seuls le téléphone et l'adresse de livraison sont obligatoires.
 
-    // 2. Contrôle du téléphone (minimum 8 chiffres utiles hors indicatif ou format standard)
+    // 1. Contrôle du téléphone (minimum 8 chiffres utiles hors indicatif ou format standard)
     const rawDigits = phone.replace(/\D/g, '');
     const isPhoneEmptyOrShort = !phone.trim() || rawDigits.length < 8 || phone.trim() === '+216';
     if (isPhoneEmptyOrShort) {
-      errors.phone = 'Téléphone obligatoire';
+      errors.phone = 'Numéro de téléphone obligatoire';
     }
 
-    // 3. Contrôle de l'adresse de livraison
+    // 2. Contrôle de l'adresse de livraison
     if (!address.trim()) {
       errors.address = 'Adresse de livraison obligatoire';
     }
 
-    // Si un ou plusieurs champs obligatoires sont manquants, bloquer l'envoi et afficher les erreurs
+    // Si un des champs obligatoires est manquant, bloquer l'envoi et afficher les erreurs
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      setErrorMsg('Veuillez renseigner tous les champs obligatoires signalés ci-dessous.');
+      setErrorMsg('Veuillez renseigner les champs obligatoires (téléphone et adresse de livraison).');
       return;
     }
 
@@ -74,7 +115,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       setIsSubmitting(true);
       const newOrder = await createOrder({
         client: {
-          name: name.trim(),
+          name: name.trim() || 'Client',
           phone: phone.trim(),
           deliveryAddress: address.trim(),
           notes: notes.trim() || undefined
@@ -92,13 +133,124 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         // ignore
       }
 
-      onClose();
+      setConfirmedOrder(newOrder);
     } catch (err: any) {
       setErrorMsg(err.message || 'Une erreur est survenue lors de la commande.');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  // Écran de confirmation de commande
+  if (confirmedOrder) {
+    const displayOrderNumber = confirmedOrder.orderNumber.startsWith('#')
+      ? confirmedOrder.orderNumber
+      : `#${confirmedOrder.orderNumber}`;
+
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
+        <div
+          id="checkout-confirmation-modal"
+          className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-stone-200 overflow-hidden flex flex-col"
+        >
+          {/* Header */}
+          <div className="p-5 bg-stone-900 text-white flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <h2 className="text-lg font-bold font-display">
+                Commande confirmée
+              </h2>
+            </div>
+            <button
+              id="close-confirmation-modal-btn"
+              onClick={handleClose}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-stone-800 text-stone-300 hover:text-white hover:bg-stone-700 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="p-6 text-center space-y-5">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-extrabold text-stone-900">
+                Commande confirmée
+              </h3>
+              <p className="text-sm text-stone-600">
+                Votre commande a bien été enregistrée.
+              </p>
+            </div>
+
+            {/* Order Details Card */}
+            <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 text-left space-y-3.5">
+              <div>
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block">
+                  Numéro de commande
+                </span>
+                <span className="text-lg font-extrabold text-stone-900 font-mono">
+                  {displayOrderNumber}
+                </span>
+              </div>
+
+              <div className="border-t border-stone-200/80 pt-3">
+                <span className="text-[11px] font-bold text-stone-500 uppercase tracking-wider block mb-1">
+                  Code de suivi
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-white border border-stone-300 rounded-xl px-3 py-2 font-mono text-xs sm:text-sm font-bold text-stone-800 break-all select-all">
+                    {confirmedOrder.trackingToken}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCode(confirmedOrder.trackingToken)}
+                    className="px-3 py-2 rounded-xl bg-stone-200 hover:bg-stone-300 active:bg-stone-400 text-stone-800 font-medium text-xs flex items-center gap-1.5 transition-colors cursor-pointer flex-shrink-0"
+                    title="Copier le code de suivi"
+                  >
+                    {copiedCode ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">Copié !</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copier</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Action button */}
+            <div className="space-y-2 pt-2">
+              <button
+                type="button"
+                id="track-order-direct-btn"
+                onClick={handleGoToTracking}
+                className="w-full min-h-[48px] py-3.5 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.98] text-white font-extrabold text-sm shadow-lg shadow-emerald-900/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <span>Suivre ma commande en direct</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="w-full py-2.5 text-xs font-semibold text-stone-500 hover:text-stone-700 transition-colors cursor-pointer"
+              >
+                Fermer et retourner à la boutique
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200">
@@ -118,7 +270,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           </div>
           <button
             id="close-checkout-modal-btn"
-            onClick={onClose}
+            onClick={handleClose}
             className="w-11 h-11 flex items-center justify-center rounded-full bg-stone-800 text-stone-300 hover:text-white hover:bg-stone-700 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -152,42 +304,22 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
               </span>
             </div>
 
-            {/* Full Name */}
+            {/* Full Name (Facultatif) */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Nom et Prénom *</span>
+                  <User className="w-3.5 h-3.5 text-stone-500" />
+                  <span>Nom et Prénom <span className="text-stone-400 font-normal text-[11px]">(Facultatif)</span></span>
                 </span>
-                {fieldErrors.name && (
-                  <span className="text-rose-600 text-[11px] font-bold flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    {fieldErrors.name}
-                  </span>
-                )}
               </label>
               <input
                 type="text"
                 id="checkout-name-input"
                 value={name}
-                onChange={e => {
-                  setName(e.target.value);
-                  if (fieldErrors.name) {
-                    setFieldErrors(prev => ({ ...prev, name: undefined }));
-                  }
-                }}
+                onChange={e => setName(e.target.value)}
                 placeholder="Ex: Mohamed Ben Salem"
-                className={`w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${
-                  fieldErrors.name
-                    ? 'border-2 border-rose-500 bg-rose-50/20 text-stone-900 focus:ring-2 focus:ring-rose-400'
-                    : 'border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-500'
-                }`}
+                className="w-full px-3.5 py-2.5 rounded-xl text-sm border border-stone-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
-              {fieldErrors.name && (
-                <p className="text-[11px] font-semibold text-rose-600">
-                  {fieldErrors.name}
-                </p>
-              )}
             </div>
 
             {/* Phone */}

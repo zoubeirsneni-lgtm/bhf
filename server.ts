@@ -525,21 +525,29 @@ async function startServer() {
         totalAmount: order.totalAmount,
         subtotal: order.subtotal,
         deliveryFee: order.deliveryFee,
-        clientName: order.client.name,
-        deliveryAddress: order.client.deliveryAddress,
-        items: order.items.map(item => ({
-          productName: item.productName,
+        client: {
+          name: order.client?.name || '',
+          phone: order.client?.phone || '',
+          deliveryAddress: order.client?.deliveryAddress || '',
+          notes: order.client?.notes || ''
+        },
+        clientName: order.client?.name || '',
+        phone: order.client?.phone || '',
+        deliveryAddress: order.client?.deliveryAddress || '',
+        notes: order.client?.notes || '',
+        items: (order.items || []).map(item => ({
+          productName: item.productName || (item as any).product?.name || '',
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           itemTotalPrice: item.itemTotalPrice,
-          proteinOption: item.proteinOption?.label,
-          veggiesOption: item.veggiesOption?.label,
-          baseChoice: item.baseChoice?.label,
-          supplements: item.supplements.map(s => s.name),
-          specialInstructions: item.specialInstructions
+          proteinOption: item.proteinOption?.label || item.proteinOption || null,
+          veggiesOption: item.veggiesOption?.label || item.veggiesOption || null,
+          baseChoice: item.baseChoice?.label || item.baseChoice || null,
+          supplements: (item.supplements || []).map((s: any) => typeof s === 'string' ? s : (s.name || s.supplement?.name || '')),
+          specialInstructions: item.specialInstructions || ''
         })),
-        statusHistory: order.statusHistory,
-        assignedDriverName: order.assignedDriverName
+        statusHistory: order.statusHistory || [],
+        assignedDriverName: order.assignedDriverName || null
       };
 
       res.json(publicOrder);
