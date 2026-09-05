@@ -134,7 +134,7 @@ export const KitchenView: React.FC = () => {
           {kitchenOrders.map(order => {
             const isReceived = order.status === 'received';
             const isPreparing = order.status === 'preparing';
-            const isReady = order.status === 'ready';
+            const isReady = order.status === 'ready' || order.status === 'waiting_for_driver';
             const isUpdating = updatingOrderId === order.id;
 
             const elapsedMinutes = Math.floor(
@@ -171,7 +171,7 @@ export const KitchenView: React.FC = () => {
                         #{order.orderNumber}
                       </span>
                       <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-black/25">
-                        {isReceived ? 'Nouveau' : isPreparing ? 'En Cuisson' : order.status}
+                        {isReceived ? 'Nouveau' : isPreparing ? 'En Cuisson' : isReady ? 'Prête' : order.status}
                       </span>
                     </div>
                     <div className="text-[11px] text-white/90 font-medium">

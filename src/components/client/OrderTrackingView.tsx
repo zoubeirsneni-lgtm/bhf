@@ -38,6 +38,11 @@ export const OrderTrackingView: React.FC = () => {
   } = useApp();
 
   const [tokenInput, setTokenInput] = useState('');
+  const [orderNumberInput, setOrderNumberInput] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
+  const [isSearchingLookup, setIsSearchingLookup] = useState(false);
+  const [isSearchingToken, setIsSearchingToken] = useState(false);
+  const [showTokenSearch, setShowTokenSearch] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
@@ -75,17 +80,59 @@ export const OrderTrackingView: React.FC = () => {
     };
   }, [activeTrackingToken, currentOrder]);
 
+  const handleOrderLookup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const orderNum = orderNumberInput.trim();
+    const phone = phoneInput.trim();
+    if (!orderNum || !phone) {
+      setSearchError('Veuillez renseigner votre numéro de commande et votre numéro de téléphone.');
+      return;
+    }
+    setSearchError(null);
+    setIsSearchingLookup(true);
+
+    try {
+      const res = await fetch('/api/orders/track-lookup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({ orderNumber: orderNum, phone })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Impossible de retrouver cette commande. Vérifiez votre numéro de commande et votre numéro de téléphone.');
+      }
+
+      if (data.trackingToken) {
+        setActiveTrackingToken(data.trackingToken);
+      }
+      setSearchedOrder(data);
+      setSearchError(null);
+      showToast('Commande retrouvée !', `Suivi en direct activé pour la commande #${data.orderNumber}.`, 'success');
+    } catch (err: any) {
+      setSearchError(err.message || 'Impossible de retrouver cette commande. Vérifiez votre numéro de commande et votre numéro de téléphone.');
+    } finally {
+      setIsSearchingLookup(false);
+    }
+  };
+
   const handleManualSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     const query = tokenInput.trim();
     if (!query) return;
     setSearchError(null);
+    setIsSearchingToken(true);
 
     // 1. Check in already loaded orders
-    const localMatch = (orders || []).find(o => o.trackingToken === query || o.orderNumber.toLowerCase() === query.toLowerCase());
+    const localMatch = (orders || []).find(o => o.trackingToken === query);
     if (localMatch) {
       setActiveTrackingToken(localMatch.trackingToken);
       setSearchedOrder(localMatch);
+      setIsSearchingToken(false);
       return;
     }
 
@@ -105,6 +152,8 @@ export const OrderTrackingView: React.FC = () => {
       setSearchedOrder(data);
     } catch (err: any) {
       setSearchError(err.message || 'Commande introuvable.');
+    } finally {
+      setIsSearchingToken(false);
     }
   };
 
@@ -197,7 +246,9 @@ export const OrderTrackingView: React.FC = () => {
     {
       id: 'delivered',
       title: 'Commande livrée',
-      description: 'Paiement en espèces encaissé • Bon appétit !',
+      description: currentOrder?.paymentStatus === 'paid'
+        ? 'Remise au client • Paiement en espèces encaissé • Bon appétit !'
+        : 'Remise au client • En attente de règlement en espèces',
       icon: <Sparkles className="w-5 h-5" />
     }
   ];
@@ -218,39 +269,109 @@ export const OrderTrackingView: React.FC = () => {
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-8 animate-in fade-in duration-300">
       
       {/* Top Banner & Search */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-stone-200/80 shadow-xs">
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-            Portail Client Sans Compte
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 font-display">
-            Suivi de Commande en Direct
-          </h1>
-          <p className="text-xs sm:text-sm text-stone-500 mt-0.5">
-            Mise à jour en temps réel par notre équipe cuisine &amp; livreurs.
-          </p>
+      <div className="bg-white p-5 sm:p-7 rounded-3xl border border-stone-200/80 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-100 pb-4">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+              Portail Client Sans Compte
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-stone-900 font-display">
+              Suivi de Commande en Direct
+            </h1>
+            <p className="text-xs sm:text-sm text-stone-500 mt-0.5">
+              Mise à jour en temps réel par notre équipe cuisine &amp; livreurs.
+            </p>
+          </div>
         </div>
 
-        {/* Search input for token */}
-        <form onSubmit={handleManualSearch} className="flex items-center gap-2 w-full sm:w-auto">
-          <div className="relative flex-1 sm:w-56">
-            <input
-              type="text"
-              id="tracking-token-input"
-              value={tokenInput}
-              onChange={e => setTokenInput(e.target.value)}
-              placeholder="Code suivi (ex: tk_...)"
-              className="w-full min-h-[44px] px-3 py-2 pl-8 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500 bg-stone-50"
-            />
-            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-3.5" />
+        {/* Section principale : Retrouver ma commande (N° commande + Téléphone) */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Search className="w-4 h-4 text-emerald-600" />
+            <h2 className="text-sm font-bold text-stone-800">
+              Retrouver ma commande
+            </h2>
           </div>
-          <button
-            type="submit"
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-stone-900 text-white font-bold text-xs hover:bg-emerald-700 transition-colors inline-flex items-center justify-center cursor-pointer flex-shrink-0"
-          >
-            Vérifier
-          </button>
-        </form>
+
+          <form onSubmit={handleOrderLookup} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div className="sm:col-span-5">
+              <label htmlFor="lookup-ordernumber-input" className="block text-[11px] font-bold text-stone-600 mb-1">
+                Numéro de commande
+              </label>
+              <input
+                type="text"
+                id="lookup-ordernumber-input"
+                value={orderNumberInput}
+                onChange={e => setOrderNumberInput(e.target.value)}
+                placeholder="Ex : BEBBA-1047"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500 bg-stone-50 font-mono font-bold text-stone-900"
+              />
+            </div>
+
+            <div className="sm:col-span-4">
+              <label htmlFor="lookup-phone-input" className="block text-[11px] font-bold text-stone-600 mb-1">
+                Numéro de téléphone
+              </label>
+              <input
+                type="text"
+                id="lookup-phone-input"
+                value={phoneInput}
+                onChange={e => setPhoneInput(e.target.value)}
+                placeholder="Ex : 98 440 210"
+                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500 bg-stone-50 font-mono text-stone-900"
+              />
+            </div>
+
+            <div className="sm:col-span-3 flex items-end">
+              <button
+                type="submit"
+                id="lookup-order-btn"
+                disabled={isSearchingLookup}
+                className="w-full min-h-[44px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-bold text-xs transition-all inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+              >
+                {isSearchingLookup ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                <span>Retrouver ma commande</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Option secondaire : Vous avez déjà votre code de suivi ? */}
+          <div className="pt-3 border-t border-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <button
+              type="button"
+              id="toggle-token-search-btn"
+              onClick={() => setShowTokenSearch(!showTokenSearch)}
+              className="text-stone-500 hover:text-emerald-700 font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer text-left"
+            >
+              <span>{showTokenSearch ? '▾ Masquer la recherche par code de suivi' : '▸ Vous avez déjà votre code de suivi (ex : tk_...) ?'}</span>
+            </button>
+
+            {showTokenSearch && (
+              <form onSubmit={handleManualSearch} className="flex items-center gap-2 w-full sm:w-auto animate-in fade-in duration-200">
+                <input
+                  type="text"
+                  id="tracking-token-input"
+                  value={tokenInput}
+                  onChange={e => setTokenInput(e.target.value)}
+                  placeholder="Code suivi (ex: tk_...)"
+                  className="w-full sm:w-56 min-h-[40px] px-3 py-1.5 rounded-xl border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500 bg-stone-50 font-mono"
+                />
+                <button
+                  type="submit"
+                  id="search-by-token-btn"
+                  disabled={isSearchingToken}
+                  className="min-h-[40px] px-3.5 py-1.5 rounded-xl bg-stone-900 text-white font-bold text-xs hover:bg-emerald-700 transition-colors inline-flex items-center justify-center cursor-pointer flex-shrink-0 disabled:opacity-50"
+                >
+                  {isSearchingToken ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Vérifier'}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </div>
 
       {searchError && (
@@ -350,7 +471,7 @@ export const OrderTrackingView: React.FC = () => {
 
             {/* Visual Step-by-Step Progress Timeline */}
             <div className="py-4">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 relative">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 relative">
                 {stages.map((stage, idx) => {
                   const isCompleted = idx <= currentStageIndex;
                   const isCurrent = idx === currentStageIndex;
@@ -619,8 +740,8 @@ export const OrderTrackingView: React.FC = () => {
           </div>
           <div>
             <h3 className="text-lg font-bold text-stone-800">Aucune commande active sélectionnée</h3>
-            <p className="text-xs text-stone-500 max-w-sm mx-auto mt-1">
-              Entrez votre code de suivi (ex: <code className="text-emerald-700 font-mono">tk_bebba_1047_demo</code>) ou passez une nouvelle commande pour la suivre en direct.
+            <p className="text-xs text-stone-500 max-w-md mx-auto mt-1">
+              Renseignez votre <strong>Numéro de commande</strong> (ex: <code className="text-emerald-700 font-mono font-bold">BEBBA-1047</code>) et votre <strong>Téléphone</strong> ci-dessus pour retrouver et suivre votre commande en direct.
             </p>
           </div>
           <button

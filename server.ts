@@ -505,6 +505,53 @@ async function startServer() {
     }
   });
 
+  // Helper to format safe public payload (avoids exposing internal DB fields)
+  function formatPublicOrder(order: any) {
+    return {
+      id: order.id,
+      orderNumber: order.orderNumber,
+      trackingToken: order.trackingToken,
+      createdAt: order.createdAt,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      totalAmount: order.totalAmount,
+      subtotal: order.subtotal,
+      deliveryFee: order.deliveryFee,
+      client: {
+        name: order.client?.name || '',
+        phone: order.client?.phone || '',
+        deliveryAddress: order.client?.deliveryAddress || '',
+        notes: order.client?.notes || ''
+      },
+      clientName: order.client?.name || '',
+      phone: order.client?.phone || '',
+      deliveryAddress: order.client?.deliveryAddress || '',
+      notes: order.client?.notes || '',
+      items: (order.items || []).map((item: any) => ({
+        productName: item.productName || item.product?.name || '',
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        itemTotalPrice: item.itemTotalPrice,
+        proteinOption: item.proteinOption?.label || item.proteinOption || null,
+        veggiesOption: item.veggiesOption?.label || item.veggiesOption || null,
+        baseChoice: item.baseChoice?.label || item.baseChoice || null,
+        supplements: (item.supplements || []).map((s: any) => typeof s === 'string' ? s : (s.name || s.supplement?.name || '')),
+        specialInstructions: item.specialInstructions || ''
+      })),
+      statusHistory: order.statusHistory || [],
+      assignedDriverName: order.assignedDriverName || null
+    };
+  }
+
+  // Rate Limiting in memory for Order Recovery endpoint (/api/orders/track-lookup)
+  // Max 5 failed attempts per 10-minute window per IP
+  interface LookupRateLimitEntry {
+    failedAttempts: number;
+    firstAttemptAt: number;
+    blockedUntil?: number;
+  }
+  const lookupRateLimiter = new Map<string, LookupRateLimitEntry>();
+
   // Public Order Tracking by unique token (No auth required)
   app.get('/api/orders/track/:token', (req, res) => {
     try {
@@ -514,43 +561,63 @@ async function startServer() {
         return;
       }
 
-      // Safe public payload (avoids exposing private backend details while giving live status)
-      const publicOrder = {
-        id: order.id,
-        orderNumber: order.orderNumber,
-        trackingToken: order.trackingToken,
-        createdAt: order.createdAt,
-        status: order.status,
-        paymentStatus: order.paymentStatus,
-        totalAmount: order.totalAmount,
-        subtotal: order.subtotal,
-        deliveryFee: order.deliveryFee,
-        client: {
-          name: order.client?.name || '',
-          phone: order.client?.phone || '',
-          deliveryAddress: order.client?.deliveryAddress || '',
-          notes: order.client?.notes || ''
-        },
-        clientName: order.client?.name || '',
-        phone: order.client?.phone || '',
-        deliveryAddress: order.client?.deliveryAddress || '',
-        notes: order.client?.notes || '',
-        items: (order.items || []).map(item => ({
-          productName: item.productName || (item as any).product?.name || '',
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          itemTotalPrice: item.itemTotalPrice,
-          proteinOption: item.proteinOption?.label || item.proteinOption || null,
-          veggiesOption: item.veggiesOption?.label || item.veggiesOption || null,
-          baseChoice: item.baseChoice?.label || item.baseChoice || null,
-          supplements: (item.supplements || []).map((s: any) => typeof s === 'string' ? s : (s.name || s.supplement?.name || '')),
-          specialInstructions: item.specialInstructions || ''
-        })),
-        statusHistory: order.statusHistory || [],
-        assignedDriverName: order.assignedDriverName || null
-      };
+      res.json(formatPublicOrder(order));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
 
-      res.json(publicOrder);
+  // POST /api/orders/track-lookup (Public Order Recovery with orderNumber + phone)
+  app.post('/api/orders/track-lookup', (req, res) => {
+    try {
+      const clientIp = (req.ip || req.socket.remoteAddress || 'unknown').toString();
+      const now = Date.now();
+      const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+      const MAX_FAILED_ATTEMPTS = 5;
+
+      const rateEntry = lookupRateLimiter.get(clientIp);
+
+      if (rateEntry && rateEntry.blockedUntil && now < rateEntry.blockedUntil) {
+        const remainingMinutes = Math.max(1, Math.ceil((rateEntry.blockedUntil - now) / 60000));
+        res.status(429).json({
+          error: `Trop de tentatives de recherche infructueuses. Par mesure de sécurité, veuillez patienter ${remainingMinutes} minute(s) avant de réessayer.`
+        });
+        return;
+      }
+
+      const { orderNumber, phone } = req.body || {};
+
+      if (!orderNumber || !phone || typeof orderNumber !== 'string' || typeof phone !== 'string') {
+        res.status(400).json({
+          error: 'Impossible de retrouver cette commande. Vérifiez votre numéro de commande et votre numéro de téléphone.'
+        });
+        return;
+      }
+
+      const order = db.getOrderByOrderNumberAndPhone(orderNumber, phone);
+
+      if (!order) {
+        // Enregistrer l'échec pour le rate limiting
+        const entry = rateEntry && (now - rateEntry.firstAttemptAt < WINDOW_MS)
+          ? rateEntry
+          : { failedAttempts: 0, firstAttemptAt: now };
+
+        entry.failedAttempts += 1;
+        if (entry.failedAttempts >= MAX_FAILED_ATTEMPTS) {
+          entry.blockedUntil = now + WINDOW_MS;
+        }
+        lookupRateLimiter.set(clientIp, entry);
+
+        res.status(404).json({
+          error: 'Impossible de retrouver cette commande. Vérifiez votre numéro de commande et votre numéro de téléphone.'
+        });
+        return;
+      }
+
+      // Succès : réinitialiser les échecs pour cette IP
+      lookupRateLimiter.delete(clientIp);
+
+      res.json(formatPublicOrder(order));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

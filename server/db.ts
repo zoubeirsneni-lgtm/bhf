@@ -988,6 +988,41 @@ class DatabaseManager {
     return this.data.orders.find(o => o.trackingToken === token);
   }
 
+  public getOrderByOrderNumberAndPhone(orderNumberRaw: string, phoneRaw: string): Order | undefined {
+    if (!orderNumberRaw || !phoneRaw || typeof orderNumberRaw !== 'string' || typeof phoneRaw !== 'string') {
+      return undefined;
+    }
+
+    // 1. Normalisation du numéro de commande (ex: BEBBA-1047, bebba-1047, #BEBBA-1047, 1047)
+    let cleanOrderNum = orderNumberRaw.trim().replace(/^#/, '').toUpperCase();
+    if (/^\d+$/.test(cleanOrderNum)) {
+      cleanOrderNum = `BEBBA-${cleanOrderNum}`;
+    }
+
+    // 2. Normalisation du numéro de téléphone (comparaison sur les 8 derniers chiffres utiles)
+    const inputDigits = phoneRaw.replace(/\D/g, '');
+    if (inputDigits.length < 8) {
+      return undefined;
+    }
+    const inputLast8 = inputDigits.slice(-8);
+
+    return this.data.orders.find(o => {
+      const storedOrderNum = (o.orderNumber || '').trim().replace(/^#/, '').toUpperCase();
+      if (storedOrderNum !== cleanOrderNum) {
+        return false;
+      }
+
+      const storedPhone = o.client?.phone || (o as any).phone || '';
+      const storedDigits = storedPhone.replace(/\D/g, '');
+      if (storedDigits.length < 8) {
+        return false;
+      }
+      const storedLast8 = storedDigits.slice(-8);
+
+      return inputLast8 === storedLast8;
+    });
+  }
+
   public updateOrderStatus(params: {
     orderId: string;
     status: OrderStatus;
