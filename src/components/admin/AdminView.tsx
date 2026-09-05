@@ -12,7 +12,9 @@ import {
   Sparkles,
   Phone,
   MapPin,
-  Bike
+  Bike,
+  Banknote,
+  Check
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -45,6 +47,8 @@ export const AdminView: React.FC = () => {
     adjustStock,
     saveProduct,
     updateOrderStatus,
+    assignDriverToOrder,
+    confirmOrderPayment,
     showToast,
     resetDemoData
   } = useApp();
@@ -56,24 +60,38 @@ export const AdminView: React.FC = () => {
   const [isRestocking, setIsRestocking] = useState<string | null>(null);
   const [selectedDrivers, setSelectedDrivers] = useState<Record<string, string>>({});
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
+  const [isAssigningDriver, setIsAssigningDriver] = useState<string | null>(null);
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState<string | null>(null);
 
   // Compute key metrics
   const totalRevenue = useMemo(() => {
     return (orders || [])
       .filter(o => o.status !== 'cancelled')
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+      .reduce((sum, o) => sum + (o.totalAmount ?? 0), 0);
+  }, [orders]);
+
+  const deliveredOrdersCount = useMemo(() => {
+    return (orders || []).filter(o => o.status === 'delivered').length;
+  }, [orders]);
+
+  const paidOrdersCount = useMemo(() => {
+    return (orders || []).filter(o => o.paymentStatus === 'paid').length;
+  }, [orders]);
+
+  const toCollectOrdersCount = useMemo(() => {
+    return (orders || []).filter(o => o.paymentStatus === 'to_collect' && o.status !== 'cancelled').length;
   }, [orders]);
 
   const collectedCash = useMemo(() => {
     return (orders || [])
       .filter(o => o.paymentStatus === 'paid')
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+      .reduce((sum, o) => sum + (o.totalAmount ?? 0), 0);
   }, [orders]);
 
   const pendingCash = useMemo(() => {
     return (orders || [])
-      .filter(o => o.paymentStatus === 'pending' && o.status !== 'cancelled')
-      .reduce((sum, o) => sum + o.totalAmount, 0);
+      .filter(o => o.paymentStatus === 'to_collect' && o.status !== 'cancelled')
+      .reduce((sum, o) => sum + (o.totalAmount ?? 0), 0);
   }, [orders]);
 
   const lowStockIngredients = useMemo(() => {
@@ -128,15 +146,53 @@ export const AdminView: React.FC = () => {
     }
   };
 
-  const handleDriverSelect = (orderId: string, driverId: string) => {
-    setSelectedDrivers(prev => ({ ...prev, [orderId]: driverId }));
-    const driver = drivers.find(d => d.id === driverId);
-    if (driver) {
+  const handleDriverSelect = async (order: Order, driverId: string) => {
+    if (!driverId) return;
+    if (driverId === order.assignedDriverId) return;
+
+    try {
+      setIsAssigningDriver(order.id);
+      const updatedOrder = await assignDriverToOrder(order.id, driverId);
+      // Nettoyer toute surcharge locale éphémère pour refléter la vérité serveur
+      setSelectedDrivers(prev => {
+        const next = { ...prev };
+        delete next[order.id];
+        return next;
+      });
+      const driver = drivers.find(d => d.id === driverId);
       showToast(
-        'Livreur sélectionné',
-        `${driver.name} attribué à la commande. Prêt pour le passage en livraison.`,
-        'info'
+        'Livreur affecté',
+        `${driver?.name || 'Livreur'} affecté avec succès à la commande #${updatedOrder.orderNumber}.`,
+        'success'
       );
+    } catch (err: any) {
+      showToast(
+        'Erreur affectation',
+        err.message || 'Impossible d’affecter ce livreur.',
+        'warning'
+      );
+    } finally {
+      setIsAssigningDriver(null);
+    }
+  };
+
+  const handleConfirmPayment = async (order: Order) => {
+    try {
+      setIsUpdatingPayment(order.id);
+      await confirmOrderPayment(order.id);
+      showToast(
+        'Encaissement validé',
+        `Paiement en espèces de ${(order.totalAmount ?? 0).toFixed(1)} DT enregistré pour la commande #${order.orderNumber}.`,
+        'success'
+      );
+    } catch (err: any) {
+      showToast(
+        'Erreur encaissement',
+        err.message || 'Impossible d’enregistrer l’encaissement.',
+        'warning'
+      );
+    } finally {
+      setIsUpdatingPayment(null);
     }
   };
 
@@ -279,7 +335,7 @@ export const AdminView: React.FC = () => {
               </div>
               <p className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" />
-                <span>Total des commandes actives</span>
+                <span>{deliveredOrdersCount} commande{deliveredOrdersCount > 1 ? 's' : ''} livrée{deliveredOrdersCount > 1 ? 's' : ''}</span>
               </p>
             </div>
 
@@ -289,17 +345,17 @@ export const AdminView: React.FC = () => {
                 {collectedCash.toFixed(1)} <span className="text-sm font-semibold text-emerald-900">DT</span>
               </div>
               <p className="text-[11px] text-stone-500">
-                Livrées et collectées par les livreurs
+                {paidOrdersCount} commande{paidOrdersCount > 1 ? 's' : ''} encaissée{paidOrdersCount > 1 ? 's' : ''}
               </p>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-xs space-y-1">
-              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">En Cours de Livraison</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Restant à Encaisser</span>
               <div className="text-2xl sm:text-3xl font-extrabold text-amber-700 font-display">
                 {pendingCash.toFixed(1)} <span className="text-sm font-semibold text-amber-900">DT</span>
               </div>
               <p className="text-[11px] text-stone-500">
-                Paiements en attente de collecte
+                {toCollectOrdersCount} commande{toCollectOrdersCount > 1 ? 's' : ''} à encaisser
               </p>
             </div>
 
@@ -497,17 +553,36 @@ export const AdminView: React.FC = () => {
                         )}
                       </td>
                       <td className="p-3.5 align-top">
-                        {order.items.map((it, idx) => (
+                        {(order.items || []).map((it, idx) => (
                           <div key={idx} className="line-clamp-1">
-                            • {it.productName} (x{it.quantity})
+                            • {it?.productName || 'Article'} (x{it?.quantity ?? 1})
                           </div>
                         ))}
                       </td>
                       <td className="p-3.5 align-top">
-                        <span className="font-extrabold text-emerald-700">{order.totalAmount.toFixed(1)} DT</span>
-                        <span className={`block text-[10px] font-bold ${order.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                          {order.paymentStatus === 'paid' ? 'Encaissé' : 'À encaisser'}
-                        </span>
+                        <span className="font-extrabold text-emerald-700">{(order.totalAmount ?? 0).toFixed(1)} DT</span>
+                        {order.paymentStatus === 'paid' ? (
+                          <span className="block text-[10px] font-bold text-emerald-700">
+                            Encaissé ✓
+                          </span>
+                        ) : (
+                          <div className="mt-1">
+                            <span className="block text-[10px] font-bold text-amber-700">
+                              À encaisser
+                            </span>
+                            {order.status !== 'cancelled' && (
+                              <button
+                                onClick={() => handleConfirmPayment(order)}
+                                disabled={isUpdatingPayment === order.id}
+                                className="mt-1 px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold flex items-center gap-1 shadow-2xs transition-colors disabled:opacity-50"
+                                title="Enregistrer l'encaissement en espèces"
+                              >
+                                <Banknote className="w-3 h-3" />
+                                <span>Encaisser</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3.5 align-top">
                         <span
@@ -585,8 +660,9 @@ export const AdminView: React.FC = () => {
                             <select
                               aria-label={`Attribuer un livreur pour commande #${order.orderNumber}`}
                               value={effectiveDriverId}
-                              onChange={e => handleDriverSelect(order.id, e.target.value)}
-                              className="block w-full px-2 py-1 text-xs rounded-lg border border-stone-300 bg-white font-medium text-stone-800 focus:ring-2 focus:ring-emerald-500"
+                              disabled={isUpdatingOrder === order.id || isAssigningDriver === order.id}
+                              onChange={e => handleDriverSelect(order, e.target.value)}
+                              className="block w-full px-2 py-1 text-xs rounded-lg border border-stone-300 bg-white font-medium text-stone-800 focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
                             >
                               <option value="">-- Aucun livreur --</option>
                               {drivers.map(drv => drv ? (
@@ -601,10 +677,26 @@ export const AdminView: React.FC = () => {
 
                       {/* ACTION STATUT COLUMN */}
                       <td className="p-3.5 align-top">
-                        {isTerminated ? (
+                        {order.status === 'cancelled' ? (
                           <span className="text-stone-400 text-xs italic">
-                            {order.status === 'delivered' ? 'Commande clôturée' : 'Commande annulée'}
+                            Commande annulée
                           </span>
+                        ) : order.status === 'delivered' ? (
+                          <div className="space-y-1.5 min-w-[160px]">
+                            <span className="text-stone-500 text-xs font-medium block">
+                              {order.paymentStatus === 'paid' ? 'Commande clôturée' : 'Livrée au client'}
+                            </span>
+                            {order.paymentStatus === 'to_collect' && (
+                              <button
+                                onClick={() => handleConfirmPayment(order)}
+                                disabled={isUpdatingPayment === order.id}
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-2xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                              >
+                                <Banknote className="w-3.5 h-3.5" />
+                                <span>Encaisser ({(order.totalAmount ?? 0).toFixed(1)} DT)</span>
+                              </button>
+                            )}
+                          </div>
                         ) : (
                           <div className="space-y-1.5 min-w-[160px]">
                             {order.status === 'waiting_for_driver' && effectiveDriverId ? (

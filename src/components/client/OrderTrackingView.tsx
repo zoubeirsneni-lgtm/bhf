@@ -108,12 +108,11 @@ export const OrderTrackingView: React.FC = () => {
     }
   };
 
-  const handleCopyLink = () => {
-    if (!currentOrder) return;
-    const url = `${window.location.origin}?token=${currentOrder.trackingToken}`;
-    navigator.clipboard.writeText(url);
+  const handleCopyCode = () => {
+    if (!currentOrder?.trackingToken) return;
+    navigator.clipboard.writeText(currentOrder.trackingToken);
     setCopied(true);
-    showToast('Lien copié !', 'Le lien de suivi a été copié dans le presse-papier.', 'info');
+    showToast('Code copié !', 'Le code de suivi a été copié dans le presse-papier.', 'info');
     setTimeout(() => setCopied(false), 2500);
   };
 
@@ -298,9 +297,15 @@ export const OrderTrackingView: React.FC = () => {
                     minute: '2-digit'
                   })}
                 </p>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-stone-600">Code de suivi :</span>
+                  <code className="text-xs font-mono font-bold bg-stone-100 text-stone-900 px-2.5 py-1 rounded-lg border border-stone-200 select-all">
+                    {currentOrder.trackingToken}
+                  </code>
+                </div>
               </div>
 
-              {/* Action buttons (Copy link, Refresh, Push notifications) */}
+              {/* Action buttons (Copy code, Refresh, Push notifications) */}
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={manualRefresh}
@@ -312,11 +317,12 @@ export const OrderTrackingView: React.FC = () => {
                 </button>
 
                 <button
-                  onClick={handleCopyLink}
+                  onClick={handleCopyCode}
                   className="min-h-[44px] p-2.5 px-3 rounded-xl border border-stone-200 hover:bg-stone-50 text-stone-600 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  title="Copier le code de suivi"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                  <span>{copied ? 'Lien copié' : 'Lien direct'}</span>
+                  <span>{copied ? 'Code copié' : 'Copier le code'}</span>
                 </button>
 
                 <button

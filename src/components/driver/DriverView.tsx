@@ -16,11 +16,12 @@ import {
 } from 'lucide-react';
 
 export const DriverView: React.FC = () => {
-  const { orders, drivers, updateOrderStatus, showToast, currentUser } = useApp();
+  const { orders, drivers, updateOrderStatus, confirmOrderPayment, showToast, currentUser } = useApp();
   const [selectedDriverId, setSelectedDriverId] = useState<string>(() => {
     return currentUser?.driverId || drivers[0]?.id || 'drv_1';
   });
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [updatingPaymentId, setUpdatingPaymentId] = useState<string | null>(null);
 
   // If logged in as driver, enforce their own driverId
   const activeDriverId = (currentUser?.role === 'driver' && currentUser.driverId)
@@ -36,10 +37,29 @@ export const DriverView: React.FC = () => {
     activeDeliveriesCount: 0
   } : drivers[0]);
 
-  // Orders relevant to drivers (Ready for pickup or currently being delivered)
-  const availableOrders = (orders || []).filter(o => o.status === 'ready' || o.status === 'waiting_for_driver');
-  const ongoingDeliveries = (orders || []).filter(o => o.status === 'delivering' && (!currentDriver || o.assignedDriverId === currentDriver.id));
-  const deliveredToday = (orders || []).filter(o => o.status === 'delivered');
+  // Orders relevant to drivers (strictly assigned to this driver)
+  const currentDriverId = currentDriver?.id;
+
+  const assignedPendingOrders = (orders || []).filter(o =>
+    Boolean(currentDriverId) &&
+    o.assignedDriverId === currentDriverId &&
+    (o.status === 'ready' || o.status === 'waiting_for_driver')
+  );
+
+  const ongoingDeliveries = (orders || []).filter(o =>
+    Boolean(currentDriverId) &&
+    o.assignedDriverId === currentDriverId &&
+    o.status === 'delivering'
+  );
+
+  const deliveredToday = (orders || []).filter(o =>
+    Boolean(currentDriverId) &&
+    o.assignedDriverId === currentDriverId &&
+    o.status === 'delivered'
+  );
+
+  const collectedTodayCount = deliveredToday.filter(o => o.paymentStatus === 'paid').length;
+  const toCollectCount = deliveredToday.filter(o => o.paymentStatus === 'to_collect').length;
 
   const handleCompleteDelivery = async (order: Order) => {
     try {
@@ -52,11 +72,31 @@ export const DriverView: React.FC = () => {
         driverName,
         currentDriver?.id
       );
-      showToast('Livraison Confirmée !', `Commande #${order.orderNumber} remise au client.`, 'success');
+      showToast(
+        'Remise client validée',
+        `Commande #${order.orderNumber} remise au client. ${order.paymentStatus === 'paid' ? 'Paiement déjà encaissé.' : 'N’oubliez pas d’enregistrer l’encaissement.'}`,
+        'success'
+      );
     } catch (err: any) {
       showToast('Erreur', err.message || 'Impossible de valider la livraison.', 'warning');
     } finally {
       setUpdatingOrderId(null);
+    }
+  };
+
+  const handleConfirmPayment = async (order: Order) => {
+    try {
+      setUpdatingPaymentId(order.id);
+      await confirmOrderPayment(order.id);
+      showToast(
+        'Encaissement confirmé',
+        `Paiement en espèces de ${(order.totalAmount ?? 0).toFixed(1)} DT validé pour la commande #${order.orderNumber}.`,
+        'success'
+      );
+    } catch (err: any) {
+      showToast('Erreur encaissement', err.message || 'Impossible d’enregistrer l’encaissement.', 'warning');
+    } finally {
+      setUpdatingPaymentId(null);
     }
   };
 
@@ -103,11 +143,11 @@ export const DriverView: React.FC = () => {
       </div>
 
       {/* Driver Metrics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-xs flex items-center justify-between">
           <div>
-            <span className="text-xs text-stone-500 font-bold uppercase tracking-wider">Prêtes en cuisine</span>
-            <div className="text-2xl font-extrabold text-stone-900 mt-1">{availableOrders.length}</div>
+            <span className="text-xs text-stone-500 font-bold uppercase tracking-wider">À récupérer en cuisine</span>
+            <div className="text-2xl font-extrabold text-stone-900 mt-1">{assignedPendingOrders.length}</div>
           </div>
           <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
             <Clock className="w-5 h-5" />
@@ -131,6 +171,26 @@ export const DriverView: React.FC = () => {
           </div>
           <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
             <CheckCircle2 className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-xs flex items-center justify-between">
+          <div>
+            <span className="text-xs text-stone-500 font-bold uppercase tracking-wider">Encaissées aujourd'hui</span>
+            <div className="text-2xl font-extrabold text-emerald-700 mt-1">{collectedTodayCount}</div>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold">
+            <Check className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-xs flex items-center justify-between col-span-2 sm:col-span-1">
+          <div>
+            <span className="text-xs text-stone-500 font-bold uppercase tracking-wider">À encaisser</span>
+            <div className="text-2xl font-extrabold text-amber-600 mt-1">{toCollectCount}</div>
+          </div>
+          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-bold">
+            <Banknote className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -163,7 +223,7 @@ export const DriverView: React.FC = () => {
                   <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-right">
                     <span className="text-[10px] text-stone-500 block">À ENCAISSER EN ESPÈCES</span>
                     <span className="text-xl font-extrabold text-stone-900">
-                      {order.totalAmount.toFixed(1)} DT
+                      {(order.totalAmount ?? 0).toFixed(1)} DT
                     </span>
                   </div>
                 </div>
@@ -202,38 +262,52 @@ export const DriverView: React.FC = () => {
                 <div className="text-xs text-stone-600 space-y-1">
                   <span className="font-bold text-stone-800">Contenu sac isotherme :</span>
                   <p className="text-stone-600">
-                    {order.items.map(i => `${i.productName} (x${i.quantity})`).join(' • ')}
+                    {(order.items ?? []).map(i => `${i.productName} (x${i.quantity})`).join(' • ')}
                   </p>
                 </div>
 
-                {/* Complete Button */}
-                <button
-                  onClick={() => handleCompleteDelivery(order)}
-                  disabled={updatingOrderId === order.id}
-                  className="w-full py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  <Banknote className="w-5 h-5" />
-                  <span>Confirmer la remise au client (Commande livrée)</span>
-                </button>
+                {/* Complete Delivery and Cash Collection Actions */}
+                <div className="space-y-2 pt-2 border-t border-stone-100">
+                  <button
+                    onClick={() => handleCompleteDelivery(order)}
+                    disabled={updatingOrderId === order.id}
+                    className="w-full py-3 px-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span>1. Confirmer la remise au client (Commande livrée)</span>
+                  </button>
+
+                  {order.paymentStatus === 'paid' ? (
+                    <div className="py-2 px-3 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center justify-center gap-1.5 border border-emerald-200">
+                      <Check className="w-4 h-4 text-emerald-600" />
+                      <span>Espèces encaissées ({(order.totalAmount ?? 0).toFixed(1)} DT)</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleConfirmPayment(order)}
+                      disabled={updatingPaymentId === order.id}
+                      className="w-full py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      <Banknote className="w-5 h-5" />
+                      <span>2. Confirmer l'encaissement en espèces ({(order.totalAmount ?? 0).toFixed(1)} DT)</span>
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* 2. Available Orders Ready for Pickup */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-extrabold text-stone-900">
-          Commandes Prêtes / En attente d'attribution ({availableOrders.length})
-        </h2>
+      {/* 2. Courses attribuées en attente de récupération en cuisine */}
+      {assignedPendingOrders.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-extrabold text-stone-900">
+            Courses attribuées à récupérer en cuisine ({assignedPendingOrders.length})
+          </h2>
 
-        {availableOrders.length === 0 ? (
-          <div className="p-8 rounded-3xl bg-white border border-stone-200 text-center text-stone-500 text-xs">
-            Aucune commande prête ou en attente d'attribution pour le moment.
-          </div>
-        ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {availableOrders.map(order => (
+            {assignedPendingOrders.map(order => (
               <div
                 key={order.id}
                 className="bg-white rounded-3xl border border-stone-200 p-5 space-y-4 flex flex-col justify-between shadow-xs"
@@ -247,7 +321,7 @@ export const DriverView: React.FC = () => {
                       <h4 className="text-xs font-bold text-stone-700 mt-0.5">{order.client?.name || 'Client'}</h4>
                     </div>
                     <span className="text-sm font-extrabold text-emerald-700">
-                      {order.totalAmount.toFixed(1)} DT
+                      {(order.totalAmount ?? 0).toFixed(1)} DT
                     </span>
                   </div>
 
@@ -266,15 +340,95 @@ export const DriverView: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="w-full py-2.5 px-3 rounded-xl bg-stone-100 text-stone-500 font-semibold text-xs flex items-center justify-center gap-1.5">
+                <div className="w-full py-2.5 px-3 rounded-xl bg-amber-50 text-amber-800 font-semibold text-xs flex items-center justify-center gap-1.5 border border-amber-200">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>Attribuée par l'administrateur</span>
+                  <span>Attribuée à {currentDriver?.name || 'vous'} — Prête en cuisine</span>
                 </div>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {ongoingDeliveries.length === 0 && assignedPendingOrders.length === 0 && (
+        <div className="p-8 rounded-3xl bg-white border border-stone-200 text-center text-stone-500 text-sm space-y-1">
+          <p className="font-bold text-stone-700">Aucune course assignée en cours</p>
+          <p className="text-xs text-stone-500">
+            Dès qu'une commande sera attribuée à ce livreur ({currentDriver?.name || 'Livreur'}), elle apparaîtra ici.
+          </p>
+        </div>
+      )}
+
+      {/* 3. Livraisons effectuées aujourd'hui (Historique & Encaissement séparé) */}
+      {deliveredToday.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-extrabold text-stone-900 flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <span>Livraisons Effectuées Aujourd'hui ({deliveredToday.length})</span>
+            </h2>
+            <span className="text-xs text-stone-500">
+              {deliveredToday.filter(o => o.paymentStatus === 'to_collect').length > 0
+                ? `${deliveredToday.filter(o => o.paymentStatus === 'to_collect').length} restant à encaisser`
+                : 'Toutes les livraisons sont encaissées'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {deliveredToday.map(order => {
+              const isPaid = order.paymentStatus === 'paid';
+              return (
+                <div
+                  key={order.id}
+                  className={`bg-white rounded-3xl border p-5 space-y-3 shadow-xs ${
+                    isPaid ? 'border-stone-200' : 'border-amber-400 bg-amber-50/20'
+                  }`}
+                >
+                  <div className="flex items-start justify-between pb-2 border-b border-stone-100">
+                    <div>
+                      <span className="font-mono text-base font-extrabold text-stone-900">
+                        #{order.orderNumber}
+                      </span>
+                      <h4 className="text-xs font-bold text-stone-700 mt-0.5">{order.client?.name || 'Client'}</h4>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-extrabold text-stone-900 block">
+                        {(order.totalAmount ?? 0).toFixed(1)} DT
+                      </span>
+                      <span className={`text-[10px] font-bold ${isPaid ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {isPaid ? 'Encaissé ✓' : 'À encaisser'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-stone-600 space-y-1">
+                    <div className="flex items-start gap-1 text-stone-500">
+                      <MapPin className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-stone-400" />
+                      <span className="line-clamp-1">{order.client?.deliveryAddress || 'Adresse non renseignée'}</span>
+                    </div>
+                  </div>
+
+                  {!isPaid ? (
+                    <button
+                      onClick={() => handleConfirmPayment(order)}
+                      disabled={updatingPaymentId === order.id}
+                      className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
+                    >
+                      <Banknote className="w-4 h-4" />
+                      <span>Confirmer l'encaissement ({(order.totalAmount ?? 0).toFixed(1)} DT)</span>
+                    </button>
+                  ) : (
+                    <div className="w-full py-2 px-3 rounded-xl bg-emerald-50 text-emerald-800 font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-200">
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Paiement en espèces validé</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
     </div>
   );

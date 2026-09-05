@@ -100,6 +100,8 @@ interface AppContextType {
     client: { name: string; phone: string; deliveryAddress: string; notes?: string };
   }) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus, note?: string, updatedBy?: string, assignedDriverId?: string) => Promise<Order>;
+  assignDriverToOrder: (orderId: string, driverId: string) => Promise<Order>;
+  confirmOrderPayment: (orderId: string) => Promise<Order>;
   adjustStock: (ingredientId: string, type: StockMovement['type'], quantity: number, notes: string) => Promise<void>;
   saveProduct: (product: Product) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
@@ -752,6 +754,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return updated;
   };
 
+  const assignDriverToOrder = async (
+    orderId: string,
+    driverId: string
+  ): Promise<Order> => {
+    const response = await authFetch(`/api/orders/${orderId}/assign-driver`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driverId })
+    });
+
+    if (!response.ok) {
+      let errorMsg = 'Erreur affectation livreur';
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
+    }
+
+    const updated: Order = await response.json();
+    await refreshAllData();
+    return updated;
+  };
+
+  const confirmOrderPayment = async (orderId: string): Promise<Order> => {
+    const response = await authFetch(`/api/orders/${orderId}/payment`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paymentStatus: 'paid' })
+    });
+
+    if (!response.ok) {
+      let errorMsg = 'Erreur enregistrement encaissement';
+      try {
+        const err = await response.json();
+        errorMsg = err.error || errorMsg;
+      } catch (e) {}
+      throw new Error(errorMsg);
+    }
+
+    const updated: Order = await response.json();
+    await refreshAllData();
+    return updated;
+  };
+
   const adjustStock = async (
     ingredientId: string,
     type: StockMovement['type'],
@@ -950,6 +997,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         refreshAllData,
         createOrder,
         updateOrderStatus,
+        assignDriverToOrder,
+        confirmOrderPayment,
         adjustStock,
         saveProduct,
         deleteProduct,

@@ -291,7 +291,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-xs flex items-center gap-2.5">
             <ShieldCheck className="w-5 h-5 text-emerald-700 flex-shrink-0" />
             <span>
-              <strong>Commande Express :</strong> Aucun compte requis. Un lien de suivi sécurisé vous sera délivré immédiatement.
+              <strong>Commande Express :</strong> Aucun compte requis. Votre code de suivi sécurisé vous sera délivré immédiatement.
             </span>
           </div>
 

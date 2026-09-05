@@ -646,6 +646,58 @@ async function startServer() {
     }
   });
 
+  // PATCH /api/orders/:id/assign-driver (Protected: Admin only)
+  app.patch('/api/orders/:id/assign-driver', authenticateUser, requireRole('admin'), (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const order = db.getOrderById(req.params.id);
+
+      if (!order) {
+        res.status(404).json({ error: 'Commande non trouvée.' });
+        return;
+      }
+
+      // Interdire la réaffectation sur commandes clôturées ou annulées
+      if (order.status === 'delivered' || order.status === 'cancelled') {
+        res.status(400).json({ error: 'Impossible de modifier l’affectation d’une commande clôturée ou annulée.' });
+        return;
+      }
+
+      const targetDriverId = req.body.driverId || req.body.assignedDriverId;
+      if (!targetDriverId) {
+        res.status(400).json({ error: 'L’identifiant du livreur (driverId) est requis.' });
+        return;
+      }
+
+      const driver = db.getDrivers().find(d => d.id === targetDriverId);
+      if (!driver) {
+        res.status(404).json({ error: `Livreur #${targetDriverId} introuvable.` });
+        return;
+      }
+
+      // Préserver le statut actuel de la commande et mettre à jour le livreur affecté
+      order.assignedDriverId = driver.id;
+      order.assignedDriverName = driver.name;
+
+      if (!order.statusHistory) {
+        order.statusHistory = [];
+      }
+      order.statusHistory.push({
+        status: order.status,
+        label: `Livreur affecté : ${driver.name}`,
+        timestamp: new Date().toISOString(),
+        note: `Affectation livreur mise à jour par l'administrateur`,
+        updatedBy: `${user.name} (Admin)`
+      });
+
+      (db as any).persist();
+
+      res.json(order);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   // PATCH /api/orders/:id/payment (Protected: Admin or Assigned Driver only)
   app.patch('/api/orders/:id/payment', authenticateUser, (req: AuthenticatedRequest, res) => {
     try {
