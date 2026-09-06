@@ -534,9 +534,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       // 1. Always fetch public catalog for client
       const [catsRes, prodsRes, supsRes] = await Promise.all([
-        safeFetchJson<Category[]>('/api/categories', categories, token, handleSessionExpired),
-        safeFetchJson<Product[]>('/api/products', products, token, handleSessionExpired),
-        safeFetchJson<Supplement[]>('/api/supplements', supplements, token, handleSessionExpired)
+        safeFetchJson<Category[]>('/api/categories', [], token, handleSessionExpired),
+        safeFetchJson<Product[]>('/api/products', [], token, handleSessionExpired),
+        safeFetchJson<Supplement[]>('/api/supplements', [], token, handleSessionExpired)
       ]);
 
       if (Array.isArray(catsRes) && catsRes.length > 0) setCategories(catsRes);
@@ -586,7 +586,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } finally {
       setIsLoading(false);
     }
-  }, [categories, products, supplements, token, currentUser, handleSessionExpired]);
+  }, [token, currentUser, handleSessionExpired]);
 
   useEffect(() => {
     refreshAllData();

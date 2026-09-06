@@ -84,9 +84,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           {/* Base Ingredients Pills */}
           {product.baseIngredients && product.baseIngredients.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1">
-              {product.baseIngredients.slice(0, 3).map(ing => (
+              {product.baseIngredients.slice(0, 3).map((ing, idx) => (
                 <span
-                  key={ing.ingredientId}
+                  key={`${ing.ingredientId}-${idx}`}
                   className="inline-block px-2 py-0.5 rounded-md bg-stone-100 text-stone-600 text-[11px] font-medium"
                 >
                   {cleanClientText(ing.ingredientName.split(' ')[0])}

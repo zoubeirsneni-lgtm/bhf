@@ -1866,6 +1866,94 @@
       "customization": {
         "allowedSupplementIds": []
       }
+    },
+    {
+      "id": "prod-1788693673602",
+      "name": "test plat 1",
+      "description": "test plat 1",
+      "categoryId": "cat-healthy",
+      "basePrice": 18.5,
+      "imageUrl": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800",
+      "image": "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800",
+      "calories": 450,
+      "proteinGrams": 35,
+      "carbsGrams": 40,
+      "fatGrams": 12,
+      "active": true,
+      "available": true,
+      "isAvailable": true,
+      "isPopular": false,
+      "order": 23,
+      "sortOrder": 23,
+      "createdAt": "2026-09-06T11:21:13.983Z",
+      "updatedAt": "2026-09-06T11:21:13.983Z",
+      "baseIngredients": [
+        {
+          "ingredientId": "ing-poulet",
+          "ingredientName": "Filet de Poulet mariné aux herbes",
+          "quantity": 200,
+          "unit": "g"
+        },
+        {
+          "ingredientId": "ing-avocat",
+          "ingredientName": "Avocat frais crémeux",
+          "quantity": 100,
+          "unit": "g"
+        }
+      ],
+      "customization": {
+        "allowsProteinChoice": true,
+        "proteinOptions": [
+          {
+            "label": "Poulet Mariné 120g (Standard)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Double Portion 180g (+60g)",
+            "extraPrice": 4,
+            "extraGrams": 60
+          }
+        ],
+        "allowsVeggiesChoice": true,
+        "veggiesOptions": [
+          {
+            "label": "Portion Standard (100g)",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Extra Légumes Croquants (+60g)",
+            "extraPrice": 2.5,
+            "extraGrams": 60
+          }
+        ],
+        "allowsBaseChoice": true,
+        "baseChoices": [
+          {
+            "label": "Riz Basmati Complet",
+            "extraPrice": 0,
+            "extraGrams": 0
+          },
+          {
+            "label": "Quinoa aux fines herbes",
+            "extraPrice": 2,
+            "extraGrams": 0
+          }
+        ],
+        "allowedSupplementIds": [
+          "sup-poulet-extra",
+          "sup-boeuf-extra",
+          "sup-legumes-extra",
+          "sup-riz-extra",
+          "sup-avocat-extra",
+          "sup-oeuf-poche",
+          "sup-halloumi-extra",
+          "sup-sauce-extra",
+          "sup-1788252897609",
+          "sup-1788252928282"
+        ]
+      }
     }
   ],
   "drivers": [
@@ -8937,7 +9025,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-04T14:16:49.556Z"
+      "lastLoginAt": "2026-09-06T11:12:35.701Z"
     },
     {
       "id": "usr-kitchen-1",

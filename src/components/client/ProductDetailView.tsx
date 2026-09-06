@@ -414,9 +414,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
                 id="product-detail-ingredients-list"
                 className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
               >
-                {product.baseIngredients.map(ing => (
+                {product.baseIngredients.map((ing, idx) => (
                   <div
-                    key={ing.ingredientId}
+                    key={`${ing.ingredientId}-${idx}`}
                     className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200/90 flex items-center gap-3 shadow-2xs"
                   >
                     <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-xs flex-shrink-0">

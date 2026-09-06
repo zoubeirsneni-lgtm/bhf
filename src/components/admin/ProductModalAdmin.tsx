@@ -128,9 +128,7 @@ export const ProductModalAdmin: React.FC<ProductModalAdminProps> = ({
     }
     setActiveTab('general');
     setError(null);
-  }, [product, isOpen, categories, supplements]);
-
-  if (!isOpen) return null;
+  }, [product, isOpen]);
 
   // Recipe cost calculation
   const recipeTheoreticalCost = useMemo(() => {
@@ -144,9 +142,12 @@ export const ProductModalAdmin: React.FC<ProductModalAdminProps> = ({
     return Math.round(cost * 100) / 100;
   }, [baseIngredients, ingredients]);
 
+  if (!isOpen) return null;
+
   const handleAddBaseIngredient = () => {
     if (ingredients.length === 0) return;
-    const defaultIng = ingredients[0];
+    const unused = ingredients.find(i => !baseIngredients.some(bi => bi.ingredientId === i.id));
+    const defaultIng = unused || ingredients[0];
     setBaseIngredients(prev => [
       ...prev,
       {
@@ -251,7 +252,15 @@ export const ProductModalAdmin: React.FC<ProductModalAdminProps> = ({
         active,
         available,
         isAvailable: available,
-        baseIngredients,
+        baseIngredients: baseIngredients.reduce<typeof baseIngredients>((acc, curr) => {
+          const existing = acc.find(item => item.ingredientId === curr.ingredientId);
+          if (existing) {
+            existing.quantity += curr.quantity;
+          } else {
+            acc.push({ ...curr });
+          }
+          return acc;
+        }, []),
         customization
       };
 
