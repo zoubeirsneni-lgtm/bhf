@@ -268,8 +268,8 @@ async function startServer() {
     }
   });
 
-  // POST /api/ingredients (Admin only)
-  app.post('/api/ingredients', authenticateUser, requireRole('admin'), (req, res) => {
+  // POST /api/ingredients (Admin & Kitchen)
+  app.post('/api/ingredients', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
     try {
       const saved = db.saveIngredient(req.body);
       res.json(saved);
@@ -278,8 +278,8 @@ async function startServer() {
     }
   });
 
-  // PUT /api/ingredients/:id (Admin only)
-  app.put('/api/ingredients/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  // PUT /api/ingredients/:id (Admin & Kitchen)
+  app.put('/api/ingredients/:id', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
     try {
       const ing = { ...req.body, id: req.params.id };
       const saved = db.saveIngredient(ing);
@@ -289,7 +289,7 @@ async function startServer() {
     }
   });
 
-  // DELETE /api/ingredients/:id (Admin only)
+  // DELETE /api/ingredients/:id (Admin only - Protected against referenced ingredients)
   app.delete('/api/ingredients/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
       const success = db.deleteIngredient(req.params.id);
@@ -299,15 +299,15 @@ async function startServer() {
     }
   });
 
-  // Manual Stock Adjustments (Admin only)
-  app.post('/api/ingredients/:id/stock', authenticateUser, requireRole('admin'), (req: AuthenticatedRequest, res) => {
+  // Manual Stock Adjustments / Restock (Admin & Kitchen)
+  app.post('/api/ingredients/:id/stock', authenticateUser, requireRole('admin', 'kitchen'), (req: AuthenticatedRequest, res) => {
     try {
       const { type, quantity, notes } = req.body;
       if (typeof quantity !== 'number' || isNaN(quantity)) {
         res.status(400).json({ error: 'Quantité invalide.' });
         return;
       }
-      const performer = req.user ? `${req.user.name} (Admin)` : 'Administrateur';
+      const performer = req.user ? `${req.user.name} (${req.user.role === 'admin' ? 'Admin' : 'Cuisine'})` : 'Administrateur';
       const result = db.addStockMovement({
         ingredientId: req.params.id,
         type: type || 'manual_in',

@@ -31,6 +31,7 @@ export interface Ingredient {
   supplierId?: string;
   supplierName?: string;
   category?: string;
+  active?: boolean;
   createdAt?: string;
   updatedAt: string;
 }

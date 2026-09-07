@@ -35,13 +35,14 @@ export const SupplementModal: React.FC<SupplementModalProps> = ({
     if (supplement) {
       setFormData(supplement);
     } else {
+      const firstActive = ingredients.find(i => i.active !== false);
       setFormData({
         name: '',
         description: '',
         price: 4.0,
-        ingredientId: ingredients[0]?.id || '',
+        ingredientId: firstActive?.id || '',
         quantityConsumed: 50,
-        unit: 'g',
+        unit: firstActive ? firstActive.unit : 'g',
         active: true,
         available: true,
         sortOrder: 1
@@ -204,11 +205,13 @@ export const SupplementModal: React.FC<SupplementModalProps> = ({
                 className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs font-medium focus:ring-2 focus:ring-emerald-500 bg-white"
               >
                 <option value="">-- Choisir un ingrédient du stock --</option>
-                {ingredients.map(ing => (
-                  <option key={ing.id} value={ing.id}>
-                    {ing.name} (Stock actuel : {ing.currentStock} {ing.unit})
-                  </option>
-                ))}
+                {ingredients
+                  .filter(ing => ing.active !== false || ing.id === formData.ingredientId)
+                  .map(ing => (
+                    <option key={ing.id} value={ing.id}>
+                      {ing.name} {ing.active === false ? '[Désactivé] ' : ''}(Stock actuel : {ing.currentStock} {ing.unit})
+                    </option>
+                  ))}
               </select>
             </div>
 

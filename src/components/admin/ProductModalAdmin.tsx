@@ -145,9 +145,13 @@ export const ProductModalAdmin: React.FC<ProductModalAdminProps> = ({
   if (!isOpen) return null;
 
   const handleAddBaseIngredient = () => {
-    if (ingredients.length === 0) return;
-    const unused = ingredients.find(i => !baseIngredients.some(bi => bi.ingredientId === i.id));
-    const defaultIng = unused || ingredients[0];
+    const activeIngredients = ingredients.filter(i => i.active !== false);
+    if (activeIngredients.length === 0) {
+      alert('Aucun ingrédient actif disponible pour créer une nouvelle ligne de recette.');
+      return;
+    }
+    const unused = activeIngredients.find(i => !baseIngredients.some(bi => bi.ingredientId === i.id));
+    const defaultIng = unused || activeIngredients[0];
     setBaseIngredients(prev => [
       ...prev,
       {
@@ -515,11 +519,13 @@ export const ProductModalAdmin: React.FC<ProductModalAdminProps> = ({
                             onChange={e => handleUpdateBaseIngredient(index, e.target.value, item.quantity)}
                             className="w-full px-3 py-2 rounded-xl border border-stone-300 text-xs font-semibold bg-white"
                           >
-                            {ingredients.map(ing => (
-                              <option key={ing.id} value={ing.id}>
-                                {ing.name} ({ing.unit}) — Stock: {ing.currentStock} {ing.unit}
-                              </option>
-                            ))}
+                            {ingredients
+                              .filter(ing => ing.active !== false || ing.id === item.ingredientId)
+                              .map(ing => (
+                                <option key={ing.id} value={ing.id}>
+                                  {ing.name} {ing.active === false ? '[Désactivé] ' : ''}({ing.unit}) — Stock: {ing.currentStock} {ing.unit}
+                                </option>
+                              ))}
                           </select>
                         </div>
 

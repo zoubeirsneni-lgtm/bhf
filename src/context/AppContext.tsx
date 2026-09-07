@@ -896,13 +896,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(ing)
     });
-    if (!res.ok) throw new Error('Erreur enregistrement matière première');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur enregistrement matière première');
+    }
     await refreshAllData();
   };
 
   const deleteIngredient = async (id: string) => {
     const res = await authFetch(`/api/ingredients/${id}`, { method: 'DELETE' });
-    if (!res.ok) throw new Error('Erreur suppression matière première');
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur suppression matière première');
+    }
     await refreshAllData();
   };
 

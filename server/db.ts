@@ -370,14 +370,54 @@ class DatabaseManager {
     return this.data.ingredients.find(i => i.id === id);
   }
 
+  public isIngredientInUse(id: string): {
+    inUse: boolean;
+    products: string[];
+    supplements: string[];
+    orders: string[];
+    hasMovements: boolean;
+  } {
+    const products = this.data.products
+      .filter(p => p.baseIngredients?.some(bi => bi.ingredientId === id))
+      .map(p => p.name);
+
+    const supplements = this.data.supplements
+      .filter(s => s.ingredientId === id)
+      .map(s => s.name);
+
+    const orders = this.data.orders
+      .filter(o => o.items?.some(it => 
+        it.preparationSheet?.totalIngredients?.some(pi => pi.ingredientId === id) ||
+        it.supplements?.some(s => s.ingredientId === id)
+      ))
+      .map(o => o.orderNumber);
+
+    const hasMovements = this.data.stockMovements.some(m => m.ingredientId === id);
+
+    const inUse = products.length > 0 || supplements.length > 0 || orders.length > 0 || hasMovements;
+
+    return {
+      inUse,
+      products,
+      supplements,
+      orders,
+      hasMovements
+    };
+  }
+
   public saveIngredient(ingredient: Ingredient): Ingredient {
     ingredient.updatedAt = new Date().toISOString();
     const idx = this.data.ingredients.findIndex(i => i.id === ingredient.id);
     if (idx >= 0) {
+      // Preserve active flag if not explicitly provided
+      if (ingredient.active === undefined) {
+        ingredient.active = this.data.ingredients[idx].active !== false;
+      }
       this.data.ingredients[idx] = ingredient;
     } else {
       if (!ingredient.id) ingredient.id = 'ing-' + Date.now();
       if (!ingredient.createdAt) ingredient.createdAt = new Date().toISOString();
+      if (ingredient.active === undefined) ingredient.active = true;
       this.data.ingredients.push(ingredient);
     }
     this.persist();
@@ -385,6 +425,21 @@ class DatabaseManager {
   }
 
   public deleteIngredient(id: string): boolean {
+    const usage = this.isIngredientInUse(id);
+    if (usage.inUse) {
+      const reasons: string[] = [];
+      if (usage.products.length > 0) reasons.push(`recettes (${usage.products.join(', ')})`);
+      if (usage.supplements.length > 0) reasons.push(`suppléments (${usage.supplements.join(', ')})`);
+      if (usage.orders.length > 0) reasons.push(`commandes (#${usage.orders.slice(0, 3).join(', #')})`);
+      if (usage.hasMovements) reasons.push(`historique des mouvements de stock`);
+      throw new Error(`Impossible de supprimer définitivement cet ingrédient car il est référencé dans des recettes, suppléments ou historiques (${reasons.join(' ; ')}). Veuillez le désactiver à la place.`);
+    }
+
+    const exists = this.data.ingredients.some(i => i.id === id);
+    if (!exists) {
+      throw new Error('Ingrédient introuvable.');
+    }
+
     this.data.ingredients = this.data.ingredients.filter(i => i.id !== id);
     this.persist();
     return true;

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Order, OrderStatus } from '../../types';
+import { Order, OrderStatus, Ingredient } from '../../types';
+import { IngredientModal } from '../admin/IngredientModal';
 import {
   ChefHat,
   Clock,
@@ -16,13 +17,81 @@ import {
   Info,
   Phone,
   MapPin,
-  User
+  User,
+  Package,
+  Plus,
+  Edit2,
+  Power
 } from 'lucide-react';
 
 export const KitchenView: React.FC = () => {
-  const { orders, updateOrderStatus, refreshAllData, showToast } = useApp();
+  const { orders, ingredients, updateOrderStatus, refreshAllData, showToast, adjustStock, saveIngredient } = useApp();
+  const [activeKitchenTab, setActiveKitchenTab] = useState<'kds' | 'stock'>('kds');
   const [kitchenFilter, setKitchenFilter] = useState<'active' | 'all' | 'ready'>('active');
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+
+  // Ingrédients Cuisine state
+  const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false);
+  const [ingredientToEdit, setIngredientToEdit] = useState<Ingredient | null>(null);
+  const [ingredientFilter, setIngredientFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [restockAmount, setRestockAmount] = useState<Record<string, number>>({});
+  const [isRestocking, setIsRestocking] = useState<string | null>(null);
+  const [isTogglingActive, setIsTogglingActive] = useState<string | null>(null);
+
+  const handleOpenAddIngredient = () => {
+    setIngredientToEdit(null);
+    setIsIngredientModalOpen(true);
+  };
+
+  const handleOpenEditIngredient = (ing: Ingredient) => {
+    setIngredientToEdit(ing);
+    setIsIngredientModalOpen(true);
+  };
+
+  const handleSaveIngredientModal = async (ing: Ingredient) => {
+    const isUpdate = Boolean(ing.id && ingredients.some(i => i.id === ing.id));
+    await saveIngredient(ing);
+    showToast(isUpdate ? `Ingrédient "${ing.name}" mis à jour.` : `Ingrédient "${ing.name}" créé avec succès.`);
+  };
+
+  const handleToggleIngredientActive = async (ing: Ingredient) => {
+    const isCurrentlyActive = ing.active !== false;
+    const newActive = !isCurrentlyActive;
+    try {
+      setIsTogglingActive(ing.id);
+      await saveIngredient({ ...ing, active: newActive });
+      showToast(newActive ? `Ingrédient "${ing.name}" réactivé.` : `Ingrédient "${ing.name}" désactivé.`);
+    } catch (err: any) {
+      showToast(err.message || 'Erreur lors du changement de statut.', 'error');
+    } finally {
+      setIsTogglingActive(null);
+    }
+  };
+
+  const handleRestock = async (ing: Ingredient) => {
+    const amount = restockAmount[ing.id];
+    if (!amount || amount <= 0) return;
+
+    try {
+      setIsRestocking(ing.id);
+      await adjustStock(ing.id, 'manual_in', amount, 'Réapprovisionnement cuisine');
+      setRestockAmount(prev => ({ ...prev, [ing.id]: 0 }));
+      showToast(`Stock de "${ing.name}" augmenté de ${amount} ${ing.unit}.`);
+    } catch (err: any) {
+      showToast(err.message || 'Erreur lors du réapprovisionnement.', 'error');
+    } finally {
+      setIsRestocking(null);
+    }
+  };
+
+  const filteredIngredients = useMemo(() => {
+    return (ingredients || []).filter(ing => {
+      const isActive = ing.active !== false;
+      if (ingredientFilter === 'active') return isActive;
+      if (ingredientFilter === 'inactive') return !isActive;
+      return true;
+    });
+  }, [ingredients, ingredientFilter]);
 
   // Filter orders for kitchen
   const kitchenOrders = orders.filter(o => {
@@ -62,61 +131,90 @@ export const KitchenView: React.FC = () => {
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 animate-in fade-in duration-300">
       
-      {/* Header with Title & Stats */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-stone-900 text-white p-4 sm:p-6 rounded-3xl shadow-md border border-stone-800">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md">
-            <ChefHat className="w-7 h-7" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-extrabold font-display">
-                Écran Cuisine (KDS)
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-500/40">
-                Préparation minute
-              </span>
-            </div>
-            <p className="text-xs text-stone-400 mt-0.5">
-              Fiches de pesées et cuissons minutes individuelles pour chaque client.
-            </p>
-          </div>
-        </div>
-
-        {/* Filter buttons */}
-        <div className="flex flex-wrap items-center gap-2 bg-stone-950 p-1.5 rounded-2xl border border-stone-800">
-          <button
-            onClick={() => setKitchenFilter('active')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              kitchenFilter === 'active'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-stone-400 hover:text-white'
-            }`}
-          >
-            En cours ({orders.filter(o => o.status === 'received' || o.status === 'preparing').length})
-          </button>
-          <button
-            onClick={() => setKitchenFilter('ready')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              kitchenFilter === 'ready'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-stone-400 hover:text-white'
-            }`}
-          >
-            Prêtes ({orders.filter(o => o.status === 'ready' || o.status === 'waiting_for_driver').length})
-          </button>
-          <button
-            onClick={() => setKitchenFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-              kitchenFilter === 'all'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-stone-400 hover:text-white'
-            }`}
-          >
-            Toutes ({orders.length})
-          </button>
-        </div>
+      {/* Navigation Onglets Cuisine : Commandes KDS vs Stock & Ingrédients */}
+      <div className="flex items-center gap-2 border-b border-stone-200 pb-3">
+        <button
+          onClick={() => setActiveKitchenTab('kds')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+            activeKitchenTab === 'kds'
+              ? 'bg-stone-900 text-white shadow-sm'
+              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+          }`}
+        >
+          <Utensils className="w-4 h-4" />
+          <span>Commandes KDS ({orders.filter(o => o.status === 'received' || o.status === 'preparing').length})</span>
+        </button>
+        <button
+          onClick={() => setActiveKitchenTab('stock')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition-all ${
+            activeKitchenTab === 'stock'
+              ? 'bg-stone-900 text-white shadow-sm'
+              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Stock &amp; Ingrédients Cuisine ({ingredients.length})</span>
+        </button>
       </div>
+
+      {/* VUE 1 : COMMANDES KDS */}
+      {activeKitchenTab === 'kds' && (
+        <>
+          {/* Header with Title & Stats */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-stone-900 text-white p-4 sm:p-6 rounded-3xl shadow-md border border-stone-800">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center text-white shadow-md">
+                <ChefHat className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-extrabold font-display">
+                    Écran Cuisine (KDS)
+                  </h1>
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-500/40">
+                    Préparation minute
+                  </span>
+                </div>
+                <p className="text-xs text-stone-400 mt-0.5">
+                  Fiches de pesées et cuissons minutes individuelles pour chaque client.
+                </p>
+              </div>
+            </div>
+
+            {/* Filter buttons */}
+            <div className="flex flex-wrap items-center gap-2 bg-stone-950 p-1.5 rounded-2xl border border-stone-800">
+              <button
+                onClick={() => setKitchenFilter('active')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  kitchenFilter === 'active'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                En cours ({orders.filter(o => o.status === 'received' || o.status === 'preparing').length})
+              </button>
+              <button
+                onClick={() => setKitchenFilter('ready')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  kitchenFilter === 'ready'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                Prêtes ({orders.filter(o => o.status === 'ready' || o.status === 'waiting_for_driver').length})
+              </button>
+              <button
+                onClick={() => setKitchenFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                  kitchenFilter === 'all'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'text-stone-400 hover:text-white'
+                }`}
+              >
+                Toutes ({orders.length})
+              </button>
+            </div>
+          </div>
 
       {/* Orders Grid */}
       {kitchenOrders.length === 0 ? (
@@ -323,6 +421,203 @@ export const KitchenView: React.FC = () => {
           })}
         </div>
       )}
+      </>
+      )}
+
+      {/* VUE 2 : STOCK & INGRÉDIENTS CUISINE */}
+      {activeKitchenTab === 'stock' && (
+        <div className="bg-white rounded-3xl border border-stone-200 p-6 space-y-6 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-bold text-stone-900 font-display">
+                Stock &amp; Ingrédients — Brigade Cuisine
+              </h2>
+              <p className="text-xs text-stone-500">
+                Ajustez les réserves réelles, créez de nouveaux ingrédients ou désactivez les matières premières indisponibles.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Filtres Actifs / Désactivés */}
+              <div className="flex items-center bg-stone-100 p-1 rounded-xl text-xs font-bold border border-stone-200">
+                <button
+                  onClick={() => setIngredientFilter('all')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    ingredientFilter === 'all'
+                      ? 'bg-white text-stone-900 shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  Tous ({ingredients.length})
+                </button>
+                <button
+                  onClick={() => setIngredientFilter('active')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    ingredientFilter === 'active'
+                      ? 'bg-white text-emerald-800 shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  Actifs ({ingredients.filter(i => i.active !== false).length})
+                </button>
+                <button
+                  onClick={() => setIngredientFilter('inactive')}
+                  className={`px-3 py-1.5 rounded-lg transition-colors ${
+                    ingredientFilter === 'inactive'
+                      ? 'bg-white text-stone-800 shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  Désactivés ({ingredients.filter(i => i.active === false).length})
+                </button>
+              </div>
+
+              {/* Bouton Nouvel Ingrédient */}
+              <button
+                onClick={handleOpenAddIngredient}
+                className="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                + Nouvel ingrédient
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-stone-100 text-stone-700 uppercase tracking-wider font-bold">
+                <tr>
+                  <th className="p-3.5 rounded-l-xl">Ingrédient</th>
+                  <th className="p-3.5">Catégorie</th>
+                  <th className="p-3.5">Stock Actuel</th>
+                  <th className="p-3.5">Seuil Alerte</th>
+                  <th className="p-3.5">Coût unitaire</th>
+                  <th className="p-3.5">Réapprovisionner</th>
+                  <th className="p-3.5 rounded-r-xl text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {filteredIngredients.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-stone-400">
+                      Aucun ingrédient correspondant au filtre sélectionné.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredIngredients.map(ing => {
+                    const alertThreshold = ing.minThreshold ?? (ing as any).minimumAlertStock ?? 0;
+                    const unitCost = (ing as any).costPerUnit ?? ing.purchaseCost ?? 0;
+                    const isLow = ing.currentStock <= alertThreshold;
+                    const isCritical = ing.currentStock <= 0;
+                    const isActive = ing.active !== false;
+
+                    return (
+                      <tr 
+                        key={ing.id} 
+                        className={`hover:bg-stone-50/80 transition-colors ${!isActive ? 'opacity-65 bg-stone-50/40' : ''}`}
+                      >
+                        <td className="p-3.5 font-bold text-stone-900">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={!isActive ? 'line-through text-stone-500' : ''}>
+                              {ing.name}
+                            </span>
+                            {/* Badge Actif / Désactivé */}
+                            {isActive ? (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
+                                Actif
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-md bg-stone-200 text-stone-700 text-[10px] font-bold border border-stone-300">
+                                Désactivé
+                              </span>
+                            )}
+                            {/* Badges Rupture / Stock Bas */}
+                            {isCritical ? (
+                              <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 text-[10px] font-bold">
+                                RUPTURE
+                              </span>
+                            ) : isLow ? (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 text-[10px] font-bold">
+                                STOCK BAS
+                              </span>
+                            ) : null}
+                          </div>
+                        </td>
+                        <td className="p-3.5 text-stone-600 capitalize">{ing.category}</td>
+                        <td className="p-3.5 font-mono font-bold text-sm">
+                          <span className={isCritical ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-emerald-700'}>
+                            {ing.currentStock} {ing.unit}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-stone-500 font-mono">
+                          {alertThreshold} {ing.unit}
+                        </td>
+                        <td className="p-3.5 text-stone-600">
+                          {unitCost.toFixed(3)} DT / {ing.unit}
+                        </td>
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder={`Qté (${ing.unit})`}
+                              value={restockAmount[ing.id] || ''}
+                              onChange={e => setRestockAmount({ ...restockAmount, [ing.id]: Number(e.target.value) })}
+                              className="w-24 px-2.5 py-1 rounded-lg border border-stone-300 text-xs focus:ring-2 focus:ring-emerald-500"
+                            />
+                            <button
+                              onClick={() => handleRestock(ing)}
+                              disabled={isRestocking === ing.id || !restockAmount[ing.id]}
+                              className="px-3 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs disabled:opacity-40 transition-colors"
+                            >
+                              + Ajouter
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {/* Modifier */}
+                            <button
+                              onClick={() => handleOpenEditIngredient(ing)}
+                              title="Modifier l'ingrédient"
+                              className="p-1.5 rounded-lg text-stone-600 hover:text-stone-900 hover:bg-stone-200/60 transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Activer / Désactiver */}
+                            <button
+                              onClick={() => handleToggleIngredientActive(ing)}
+                              disabled={isTogglingActive === ing.id}
+                              title={isActive ? 'Désactiver l’ingrédient' : 'Réactiver l’ingrédient'}
+                              className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-colors flex items-center gap-1 ${
+                                isActive
+                                  ? 'border-stone-300 text-stone-600 hover:bg-stone-100'
+                                  : 'border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100'
+                              }`}
+                            >
+                              <Power className="w-3 h-3" />
+                              {isActive ? 'Désactiver' : 'Réactiver'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL INGRÉDIENT */}
+      <IngredientModal
+        isOpen={isIngredientModalOpen}
+        onClose={() => setIsIngredientModalOpen(false)}
+        onSave={handleSaveIngredientModal}
+        ingredientToEdit={ingredientToEdit}
+      />
 
     </div>
   );
