@@ -30,6 +30,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
     products,
     categories,
     supplements: allSupplements,
+    ingredients,
     addToCart,
     setSelectedProductForCustomization,
     backToMenu
@@ -137,11 +138,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
   const availableSupplements = useMemo(() => {
     if (!product) return [];
     const allowedIds = product.customization?.allowedSupplementIds || [];
+    const isSupplementEligible = (s: Supplement) => {
+      if (!s.active) return false;
+      if (s.available === false || s.isAvailable === false) return false;
+      if (s.ingredientActive === false) return false;
+      if (ingredients && ingredients.length > 0) {
+        const ing = ingredients.find(i => i.id === s.ingredientId);
+        if (ing && ing.active === false) return false;
+      }
+      return true;
+    };
+
     if (allowedIds.length === 0) {
-      return allSupplements.filter(s => s.active && (s.available !== false && s.isAvailable !== false));
+      return allSupplements.filter(isSupplementEligible);
     }
-    return allSupplements.filter(s => s.active && (s.available !== false && s.isAvailable !== false) && allowedIds.includes(s.id));
-  }, [product, allSupplements]);
+    return allSupplements.filter(s => isSupplementEligible(s) && allowedIds.includes(s.id));
+  }, [product, allSupplements, ingredients]);
 
   // Dynamic Price Breakdown
   const priceBreakdown = useMemo(() => {
@@ -166,7 +178,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
 
     let supplementsPrice = 0;
     Object.entries(selectedSupplements).forEach(([supId, qty]) => {
-      const sup = allSupplements.find(s => s.id === supId);
+      const sup = availableSupplements.find(s => s.id === supId);
       const numQty = Number(qty) || 0;
       if (sup && numQty > 0) {
         supplementsPrice += sup.price * numQty;
@@ -186,7 +198,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
       veggiesPrice,
       basePriceOption
     };
-  }, [product, selectedProteinOption, selectedVeggiesOption, selectedBaseChoice, selectedSupplements, quantity, allSupplements]);
+  }, [product, selectedProteinOption, selectedVeggiesOption, selectedBaseChoice, selectedSupplements, quantity, availableSupplements]);
 
   const handleSupplementChange = (supId: string, delta: number) => {
     setSelectedSupplements(prev => {
@@ -203,12 +215,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
   // Add to cart with current customized config
   const handleAddToCart = () => {
     if (!product) return;
-    const isOutOfStock = product.available === false || product.isAvailable === false;
+    const isOutOfStock = product.available === false || product.isAvailable === false || product.hasInactiveIngredient === true;
     if (isOutOfStock) return;
 
     const chosenSupplements = Object.entries(selectedSupplements)
       .map(([supId, qty]) => {
-        const sup = allSupplements.find(s => s.id === supId);
+        const sup = availableSupplements.find(s => s.id === supId);
         const numQty = Number(qty) || 0;
         return (sup && numQty > 0) ? { id: sup.id, quantity: numQty, supplement: sup } : null;
       })
@@ -229,7 +241,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
   // Quick Order with Default Config
   const handleDirectDefaultOrder = () => {
     if (!product) return;
-    const isOutOfStock = product.available === false || product.isAvailable === false;
+    const isOutOfStock = product.available === false || product.isAvailable === false || product.hasInactiveIngredient === true;
     if (isOutOfStock) return;
 
     const defaultProtein = product.customization?.proteinOptions?.[0];
@@ -289,7 +301,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ productId 
     );
   }
 
-  const isOutOfStock = product.available === false || product.isAvailable === false;
+  const isOutOfStock = product.available === false || product.isAvailable === false || product.hasInactiveIngredient === true;
 
   return (
     <div id="product-detail-view" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8">

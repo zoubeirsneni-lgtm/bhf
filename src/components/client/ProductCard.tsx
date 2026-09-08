@@ -10,7 +10,7 @@ interface ProductCardProps {
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const { setSelectedProductForCustomization, addToCart, openProductDetail } = useApp();
-  const isOutOfStock = product.available === false || product.isAvailable === false;
+  const isOutOfStock = product.available === false || product.isAvailable === false || product.hasInactiveIngredient === true;
 
   return (
     <article

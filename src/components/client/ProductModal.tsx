@@ -19,6 +19,7 @@ export const ProductModal: React.FC = () => {
     selectedProductForCustomization: product,
     setSelectedProductForCustomization,
     supplements: allSupplements,
+    ingredients,
     addToCart
   } = useApp();
 
@@ -60,11 +61,22 @@ export const ProductModal: React.FC = () => {
   const availableSupplements = useMemo(() => {
     if (!product) return [];
     const allowedIds = product.customization?.allowedSupplementIds || [];
+    const isSupplementEligible = (s: Supplement) => {
+      if (!s.active) return false;
+      if (s.available === false || s.isAvailable === false) return false;
+      if (s.ingredientActive === false) return false;
+      if (ingredients && ingredients.length > 0) {
+        const ing = ingredients.find(i => i.id === s.ingredientId);
+        if (ing && ing.active === false) return false;
+      }
+      return true;
+    };
+
     if (allowedIds.length === 0) {
-      return allSupplements.filter(s => s.active && s.available);
+      return allSupplements.filter(isSupplementEligible);
     }
-    return allSupplements.filter(s => s.active && s.available && allowedIds.includes(s.id));
-  }, [product, allSupplements]);
+    return allSupplements.filter(s => isSupplementEligible(s) && allowedIds.includes(s.id));
+  }, [product, allSupplements, ingredients]);
 
   // Calculate unit price and breakdown
   const priceBreakdown = useMemo(() => {
@@ -77,7 +89,7 @@ export const ProductModal: React.FC = () => {
 
     let supplements = 0;
     Object.entries(selectedSupplements).forEach(([supId, qty]) => {
-      const sup = allSupplements.find(s => s.id === supId);
+      const sup = availableSupplements.find(s => s.id === supId);
       const numQty = Number(qty) || 0;
       if (sup && numQty > 0) {
         supplements += sup.price * numQty;
@@ -96,9 +108,11 @@ export const ProductModal: React.FC = () => {
       unitTotal,
       grandTotal
     };
-  }, [product, selectedProteinOption, selectedVeggiesOption, selectedBaseChoice, selectedSupplements, quantity, allSupplements]);
+  }, [product, selectedProteinOption, selectedVeggiesOption, selectedBaseChoice, selectedSupplements, quantity, availableSupplements]);
 
   if (!product) return null;
+
+  const isProductOutOfOrder = product.hasInactiveIngredient || product.available === false || product.isAvailable === false;
 
   const handleSupplementChange = (supId: string, delta: number) => {
     setSelectedSupplements(prev => {
@@ -113,9 +127,11 @@ export const ProductModal: React.FC = () => {
   };
 
   const handleAddToCart = () => {
+    if (isProductOutOfOrder) return;
+
     const chosenSupplements = Object.entries(selectedSupplements)
       .map(([supId, qty]) => {
-        const sup = allSupplements.find(s => s.id === supId);
+        const sup = availableSupplements.find(s => s.id === supId);
         const numQty = Number(qty) || 0;
         return (sup && numQty > 0) ? { id: sup.id, quantity: numQty, supplement: sup } : null;
       })
@@ -449,11 +465,22 @@ export const ProductModal: React.FC = () => {
             id="add-customized-to-cart-btn"
             type="button"
             onClick={handleAddToCart}
-            className="flex-1 min-h-[48px] py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm sm:text-base shadow-md shadow-emerald-700/20 flex items-center justify-between transition-all active:scale-[0.98] cursor-pointer"
+            disabled={isProductOutOfOrder}
+            className={`flex-1 min-h-[48px] py-3.5 px-6 rounded-2xl font-extrabold text-sm sm:text-base flex items-center justify-between transition-all ${
+              isProductOutOfOrder
+                ? 'bg-stone-200 text-stone-400 cursor-not-allowed shadow-none'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-700/20 active:scale-[0.98] cursor-pointer'
+            }`}
           >
             <span className="flex items-center gap-2">
               <ShoppingBag className="w-5 h-5" />
-              <span>Ajouter au Panier</span>
+              <span>
+                {product.hasInactiveIngredient
+                  ? 'Ingrédient indisponible'
+                  : product.available === false || product.isAvailable === false
+                  ? 'Produit indisponible'
+                  : 'Ajouter au Panier'}
+              </span>
             </span>
             <span>{priceBreakdown.grandTotal.toFixed(1)} DT</span>
           </button>

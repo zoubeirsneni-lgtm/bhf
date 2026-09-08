@@ -425,6 +425,15 @@ class DatabaseManager {
   }
 
   public deleteIngredient(id: string): boolean {
+    const ingredient = this.data.ingredients.find(i => i.id === id);
+    if (!ingredient) {
+      throw new Error('Ingrédient introuvable.');
+    }
+
+    if (ingredient.active !== false) {
+      throw new Error("Impossible de supprimer un ingrédient actif. Veuillez d'abord le désactiver.");
+    }
+
     const usage = this.isIngredientInUse(id);
     if (usage.inUse) {
       const reasons: string[] = [];
@@ -433,11 +442,6 @@ class DatabaseManager {
       if (usage.orders.length > 0) reasons.push(`commandes (#${usage.orders.slice(0, 3).join(', #')})`);
       if (usage.hasMovements) reasons.push(`historique des mouvements de stock`);
       throw new Error(`Impossible de supprimer définitivement cet ingrédient car il est référencé dans des recettes, suppléments ou historiques (${reasons.join(' ; ')}). Veuillez le désactiver à la place.`);
-    }
-
-    const exists = this.data.ingredients.some(i => i.id === id);
-    if (!exists) {
-      throw new Error('Ingrédient introuvable.');
     }
 
     this.data.ingredients = this.data.ingredients.filter(i => i.id !== id);
@@ -490,9 +494,17 @@ class DatabaseManager {
 
   // --- Supplements ---
   public getSupplements(options?: { activeOnly?: boolean; availableOnly?: boolean }): Supplement[] {
-    let list = [...this.data.supplements];
+    let list = this.data.supplements.map(s => {
+      const ing = this.getIngredientById(s.ingredientId);
+      const isIngredientActive = ing ? ing.active !== false : false;
+      return {
+        ...s,
+        ingredientActive: isIngredientActive
+      };
+    });
+
     if (options?.activeOnly) {
-      list = list.filter(s => s.active);
+      list = list.filter(s => s.active && s.ingredientActive !== false);
     }
     if (options?.availableOnly) {
       list = list.filter(s => s.available && s.isAvailable !== false);
@@ -505,7 +517,13 @@ class DatabaseManager {
   }
 
   public getSupplementById(id: string): Supplement | undefined {
-    return this.data.supplements.find(s => s.id === id);
+    const s = this.data.supplements.find(s => s.id === id);
+    if (!s) return undefined;
+    const ing = this.getIngredientById(s.ingredientId);
+    return {
+      ...s,
+      ingredientActive: ing ? ing.active !== false : false
+    };
   }
 
   public saveSupplement(sup: Partial<Supplement> & { name: string; price: number }): Supplement {
@@ -566,7 +584,17 @@ class DatabaseManager {
 
   // --- Products ---
   public getProducts(options?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Product[] {
-    let prods = [...this.data.products];
+    let prods = this.data.products.map(p => {
+      const hasInactiveIngredient = (p.baseIngredients || []).some(bi => {
+        const ing = this.getIngredientById(bi.ingredientId);
+        return ing && ing.active === false;
+      });
+      return {
+        ...p,
+        hasInactiveIngredient
+      };
+    });
+
     if (options?.categoryId && options.categoryId !== 'all') {
       prods = prods.filter(p => p.categoryId === options.categoryId);
     }
@@ -584,7 +612,16 @@ class DatabaseManager {
   }
 
   public getProductById(id: string): Product | undefined {
-    return this.data.products.find(p => p.id === id);
+    const p = this.data.products.find(p => p.id === id);
+    if (!p) return undefined;
+    const hasInactiveIngredient = (p.baseIngredients || []).some(bi => {
+      const ing = this.getIngredientById(bi.ingredientId);
+      return ing && ing.active === false;
+    });
+    return {
+      ...p,
+      hasInactiveIngredient
+    };
   }
 
   public saveProduct(prod: Partial<Product> & { name: string; basePrice: number; categoryId: string }): Product {
@@ -674,7 +711,8 @@ class DatabaseManager {
     veggiesOption?: { label: string; extraPrice: number; extraGrams: number },
     baseChoice?: { label: string; extraPrice: number },
     supplements: Array<{ id?: string; supplementId?: string; quantity: number }> = [],
-    specialInstructions?: string
+    specialInstructions?: string,
+    options?: { validateActiveIngredients?: boolean }
   ): {
     totalIngredients: PreparationIngredient[];
     ingredientConsumptions: PreparationIngredient[];
@@ -730,6 +768,12 @@ class DatabaseManager {
     // 1. Base recipe ingredients (safe array fallback)
     const baseIngredientsList = product.baseIngredients || [];
     for (const base of baseIngredientsList) {
+      if (options?.validateActiveIngredients !== false) {
+        const baseIng = this.getIngredientById(base.ingredientId);
+        if (baseIng && baseIng.active === false) {
+          throw new Error(`Le produit "${product.name}" ne peut pas être commandé car l'ingrédient de base "${baseIng.name}" est désactivé.`);
+        }
+      }
       ingredientMap.set(base.ingredientId, {
         name: base.ingredientName,
         quantity: base.quantity,
@@ -811,13 +855,22 @@ class DatabaseManager {
 
     for (const itemSup of actualSupplements) {
       const supId = itemSup.id || (itemSup as any).supplementId;
-      const supDef = this.getSupplements().find(s => s.id === supId);
+      const supDef = this.getSupplementById(supId) || this.getSupplements().find(s => s.id === supId);
       if (supDef && itemSup.quantity > 0) {
-        if (!supDef.active) {
-          throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
-        }
-        if (supDef.available === false || supDef.isAvailable === false) {
-          throw new Error(`Le supplément "${supDef.name}" est actuellement indisponible.`);
+        if (options?.validateActiveIngredients !== false) {
+          if (!supDef.active) {
+            throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
+          }
+          if (supDef.available === false || supDef.isAvailable === false) {
+            throw new Error(`Le supplément "${supDef.name}" est actuellement indisponible.`);
+          }
+          const supIng = this.getIngredientById(supDef.ingredientId);
+          if (!supIng) {
+            throw new Error(`L'ingrédient associé au supplément "${supDef.name}" est introuvable.`);
+          }
+          if (supIng.active === false) {
+            throw new Error(`Le supplément "${supDef.name}" n'est plus disponible car son ingrédient associé "${supIng.name}" est désactivé.`);
+          }
         }
 
         const totalSupQty = (supDef.quantityConsumed || supDef.quantity || 100) * itemSup.quantity;
@@ -952,6 +1005,42 @@ class DatabaseManager {
       // Check product availability
       if (product.available === false || product.isAvailable === false) {
         throw new Error(`Le produit "${product.name}" est actuellement indisponible / en rupture de stock.`);
+      }
+
+      // Check base ingredients
+      if (product.baseIngredients && product.baseIngredients.length > 0) {
+        for (const base of product.baseIngredients) {
+          const baseIng = this.getIngredientById(base.ingredientId);
+          if (baseIng && baseIng.active === false) {
+            throw new Error(`Le produit "${product.name}" n'est plus disponible car son ingrédient de base "${baseIng.name}" est désactivé.`);
+          }
+        }
+      }
+
+      // Check supplements
+      if (rawItem.supplements && rawItem.supplements.length > 0) {
+        for (const s of rawItem.supplements) {
+          const sQty = s.quantity || 0;
+          if (sQty > 0) {
+            const supDef = this.getSupplementById(s.id);
+            if (!supDef) {
+              throw new Error(`Le supplément #${s.id} est introuvable.`);
+            }
+            if (!supDef.active) {
+              throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
+            }
+            if (supDef.available === false || supDef.isAvailable === false) {
+              throw new Error(`Le supplément "${supDef.name}" est actuellement indisponible.`);
+            }
+            const supIng = this.getIngredientById(supDef.ingredientId);
+            if (!supIng) {
+              throw new Error(`L'ingrédient associé au supplément "${supDef.name}" est introuvable.`);
+            }
+            if (supIng.active === false) {
+              throw new Error(`Le supplément "${supDef.name}" n'est plus disponible car son ingrédient associé "${supIng.name}" est désactivé.`);
+            }
+          }
+        }
       }
 
       const prep = this.computePreparationSheet(
@@ -1159,7 +1248,8 @@ class DatabaseManager {
                 item.veggiesOption,
                 item.baseChoice,
                 item.supplements,
-                item.specialInstructions
+                item.specialInstructions,
+                { validateActiveIngredients: false }
               );
               item.preparationSheet = {
                 totalIngredients: prep.totalIngredients,

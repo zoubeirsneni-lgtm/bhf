@@ -76,6 +76,8 @@ export const AdminView: React.FC = () => {
   const [ingredientFilter, setIngredientFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [isTogglingActive, setIsTogglingActive] = useState<string | null>(null);
   const [isDeletingIngredient, setIsDeletingIngredient] = useState<string | null>(null);
+  const [ingredientToDelete, setIngredientToDelete] = useState<Ingredient | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleOpenAddIngredient = () => {
     setIngredientToEdit(null);
@@ -110,18 +112,20 @@ export const AdminView: React.FC = () => {
     }
   };
 
-  const handleDeleteIngredient = async (ing: Ingredient) => {
-    const confirmDelete = window.confirm(
-      `Êtes-vous sûr de vouloir supprimer définitivement l'ingrédient "${ing.name}" ?\n\nSi cet ingrédient est déjà utilisé dans des recettes, suppléments ou historiques, la suppression sera refusée et il devra être désactivé à la place.`
-    );
-    if (!confirmDelete) return;
+  const handleConfirmDeleteIngredient = async () => {
+    if (!ingredientToDelete) return;
+    if (ingredientToDelete.active !== false) return;
 
     try {
-      setIsDeletingIngredient(ing.id);
-      await deleteIngredient(ing.id);
-      showToast(`Ingrédient "${ing.name}" supprimé avec succès.`);
+      setIsDeletingIngredient(ingredientToDelete.id);
+      setDeleteError(null);
+      await deleteIngredient(ingredientToDelete.id);
+      showToast(`Ingrédient "${ingredientToDelete.name}" supprimé avec succès.`);
+      setIngredientToDelete(null);
     } catch (err: any) {
-      showToast(err.message || 'Impossible de supprimer cet ingrédient.', 'error');
+      const errorMsg = err.message || 'Impossible de supprimer cet ingrédient.';
+      setDeleteError(errorMsg);
+      showToast(errorMsg, 'error');
     } finally {
       setIsDeletingIngredient(null);
     }
@@ -999,10 +1003,18 @@ export const AdminView: React.FC = () => {
 
                             {/* Supprimer définitivement (avec garde-fou backend) */}
                             <button
-                              onClick={() => handleDeleteIngredient(ing)}
-                              disabled={isDeletingIngredient === ing.id}
-                              title="Supprimer définitivement l'ingrédient"
-                              className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-40"
+                              onClick={() => {
+                                if (isActive) return;
+                                setDeleteError(null);
+                                setIngredientToDelete(ing);
+                              }}
+                              disabled={isActive || isDeletingIngredient === ing.id}
+                              title={isActive ? "Désactivez d'abord l'ingrédient pour pouvoir le supprimer" : "Supprimer définitivement l'ingrédient"}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                isActive
+                                  ? 'text-stone-300 cursor-not-allowed opacity-30 hover:bg-transparent'
+                                  : 'text-rose-500 hover:text-rose-700 hover:bg-rose-50 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed'
+                              }`}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1030,6 +1042,68 @@ export const AdminView: React.FC = () => {
         onSave={handleSaveIngredientModal}
         ingredientToEdit={ingredientToEdit}
       />
+
+      {/* MODAL DE CONFIRMATION DE SUPPRESSION D'INGRÉDIENT */}
+      {ingredientToDelete && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-stone-900">
+                    Supprimer définitivement ?
+                  </h3>
+                  <p className="text-xs text-stone-600">
+                    Ingrédient : <span className="font-bold text-stone-900 font-mono">« {ingredientToDelete.name} »</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1.5 leading-relaxed">
+                <p className="font-semibold text-rose-950 flex items-center gap-1.5">
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                  Cette action est irréversible et définitive.
+                </p>
+                <p className="text-rose-800 text-[11px]">
+                  Si cet ingrédient est déjà utilisé dans des recettes, des suppléments, des commandes ou l'historique des mouvements de stock, la suppression sera refusée par le système et il devra être désactivé à la place.
+                </p>
+              </div>
+
+              {deleteError && (
+                <div className="p-3 rounded-xl bg-rose-100 border border-rose-300 text-xs text-rose-950 font-medium leading-relaxed">
+                  {deleteError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIngredientToDelete(null);
+                    setDeleteError(null);
+                  }}
+                  disabled={isDeletingIngredient !== null}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDeleteIngredient}
+                  disabled={isDeletingIngredient !== null}
+                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {isDeletingIngredient === ingredientToDelete.id ? 'Suppression en cours...' : 'Supprimer définitivement'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

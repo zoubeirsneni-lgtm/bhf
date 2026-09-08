@@ -65,6 +65,7 @@ export interface Supplement {
   available: boolean;
   isAvailable?: boolean;
   active: boolean;
+  ingredientActive?: boolean;
   order?: number;
   sortOrder?: number;
   createdAt?: string;
@@ -110,6 +111,7 @@ export interface Product {
   isAvailable: boolean;
   available?: boolean;
   isPopular?: boolean;
+  hasInactiveIngredient?: boolean;
   order?: number;
   sortOrder?: number;
   createdAt?: string;

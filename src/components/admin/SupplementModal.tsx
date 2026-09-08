@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Supplement, Ingredient } from '../../types';
 import { X, Check, Plus, DollarSign } from 'lucide-react';
 
@@ -31,11 +31,16 @@ export const SupplementModal: React.FC<SupplementModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const ingredientsRef = useRef(ingredients);
+  ingredientsRef.current = ingredients;
+
   useEffect(() => {
+    if (!isOpen) return;
+
     if (supplement) {
       setFormData(supplement);
     } else {
-      const firstActive = ingredients.find(i => i.active !== false);
+      const firstActive = (ingredientsRef.current || []).find(i => i.active !== false);
       setFormData({
         name: '',
         description: '',
@@ -49,7 +54,7 @@ export const SupplementModal: React.FC<SupplementModalProps> = ({
       });
     }
     setError(null);
-  }, [supplement, isOpen, ingredients]);
+  }, [supplement, isOpen]);
 
   if (!isOpen) return null;
 
