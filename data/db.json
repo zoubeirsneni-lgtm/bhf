@@ -2006,9 +2006,116 @@
       "active": true,
       "totalDeliveries": 64,
       "rating": 4.95
+    },
+    {
+      "id": "drv-1788902312312-4igt",
+      "name": "Livreur A Iso",
+      "phone": "+216 11 111 111",
+      "vehicle": "Moto A",
+      "active": true,
+      "totalDeliveries": 0,
+      "rating": 5
+    },
+    {
+      "id": "drv-1788902326144-8eu4",
+      "name": "Livreur A Iso",
+      "phone": "+216 11 111 111",
+      "vehicle": "Moto A",
+      "active": true,
+      "totalDeliveries": 0,
+      "rating": 5
     }
   ],
   "orders": [
+    {
+      "id": "ord-1788902310793",
+      "orderNumber": "BEBBA-1101",
+      "trackingToken": "tk_82c52e580ec2",
+      "createdAt": "2026-09-08T21:18:30.793Z",
+      "client": {
+        "name": "Client Test",
+        "phone": "+216 98 111 222",
+        "deliveryAddress": "Les Berges du Lac 2, Tunis",
+        "notes": ""
+      },
+      "items": [
+        {
+          "id": "item-sry45uc",
+          "productId": "prod-poulet-bowl",
+          "productName": "BEBBA Chicken Power Bowl",
+          "unitPrice": 14.5,
+          "quantity": 1,
+          "supplements": [],
+          "itemTotalPrice": 14.5,
+          "preparationSheet": {
+            "totalIngredients": [
+              {
+                "ingredientId": "ing-poulet",
+                "ingredientName": "Filet de Poulet mariné aux herbes",
+                "totalQuantity": 200,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-riz",
+                "ingredientName": "Riz Basmati complet aux épices douces",
+                "totalQuantity": 150,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-legumes",
+                "ingredientName": "Légumes croquants de saison",
+                "totalQuantity": 180,
+                "unit": "g"
+              },
+              {
+                "ingredientId": "ing-sauce-healthy",
+                "ingredientName": "Sauce signature BEBBA (Herbes & Yaourt)",
+                "totalQuantity": 35,
+                "unit": "ml"
+              }
+            ],
+            "summaryLines": [
+              "🍗 Filet de Poulet mariné aux herbes: 200 g",
+              "🍚 Riz Basmati complet aux épices douces: 150 g",
+              "🥦 Légumes croquants de saison: 180 g",
+              "🥣 Sauce signature BEBBA (Herbes & Yaourt): 35 ml"
+            ]
+          }
+        }
+      ],
+      "subtotal": 14.5,
+      "deliveryFee": 2.5,
+      "totalAmount": 17,
+      "status": "received",
+      "stockConsumed": false,
+      "paymentMethod": "cash_on_delivery",
+      "paymentStatus": "to_collect",
+      "statusHistory": [
+        {
+          "status": "received",
+          "label": "Commande reçue & transmise à la cuisine",
+          "timestamp": "2026-09-08T21:18:30.793Z",
+          "note": "Paiement à la livraison sélectionné",
+          "updatedBy": "Système Client"
+        },
+        {
+          "status": "received",
+          "label": "Livreur affecté : Yassine Ben Amor",
+          "timestamp": "2026-09-08T21:18:30.803Z",
+          "note": "Affectation livreur mise à jour par l'administrateur",
+          "updatedBy": "Administrateur BEBBA (Admin)"
+        },
+        {
+          "status": "received",
+          "label": "Livreur affecté : Livreur A Iso",
+          "timestamp": "2026-09-08T21:18:32.430Z",
+          "note": "Affectation livreur mise à jour par l'administrateur",
+          "updatedBy": "Administrateur BEBBA (Admin)"
+        }
+      ],
+      "assignedDriverId": "drv-1788902312312-4igt",
+      "assignedDriverName": "Livreur A Iso"
+    },
     {
       "id": "ord-1788531857440",
       "orderNumber": "BEBBA-1100",
@@ -9058,7 +9165,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-08T21:03:34.991Z"
+      "lastLoginAt": "2026-09-08T21:18:45.218Z"
     },
     {
       "id": "usr-kitchen-1",
@@ -9083,7 +9190,7 @@
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
       "driverId": "drv-1",
-      "lastLoginAt": "2026-09-02T16:11:25.066Z"
+      "lastLoginAt": "2026-09-08T21:18:45.787Z"
     },
     {
       "id": "usr-driver-2",
@@ -9096,7 +9203,7 @@
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
       "driverId": "drv-2",
-      "lastLoginAt": "2026-09-01T08:40:56.563Z"
+      "lastLoginAt": "2026-09-08T21:18:45.905Z"
     },
     {
       "id": "usr-driver-3",
@@ -9108,7 +9215,8 @@
       "driverId": "drv-3",
       "active": true,
       "createdAt": "2026-09-01T08:27:47.987Z",
-      "updatedAt": "2026-09-01T08:27:47.987Z"
+      "updatedAt": "2026-09-01T08:27:47.987Z",
+      "lastLoginAt": "2026-09-08T21:18:46.030Z"
     },
     {
       "id": "usr-1788252052142",
@@ -9121,7 +9229,55 @@
       "createdAt": "2026-09-01T08:40:52.142Z",
       "updatedAt": "2026-09-01T08:40:52.142Z",
       "lastLoginAt": "2026-09-01T08:40:52.263Z"
+    },
+    {
+      "id": "usr-1788902311084",
+      "username": "kitchen_test_1788902310974",
+      "name": "Cuisinier Test",
+      "phone": "+216 55 555 555",
+      "passwordHash": "$2b$10$MkILoTifN7sEeOYgFZ6USel2Vj8S4GvOETxsmrpolqzruarYUErsq",
+      "role": "kitchen",
+      "active": true,
+      "createdAt": "2026-09-08T21:18:31.084Z",
+      "updatedAt": "2026-09-08T21:18:31.085Z"
+    },
+    {
+      "id": "usr-1788902312312-ay2g",
+      "username": "drv_iso_a_1788902312205",
+      "name": "Livreur A Iso",
+      "phone": "+216 11 111 111",
+      "passwordHash": "$2b$10$N1wQ8uEyXfY6cfewMMMHv.ylqM/Bx/SPkwu30Xbpy8ETRkwZzVAc6",
+      "role": "driver",
+      "driverId": "drv-1788902312312-4igt",
+      "active": true,
+      "createdAt": "2026-09-08T21:18:32.312Z",
+      "updatedAt": "2026-09-08T21:18:32.312Z",
+      "lastLoginAt": "2026-09-08T21:18:32.539Z"
+    },
+    {
+      "id": "usr-1788902325530",
+      "username": "kitchen_test_1788902325417",
+      "name": "Cuisinier Test",
+      "phone": "+216 55 555 555",
+      "passwordHash": "$2b$10$3VZj1Iv0MQ9aq9H8q1ecH.OKkREsPOLGqtqE39hZhKkrOJCyMAD.a",
+      "role": "kitchen",
+      "active": true,
+      "createdAt": "2026-09-08T21:18:45.530Z",
+      "updatedAt": "2026-09-08T21:18:45.530Z"
+    },
+    {
+      "id": "usr-1788902326144-blrt",
+      "username": "drv_iso_a_1788902326036",
+      "name": "Livreur A Iso",
+      "phone": "+216 11 111 111",
+      "passwordHash": "$2b$10$L5VGBoTILRYKrLdSPvp8HeqvL4QK5Yhfm3Znbl3v9pEvtPnAhYOlW",
+      "role": "driver",
+      "driverId": "drv-1788902326144-8eu4",
+      "active": true,
+      "createdAt": "2026-09-08T21:18:46.144Z",
+      "updatedAt": "2026-09-08T21:18:46.144Z",
+      "lastLoginAt": "2026-09-08T21:18:46.390Z"
     }
   ],
-  "nextOrderSeq": 1101
+  "nextOrderSeq": 1103
 }

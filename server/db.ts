@@ -1414,6 +1414,9 @@ class DatabaseManager {
       if (!driver) {
         throw new Error(`Livreur #${driverIdToUse} introuvable.`);
       }
+      if (driver.active === false) {
+        throw new Error(`Le livreur "${driver.name}" est désactivé et ne peut pas recevoir de nouvelle commande.`);
+      }
       order.assignedDriverId = driver.id;
       order.assignedDriverName = driver.name;
     }

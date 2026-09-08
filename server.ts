@@ -508,6 +508,12 @@ async function startServer() {
         res.status(400).json({ error: 'Champs obligatoires manquants.' });
         return;
       }
+      if (role === 'driver') {
+        res.status(400).json({
+          error: 'Les comptes livreurs doivent être créés via la gestion des livreurs.'
+        });
+        return;
+      }
       const existing = db.getUserByUsername(username);
       if (existing) {
         res.status(400).json({ error: 'Ce nom d’utilisateur est déjà utilisé.' });
@@ -787,6 +793,12 @@ async function startServer() {
           });
           return;
         }
+        if (driver.active === false) {
+          res.status(400).json({
+            error: `Le livreur "${driver.name}" est désactivé et ne peut pas recevoir de nouvelle commande.`
+          });
+          return;
+        }
       }
 
       const updated = db.updateOrderStatus({
@@ -830,6 +842,13 @@ async function startServer() {
       const driver = db.getDrivers().find(d => d.id === targetDriverId);
       if (!driver) {
         res.status(404).json({ error: `Livreur #${targetDriverId} introuvable.` });
+        return;
+      }
+
+      if (driver.active === false) {
+        res.status(400).json({
+          error: `Le livreur "${driver.name}" est désactivé et ne peut pas recevoir de nouvelle commande.`
+        });
         return;
       }
 
