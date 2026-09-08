@@ -1,8 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Product, Ingredient, Order, OrderStatus } from '../../types';
+import { Product, Ingredient, Order, OrderStatus, Driver, CreateDriverDTO, UpdateDriverDTO } from '../../types';
 import { CatalogManager } from './CatalogManager';
 import { IngredientModal } from './IngredientModal';
+import { DriverModal } from './DriverModal';
+import { ResetPasswordModal } from './ResetPasswordModal';
 import {
   ShieldCheck,
   TrendingUp,
@@ -19,7 +21,11 @@ import {
   Plus,
   Edit2,
   Trash2,
-  Power
+  Power,
+  KeyRound,
+  Lock,
+  UserCheck,
+  UserX
 } from 'lucide-react';
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -53,6 +59,11 @@ export const AdminView: React.FC = () => {
     saveIngredient,
     deleteIngredient,
     saveProduct,
+    createDriver,
+    updateDriver,
+    toggleDriverStatus,
+    resetDriverPassword,
+    deleteDriver,
     updateOrderStatus,
     assignDriverToOrder,
     confirmOrderPayment,
@@ -60,7 +71,7 @@ export const AdminView: React.FC = () => {
     resetDemoData
   } = useApp();
 
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'orders' | 'stock' | 'catalog'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'orders' | 'stock' | 'catalog' | 'drivers'>('dashboard');
   const [orderSearch, setOrderSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [restockAmount, setRestockAmount] = useState<Record<string, number>>({});
@@ -69,6 +80,65 @@ export const AdminView: React.FC = () => {
   const [isUpdatingOrder, setIsUpdatingOrder] = useState<string | null>(null);
   const [isAssigningDriver, setIsAssigningDriver] = useState<string | null>(null);
   const [isUpdatingPayment, setIsUpdatingPayment] = useState<string | null>(null);
+
+  // Drivers states & handlers
+  const [isDriverModalOpen, setIsDriverModalOpen] = useState(false);
+  const [driverToEdit, setDriverToEdit] = useState<Driver | null>(null);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [driverForPasswordReset, setDriverForPasswordReset] = useState<Driver | null>(null);
+  const [driverSearch, setDriverSearch] = useState('');
+  const [driverStatusFilter, setDriverStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [driverToDelete, setDriverToDelete] = useState<Driver | null>(null);
+  const [driverDeleteError, setDriverDeleteError] = useState<string | null>(null);
+  const [isTogglingDriverStatus, setIsTogglingDriverStatus] = useState<string | null>(null);
+  const [isDeletingDriver, setIsDeletingDriver] = useState<string | null>(null);
+
+  const handleOpenAddDriver = () => {
+    setDriverToEdit(null);
+    setIsDriverModalOpen(true);
+  };
+
+  const handleOpenEditDriver = (drv: Driver) => {
+    setDriverToEdit(drv);
+    setIsDriverModalOpen(true);
+  };
+
+  const handleOpenResetPassword = (drv: Driver) => {
+    setDriverForPasswordReset(drv);
+    setIsResetPasswordModalOpen(true);
+  };
+
+  const handleToggleDriver = async (drv: Driver) => {
+    try {
+      setIsTogglingDriverStatus(drv.id);
+      const newStatus = !drv.active;
+      await toggleDriverStatus(drv.id, newStatus);
+      showToast(
+        newStatus ? 'Livreur activé' : 'Livreur désactivé',
+        `Le livreur ${drv.name} et son compte associé ont été ${newStatus ? 'activés' : 'désactivés'}.`,
+        newStatus ? 'success' : 'warning'
+      );
+    } catch (err: any) {
+      showToast('Erreur', err.message || 'Impossible de modifier le statut.', 'warning');
+    } finally {
+      setIsTogglingDriverStatus(null);
+    }
+  };
+
+  const handleConfirmDeleteDriver = async () => {
+    if (!driverToDelete) return;
+    try {
+      setIsDeletingDriver(driverToDelete.id);
+      setDriverDeleteError(null);
+      await deleteDriver(driverToDelete.id);
+      showToast('Livreur supprimé', `Le livreur ${driverToDelete.name} a été supprimé.`, 'success');
+      setDriverToDelete(null);
+    } catch (err: any) {
+      setDriverDeleteError(err.message || 'Impossible de supprimer ce livreur.');
+    } finally {
+      setIsDeletingDriver(null);
+    }
+  };
 
   // Ingrédients states & handlers
   const [isIngredientModalOpen, setIsIngredientModalOpen] = useState(false);
@@ -395,6 +465,18 @@ export const AdminView: React.FC = () => {
             }`}
           >
             Catalogue ({products.length})
+          </button>
+          <button
+            id="admin-tab-drivers-btn"
+            onClick={() => setActiveAdminTab('drivers')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              activeAdminTab === 'drivers'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-stone-400 hover:text-white'
+            }`}
+          >
+            <Bike className="w-3.5 h-3.5" />
+            <span>Livreurs ({drivers.length})</span>
           </button>
         </div>
       </div>
@@ -1035,6 +1117,281 @@ export const AdminView: React.FC = () => {
         <CatalogManager />
       )}
 
+      {/* 5. DRIVERS MANAGEMENT TAB */}
+      {activeAdminTab === 'drivers' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Header Banner */}
+          <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                <Bike className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-stone-900 font-display">
+                  Gestion des Livreurs & Comptes
+                </h2>
+                <p className="text-xs text-stone-500">
+                  Inscrivez des livreurs, associez leurs identifiants de connexion et gérez la sécurité des accès.
+                </p>
+              </div>
+            </div>
+
+            <button
+              id="admin-add-driver-btn"
+              type="button"
+              onClick={handleOpenAddDriver}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Inscrire un livreur</span>
+            </button>
+          </div>
+
+          {/* Quick Stats Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-xs space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Total Livreurs</span>
+              <div className="text-2xl font-extrabold text-stone-900 font-display">
+                {drivers.length}
+              </div>
+              <p className="text-[11px] text-stone-500">Comptes enregistrés dans la flotte</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-xs space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Livreurs Actifs</span>
+              <div className="text-2xl font-extrabold text-emerald-600 font-display">
+                {drivers.filter(d => d.active).length}
+              </div>
+              <p className="text-[11px] text-emerald-700 font-medium">Disponibles pour les livraisons</p>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-xs space-y-1">
+              <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Livraisons Réalisées</span>
+              <div className="text-2xl font-extrabold text-blue-600 font-display">
+                {drivers.reduce((acc, d) => acc + (d.totalDeliveries || 0), 0)}
+              </div>
+              <p className="text-[11px] text-stone-500">Cumul historique des courses</p>
+            </div>
+          </div>
+
+          {/* Search & Filter Toolbar */}
+          <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+              <input
+                id="admin-driver-search-input"
+                type="text"
+                value={driverSearch}
+                onChange={(e) => setDriverSearch(e.target.value)}
+                placeholder="Rechercher par nom, username, téléphone, véhicule..."
+                className="w-full pl-9 pr-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-900 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5 p-1 bg-stone-100 rounded-xl">
+              <button
+                type="button"
+                onClick={() => setDriverStatusFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  driverStatusFilter === 'all'
+                    ? 'bg-white text-stone-900 shadow-xs'
+                    : 'text-stone-500 hover:text-stone-900'
+                }`}
+              >
+                Tous ({drivers.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDriverStatusFilter('active')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  driverStatusFilter === 'active'
+                    ? 'bg-white text-emerald-700 shadow-xs'
+                    : 'text-stone-500 hover:text-stone-900'
+                }`}
+              >
+                Actifs ({drivers.filter(d => d.active).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDriverStatusFilter('inactive')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  driverStatusFilter === 'inactive'
+                    ? 'bg-white text-rose-700 shadow-xs'
+                    : 'text-stone-500 hover:text-stone-900'
+                }`}
+              >
+                Inactifs ({drivers.filter(d => !d.active).length})
+              </button>
+            </div>
+          </div>
+
+          {/* Drivers List */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-xs overflow-hidden">
+            {(() => {
+              const filteredDrivers = drivers.filter(drv => {
+                const matchesSearch =
+                  drv.name.toLowerCase().includes(driverSearch.toLowerCase()) ||
+                  (drv.username || '').toLowerCase().includes(driverSearch.toLowerCase()) ||
+                  drv.phone.toLowerCase().includes(driverSearch.toLowerCase()) ||
+                  drv.vehicle.toLowerCase().includes(driverSearch.toLowerCase());
+
+                const matchesStatus =
+                  driverStatusFilter === 'all' ||
+                  (driverStatusFilter === 'active' && drv.active) ||
+                  (driverStatusFilter === 'inactive' && !drv.active);
+
+                return matchesSearch && matchesStatus;
+              });
+
+              if (filteredDrivers.length === 0) {
+                return (
+                  <div className="p-12 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-2xl bg-stone-100 text-stone-400 mx-auto flex items-center justify-center">
+                      <Bike className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-stone-700">Aucun livreur trouvé</p>
+                    <p className="text-xs text-stone-500 max-w-sm mx-auto">
+                      {driverSearch
+                        ? 'Aucun livreur ne correspond à vos critères de recherche.'
+                        : 'Commencez par inscrire un livreur pour lui attribuer un véhicule et un compte de connexion.'}
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="divide-y divide-stone-100">
+                  {filteredDrivers.map(drv => {
+                    const activeDeliveriesCount = orders.filter(
+                      o => o.assignedDriverId === drv.id && o.status === 'delivering'
+                    ).length;
+                    const deliveredCount = orders.filter(
+                      o => o.assignedDriverId === drv.id && o.status === 'delivered'
+                    ).length;
+
+                    return (
+                      <div
+                        key={drv.id}
+                        className={`p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors ${
+                          !drv.active ? 'bg-stone-50/70 opacity-75' : 'hover:bg-stone-50/50'
+                        }`}
+                      >
+                        <div className="flex items-start gap-4">
+                          <div
+                            className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold shrink-0 ${
+                              drv.active
+                                ? 'bg-emerald-50 text-emerald-600'
+                                : 'bg-stone-200 text-stone-500'
+                            }`}
+                          >
+                            <Bike className="w-5 h-5" />
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-sm font-bold text-stone-900">{drv.name}</h3>
+                              {drv.username && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-stone-100 text-stone-700 text-[11px] font-mono font-semibold">
+                                  @{drv.username}
+                                </span>
+                              )}
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  drv.active
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : 'bg-rose-100 text-rose-800'
+                                }`}
+                              >
+                                {drv.active ? 'Actif' : 'Désactivé'}
+                              </span>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-stone-500">
+                              <span className="flex items-center gap-1">
+                                <Phone className="w-3.5 h-3.5 text-stone-400" />
+                                <span>{drv.phone}</span>
+                              </span>
+                              <span>•</span>
+                              <span>{drv.vehicle}</span>
+                              <span>•</span>
+                              <span className="font-medium text-stone-700">
+                                {drv.totalDeliveries || deliveredCount} livraison{(drv.totalDeliveries || deliveredCount) > 1 ? 's' : ''}
+                              </span>
+                              {activeDeliveriesCount > 0 && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded-md bg-blue-50 text-blue-700 font-bold text-[10px]">
+                                  {activeDeliveriesCount} en cours
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex flex-wrap items-center gap-2 self-end md:self-center">
+                          {/* Modifier */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditDriver(drv)}
+                            className="px-3 py-1.5 rounded-xl border border-stone-200 hover:bg-white text-stone-700 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                          >
+                            <Edit2 className="w-3.5 h-3.5 text-stone-500" />
+                            <span>Modifier</span>
+                          </button>
+
+                          {/* Mot de passe */}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenResetPassword(drv)}
+                            className="px-3 py-1.5 rounded-xl border border-stone-200 hover:bg-white text-amber-800 text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs"
+                          >
+                            <KeyRound className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Mot de passe</span>
+                          </button>
+
+                          {/* Activer / Désactiver */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleDriver(drv)}
+                            disabled={isTogglingDriverStatus === drv.id}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-2xs ${
+                              drv.active
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+                            }`}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                            <span>
+                              {isTogglingDriverStatus === drv.id
+                                ? 'Mise à jour...'
+                                : drv.active
+                                ? 'Désactiver'
+                                : 'Activer'}
+                            </span>
+                          </button>
+
+                          {/* Supprimer */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDriverToDelete(drv);
+                              setDriverDeleteError(null);
+                            }}
+                            className="p-1.5 rounded-xl border border-stone-200 hover:bg-rose-50 text-stone-400 hover:text-rose-600 transition-colors shadow-2xs"
+                            title="Supprimer le livreur"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       {/* MODAL INGRÉDIENT */}
       <IngredientModal
         isOpen={isIngredientModalOpen}
@@ -1042,6 +1399,138 @@ export const AdminView: React.FC = () => {
         onSave={handleSaveIngredientModal}
         ingredientToEdit={ingredientToEdit}
       />
+
+      {/* MODAL GESTION LIVREUR (Création / Modification) */}
+      <DriverModal
+        isOpen={isDriverModalOpen}
+        onClose={() => setIsDriverModalOpen(false)}
+        driverToEdit={driverToEdit}
+        onCreate={async (data) => {
+          await createDriver(data);
+          showToast(
+            'Livreur inscrit avec succès',
+            `Le livreur ${data.name} a été créé avec son compte de connexion (@${data.username}).`,
+            'success'
+          );
+        }}
+        onUpdate={async (id, data) => {
+          await updateDriver(id, data);
+          showToast(
+            'Livreur mis à jour',
+            `Les informations du livreur ${data.name} ont été mises à jour.`,
+            'success'
+          );
+        }}
+      />
+
+      {/* MODAL RÉINITIALISATION MOT DE PASSE LIVREUR */}
+      <ResetPasswordModal
+        isOpen={isResetPasswordModalOpen}
+        onClose={() => {
+          setIsResetPasswordModalOpen(false);
+          setDriverForPasswordReset(null);
+        }}
+        driver={driverForPasswordReset}
+        onResetPassword={async (driverId, newPassword) => {
+          await resetDriverPassword(driverId, newPassword);
+          showToast(
+            'Mot de passe mis à jour',
+            `Le mot de passe de ${driverForPasswordReset?.name || 'ce livreur'} a été réinitialisé avec succès.`,
+            'success'
+          );
+        }}
+      />
+
+      {/* MODAL CONFIRMATION SUPPRESSION LIVREUR */}
+      {driverToDelete && (
+        <div className="fixed inset-0 z-50 bg-stone-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-4">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-stone-900">
+                    Supprimer ce livreur ?
+                  </h3>
+                  <p className="text-xs text-stone-600">
+                    Livreur : <span className="font-bold text-stone-900">« {driverToDelete.name} »</span>
+                    {driverToDelete.username && (
+                      <span className="ml-1 text-stone-500 font-mono">(@{driverToDelete.username})</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {orders.some(o => o.assignedDriverId === driverToDelete.id) ? (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1.5 leading-relaxed">
+                  <p className="font-bold text-amber-950 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    Suppression physique refusée pour traçabilité
+                  </p>
+                  <p className="text-amber-800 text-[11px]">
+                    Ce livreur possède des commandes dans l'historique de BEBBA. Pour préserver la comptabilité et le suivi des clients, le système interdit sa suppression physique. Veuillez plutôt utiliser le bouton <strong>« Désactiver »</strong> pour révoquer immédiatement son compte de connexion.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1.5 leading-relaxed">
+                  <p className="font-semibold text-rose-950 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    Cette action est définitive.
+                  </p>
+                  <p className="text-rose-800 text-[11px]">
+                    La fiche livreur et son compte de connexion utilisateur associé seront supprimés de la base de données.
+                  </p>
+                </div>
+              )}
+
+              {driverDeleteError && (
+                <div className="p-3 rounded-xl bg-rose-100 border border-rose-300 text-xs text-rose-950 font-medium leading-relaxed">
+                  {driverDeleteError}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDriverToDelete(null);
+                    setDriverDeleteError(null);
+                  }}
+                  disabled={isDeletingDriver !== null}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100 transition-colors disabled:opacity-50"
+                >
+                  Annuler
+                </button>
+                {orders.some(o => o.assignedDriverId === driverToDelete.id) ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleToggleDriver(driverToDelete);
+                      setDriverToDelete(null);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors"
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    Désactiver à la place
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConfirmDeleteDriver}
+                    disabled={isDeletingDriver !== null}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {isDeletingDriver === driverToDelete.id ? 'Suppression en cours...' : 'Supprimer définitivement'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODAL DE CONFIRMATION DE SUPPRESSION D'INGRÉDIENT */}
       {ingredientToDelete && (

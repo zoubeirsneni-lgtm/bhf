@@ -340,21 +340,112 @@ async function startServer() {
     }
   });
 
-  // POST /api/drivers (Admin only)
-  app.post('/api/drivers', authenticateUser, requireRole('admin'), (req, res) => {
+  // POST /api/drivers (Admin only - Atomic Driver + User creation)
+  app.post('/api/drivers', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const saved = db.saveDriver(req.body);
-      res.json(saved);
+      const { name, phone, vehicle, username, password, active } = req.body;
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        res.status(400).json({ error: 'Le nom du livreur est obligatoire.' });
+        return;
+      }
+      if (!phone || typeof phone !== 'string' || !phone.trim()) {
+        res.status(400).json({ error: 'Le numéro de téléphone du livreur est obligatoire.' });
+        return;
+      }
+      if (!username || typeof username !== 'string' || !username.trim()) {
+        res.status(400).json({ error: 'Le nom d’utilisateur (identifiant) est obligatoire.' });
+        return;
+      }
+      if (!password || typeof password !== 'string' || password.length < 4) {
+        res.status(400).json({ error: 'Le mot de passe doit comporter au moins 4 caractères.' });
+        return;
+      }
+
+      // Hash password with bcrypt before persistence
+      const passwordHash = await hashPassword(password);
+
+      // Atomic creation in db
+      const result = db.createDriverWithAccount({
+        name,
+        phone,
+        vehicle: vehicle || 'Scooter standard',
+        username,
+        passwordHash,
+        active: active !== false
+      });
+
+      res.status(201).json({
+        driver: {
+          ...result.driver,
+          username: result.user.username
+        },
+        user: sanitizeUser(result.user)
+      });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
-  // PUT /api/drivers/:id (Admin only)
+  // PUT /api/drivers/:id (Admin only - Update business profile & sync User)
   app.put('/api/drivers/:id', authenticateUser, requireRole('admin'), (req, res) => {
     try {
-      const saved = db.saveDriver({ ...req.body, id: req.params.id });
-      res.json(saved);
+      const updated = db.updateDriverWithAccount(req.params.id, req.body);
+      const user = db.getUserByDriverId(req.params.id);
+      res.json({
+        ...updated,
+        username: user ? user.username : undefined
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // PATCH /api/drivers/:id/status (Admin only - Synchronized active toggle for Driver AND User)
+  app.patch('/api/drivers/:id/status', authenticateUser, requireRole('admin'), (req, res) => {
+    try {
+      const { active } = req.body;
+      if (typeof active !== 'boolean') {
+        res.status(400).json({ error: 'Le champ active (booléen) est requis.' });
+        return;
+      }
+
+      const result = db.setDriverActiveStatus(req.params.id, active);
+      res.json({
+        success: true,
+        driver: {
+          ...result.driver,
+          username: result.user ? result.user.username : undefined
+        }
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // PATCH /api/drivers/:id/password (Admin only - Reset driver password)
+  app.patch('/api/drivers/:id/password', authenticateUser, requireRole('admin'), async (req, res) => {
+    try {
+      const { newPassword } = req.body;
+      if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 4) {
+        res.status(400).json({ error: 'Le nouveau mot de passe doit comporter au moins 4 caractères.' });
+        return;
+      }
+
+      const passwordHash = await hashPassword(newPassword);
+      db.resetDriverPassword(req.params.id, passwordHash);
+
+      res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+
+  // DELETE /api/drivers/:id (Admin only - Safe delete with historical order protection)
+  app.delete('/api/drivers/:id', authenticateUser, requireRole('admin'), (req, res) => {
+    try {
+      const success = db.deleteDriver(req.params.id);
+      res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }

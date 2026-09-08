@@ -11,7 +11,9 @@ import {
   DashboardStats,
   UserRole,
   OrderStatus,
-  SafeUser
+  SafeUser,
+  CreateDriverDTO,
+  UpdateDriverDTO
 } from '../types';
 import {
   initialCategories,
@@ -112,6 +114,11 @@ interface AppContextType {
   saveIngredient: (ing: Ingredient) => Promise<void>;
   deleteIngredient: (id: string) => Promise<void>;
   saveDriver: (driver: Driver) => Promise<void>;
+  createDriver: (data: CreateDriverDTO) => Promise<void>;
+  updateDriver: (id: string, data: UpdateDriverDTO) => Promise<void>;
+  toggleDriverStatus: (id: string, active: boolean) => Promise<void>;
+  resetDriverPassword: (id: string, newPassword: string) => Promise<void>;
+  deleteDriver: (id: string) => Promise<void>;
   saveSupplier: (sup: Supplier) => Promise<void>;
   deleteSupplier: (id: string) => Promise<void>;
   resetDemoData: () => Promise<void>;
@@ -927,6 +934,69 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     await refreshAllData();
   };
 
+  const createDriver = async (data: CreateDriverDTO) => {
+    const res = await authFetch('/api/drivers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur lors de l’inscription du livreur');
+    }
+    await refreshAllData();
+  };
+
+  const updateDriver = async (id: string, data: UpdateDriverDTO) => {
+    const res = await authFetch(`/api/drivers/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur lors de la modification du livreur');
+    }
+    await refreshAllData();
+  };
+
+  const toggleDriverStatus = async (id: string, active: boolean) => {
+    const res = await authFetch(`/api/drivers/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur lors du changement de statut du livreur');
+    }
+    await refreshAllData();
+  };
+
+  const resetDriverPassword = async (id: string, newPassword: string) => {
+    const res = await authFetch(`/api/drivers/${id}/password`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ newPassword })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur lors de la réinitialisation du mot de passe');
+    }
+    await refreshAllData();
+  };
+
+  const deleteDriver = async (id: string) => {
+    const res = await authFetch(`/api/drivers/${id}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Erreur lors de la suppression du livreur');
+    }
+    await refreshAllData();
+  };
+
   const saveSupplier = async (sup: Supplier) => {
     const url = sup.id && suppliers.some(s => s.id === sup.id)
       ? `/api/suppliers/${sup.id}`
@@ -1015,6 +1085,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         saveIngredient,
         deleteIngredient,
         saveDriver,
+        createDriver,
+        updateDriver,
+        toggleDriverStatus,
+        resetDriverPassword,
+        deleteDriver,
         saveSupplier,
         deleteSupplier,
         resetDemoData,

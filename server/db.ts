@@ -689,7 +689,21 @@ class DatabaseManager {
 
   // --- Drivers ---
   public getDrivers(): Driver[] {
-    return this.data.drivers;
+    return this.data.drivers.map(drv => {
+      const user = (this.data.users || []).find(u => u.role === 'driver' && u.driverId === drv.id);
+      return {
+        ...drv,
+        username: user ? user.username : undefined
+      };
+    });
+  }
+
+  public getDriverById(id: string): Driver | undefined {
+    return this.data.drivers.find(d => d.id === id);
+  }
+
+  public getUserByDriverId(driverId: string): User | undefined {
+    return (this.data.users || []).find(u => u.role === 'driver' && u.driverId === driverId);
   }
 
   public saveDriver(driver: Driver): Driver {
@@ -702,6 +716,187 @@ class DatabaseManager {
     }
     this.persist();
     return driver;
+  }
+
+  /**
+   * Atomic creation of Driver entity + linked User account (role: driver, driverId: driver.id).
+   * Ensures uniqueness of username and driverId, and validates all constraints.
+   */
+  public createDriverWithAccount(data: {
+    name: string;
+    phone: string;
+    vehicle: string;
+    username: string;
+    passwordHash: string;
+    active?: boolean;
+  }): { driver: Driver; user: User } {
+    const cleanUsername = (data.username || '').trim().toLowerCase();
+    if (!cleanUsername) {
+      throw new Error('Le nom d’utilisateur est obligatoire.');
+    }
+    if (!data.name || !data.name.trim()) {
+      throw new Error('Le nom du livreur est obligatoire.');
+    }
+    if (!data.phone || !data.phone.trim()) {
+      throw new Error('Le téléphone du livreur est obligatoire.');
+    }
+    if (!data.passwordHash) {
+      throw new Error('Le mot de passe haché est requis.');
+    }
+
+    // 1. Check username uniqueness
+    const existingUser = this.data.users.find(u => u.username.toLowerCase() === cleanUsername);
+    if (existingUser) {
+      throw new Error(`Le nom d’utilisateur "${cleanUsername}" est déjà attribué à un autre compte.`);
+    }
+
+    // 2. Generate unique driver ID
+    let driverId = 'drv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    while (this.data.drivers.some(d => d.id === driverId)) {
+      driverId = 'drv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    }
+
+    const isActive = data.active !== false;
+
+    // 3. Create Driver object
+    const driver: Driver = {
+      id: driverId,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      vehicle: (data.vehicle || 'Scooter standard').trim(),
+      active: isActive,
+      totalDeliveries: 0,
+      rating: 5.0
+    };
+
+    // 4. Create User account with link driverId === driver.id
+    const now = new Date().toISOString();
+    const user: User = {
+      id: 'usr-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      username: cleanUsername,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      passwordHash: data.passwordHash,
+      role: 'driver',
+      driverId: driver.id,
+      active: isActive,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    // 5. Atomic persistence: rollback if save fails
+    const prevDrivers = [...this.data.drivers];
+    const prevUsers = [...this.data.users];
+
+    try {
+      this.data.drivers.push(driver);
+      this.data.users.push(user);
+      this.persist();
+      return { driver, user };
+    } catch (err: any) {
+      this.data.drivers = prevDrivers;
+      this.data.users = prevUsers;
+      throw new Error(`Échec de la création atomique du livreur : ${err.message}`);
+    }
+  }
+
+  /**
+   * Update driver business profile and propagate changes (name, phone) to User.
+   */
+  public updateDriverWithAccount(
+    driverId: string,
+    data: { name?: string; phone?: string; vehicle?: string }
+  ): Driver {
+    const driver = this.data.drivers.find(d => d.id === driverId);
+    if (!driver) {
+      throw new Error(`Livreur #${driverId} introuvable.`);
+    }
+
+    if (data.name && data.name.trim()) {
+      driver.name = data.name.trim();
+    }
+    if (data.phone && data.phone.trim()) {
+      driver.phone = data.phone.trim();
+    }
+    if (data.vehicle && data.vehicle.trim()) {
+      driver.vehicle = data.vehicle.trim();
+    }
+
+    // Synchronize linked User account
+    const user = this.data.users.find(u => u.role === 'driver' && u.driverId === driverId);
+    if (user) {
+      if (data.name && data.name.trim()) user.name = data.name.trim();
+      if (data.phone && data.phone.trim()) user.phone = data.phone.trim();
+      user.updatedAt = new Date().toISOString();
+    }
+
+    this.persist();
+    return driver;
+  }
+
+  /**
+   * Synchronized activation/deactivation of Driver AND User.
+   * If Driver is deactivated, User is immediately deactivated (cannot log in or use token).
+   */
+  public setDriverActiveStatus(driverId: string, active: boolean): { driver: Driver; user?: User } {
+    const driver = this.data.drivers.find(d => d.id === driverId);
+    if (!driver) {
+      throw new Error(`Livreur #${driverId} introuvable.`);
+    }
+
+    driver.active = active;
+
+    const user = this.data.users.find(u => u.role === 'driver' && u.driverId === driverId);
+    if (user) {
+      user.active = active;
+      user.updatedAt = new Date().toISOString();
+    }
+
+    this.persist();
+    return { driver, user };
+  }
+
+  /**
+   * Admin password reset for a driver.
+   */
+  public resetDriverPassword(driverId: string, newPasswordHash: string): User {
+    const driver = this.data.drivers.find(d => d.id === driverId);
+    if (!driver) {
+      throw new Error(`Livreur #${driverId} introuvable.`);
+    }
+
+    const user = this.data.users.find(u => u.role === 'driver' && u.driverId === driverId);
+    if (!user) {
+      throw new Error(`Compte utilisateur introuvable pour le livreur #${driverId}.`);
+    }
+
+    user.passwordHash = newPasswordHash;
+    user.updatedAt = new Date().toISOString();
+    this.persist();
+    return user;
+  }
+
+  /**
+   * Safe deletion: refuses if driver has historical orders to preserve order history.
+   */
+  public deleteDriver(driverId: string): boolean {
+    const driver = this.data.drivers.find(d => d.id === driverId);
+    if (!driver) {
+      throw new Error(`Livreur #${driverId} introuvable.`);
+    }
+
+    const hasHistoricalOrders = (this.data.orders || []).some(o => o.assignedDriverId === driverId);
+    if (hasHistoricalOrders) {
+      throw new Error(
+        `Impossible de supprimer définitivement le livreur "${driver.name}" car des commandes historiques lui sont associées. Pour préserver l'historique comptable et la traçabilité, veuillez plutôt le désactiver.`
+      );
+    }
+
+    // Remove driver and any linked user account
+    this.data.drivers = this.data.drivers.filter(d => d.id !== driverId);
+    this.data.users = this.data.users.filter(u => !(u.role === 'driver' && u.driverId === driverId));
+    this.persist();
+    return true;
   }
 
   // --- Order Computation & Creation ---

@@ -205,6 +205,26 @@ export interface Driver {
   active: boolean;
   totalDeliveries: number;
   rating?: number;
+  username?: string;
+}
+
+export interface CreateDriverDTO {
+  name: string;
+  phone: string;
+  vehicle: string;
+  username: string;
+  password: string;
+  active?: boolean;
+}
+
+export interface UpdateDriverDTO {
+  name: string;
+  phone: string;
+  vehicle: string;
+}
+
+export interface ResetDriverPasswordDTO {
+  newPassword: string;
 }
 
 export type InternalRole = 'admin' | 'kitchen' | 'driver';

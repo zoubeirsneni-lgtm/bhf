@@ -149,7 +149,7 @@
       "supplierId": "sup-2",
       "supplierName": "Volailles du Terroir",
       "category": "Protéines",
-      "updatedAt": "2026-09-08T00:55:10.558Z",
+      "updatedAt": "2026-09-08T20:28:51.913Z",
       "active": true
     },
     {
@@ -9058,7 +9058,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-08T00:00:59.213Z"
+      "lastLoginAt": "2026-09-08T21:03:34.991Z"
     },
     {
       "id": "usr-kitchen-1",
@@ -9070,7 +9070,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-07T23:57:46.945Z"
+      "lastLoginAt": "2026-09-08T20:12:45.358Z"
     },
     {
       "id": "usr-driver-1",
