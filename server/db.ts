@@ -69,6 +69,17 @@ export class InsufficientStockError extends Error {
   }
 }
 
+/**
+ * Normalisation standard du numéro de téléphone pour BEBBA.
+ * Conserve les 8 derniers chiffres utiles pour les comparaisons fiables.
+ */
+export function normalizePhoneNumber(phoneRaw: string): string | null {
+  if (!phoneRaw || typeof phoneRaw !== 'string') return null;
+  const digits = phoneRaw.replace(/\D/g, '');
+  if (digits.length < 8) return null;
+  return digits.slice(-8);
+}
+
 class DatabaseManager {
   private data: DatabaseSchema;
   private isLoaded = false;
@@ -1164,6 +1175,7 @@ class DatabaseManager {
 
   // --- Create Order ---
   public createOrder(payload: {
+    clientId?: string;
     client: { name: string; phone: string; deliveryAddress: string; notes?: string };
     items: Array<{
       productId: string;
@@ -1284,6 +1296,7 @@ class DatabaseManager {
       orderNumber: orderNumber,
       trackingToken: trackingToken,
       createdAt: new Date().toISOString(),
+      clientId: payload.clientId ? payload.clientId.trim() : undefined,
       client: {
         name: payload.client.name.trim(),
         phone: payload.client.phone.trim(),
@@ -1317,6 +1330,11 @@ class DatabaseManager {
   // --- Orders Management ---
   public getOrders(): Order[] {
     return this.data.orders;
+  }
+
+  public getOrdersByClientId(clientId: string): Order[] {
+    if (!clientId) return [];
+    return this.data.orders.filter(o => o.clientId === clientId);
   }
 
   public getOrderById(id: string): Order | undefined {
@@ -1709,8 +1727,106 @@ class DatabaseManager {
   }
 
   public getUserByUsername(username: string): User | undefined {
+    if (!username || typeof username !== 'string') return undefined;
     const cleanUsername = username.trim().toLowerCase();
-    return this.data.users.find(u => u.username.toLowerCase() === cleanUsername);
+    return this.data.users.find(u => u.username && u.username.toLowerCase() === cleanUsername);
+  }
+
+  public getUserByPhone(phoneRaw: string): User | undefined {
+    const norm = normalizePhoneNumber(phoneRaw);
+    if (!norm) return undefined;
+    return this.data.users.find(u => {
+      if (!u.phone) return false;
+      return normalizePhoneNumber(u.phone) === norm;
+    });
+  }
+
+  public getClientByPhone(phoneRaw: string): User | undefined {
+    const norm = normalizePhoneNumber(phoneRaw);
+    if (!norm) return undefined;
+    return this.data.users.find(u => {
+      if (u.role !== 'client' || !u.phone) return false;
+      return normalizePhoneNumber(u.phone) === norm;
+    });
+  }
+
+  public createClient(data: {
+    name: string;
+    phone: string;
+    passwordHash: string;
+    address?: string;
+  }): User {
+    if (!data.name || !data.name.trim()) {
+      throw new Error('Le nom est obligatoire.');
+    }
+    if (!data.phone || !data.phone.trim()) {
+      throw new Error('Le numéro de téléphone est obligatoire.');
+    }
+    const norm = normalizePhoneNumber(data.phone);
+    if (!norm) {
+      throw new Error('Numéro de téléphone invalide (au moins 8 chiffres requis).');
+    }
+    if (!data.passwordHash) {
+      throw new Error('Le mot de passe haché est requis.');
+    }
+
+    // Unicité du téléphone chez les clients
+    const existing = this.getClientByPhone(data.phone);
+    if (existing) {
+      throw new Error('Un compte client avec ce numéro de téléphone existe déjà.');
+    }
+
+    const now = new Date().toISOString();
+    let clientId = 'cli-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    while (this.data.users.some(u => u.id === clientId)) {
+      clientId = 'cli-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    }
+
+    const clientUser: User = {
+      id: clientId,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      address: (data.address || '').trim(),
+      passwordHash: data.passwordHash,
+      role: 'client',
+      active: true,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.data.users.push(clientUser);
+    this.persist();
+    return clientUser;
+  }
+
+  public updateClientProfile(clientId: string, data: { name?: string; phone?: string; address?: string }): User {
+    const user = this.data.users.find(u => u.id === clientId && u.role === 'client');
+    if (!user) {
+      throw new Error('Client introuvable.');
+    }
+
+    if (data.name !== undefined) {
+      if (!data.name.trim()) throw new Error('Le nom ne peut pas être vide.');
+      user.name = data.name.trim();
+    }
+
+    if (data.phone !== undefined) {
+      const norm = normalizePhoneNumber(data.phone);
+      if (!norm) throw new Error('Numéro de téléphone invalide (au moins 8 chiffres requis).');
+      const existing = this.data.users.find(u => u.id !== clientId && u.role === 'client' && u.phone && normalizePhoneNumber(u.phone) === norm);
+      if (existing) {
+        throw new Error('Ce numéro de téléphone est déjà utilisé par un autre compte client.');
+      }
+      user.phone = data.phone.trim();
+    }
+
+    if (data.address !== undefined) {
+      user.address = data.address.trim();
+    }
+
+    user.updatedAt = new Date().toISOString();
+    this.persist();
+    return user;
   }
 
   public saveUser(user: User): User {

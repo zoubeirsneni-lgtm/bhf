@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { User, SafeUser, InternalRole, OrderStatus } from '../src/types';
+import { User, SafeUser, InternalRole, UserRole, OrderStatus } from '../src/types';
 import { db } from './db';
 
 // JWT Configuration & Strict Environment Validation
@@ -17,8 +17,9 @@ const JWT_EXPIRES_IN = '24h';
 
 export interface TokenPayload {
   id: string;
-  username: string;
-  role: InternalRole;
+  username?: string;
+  phone?: string;
+  role: UserRole;
   driverId?: string;
 }
 
@@ -55,8 +56,9 @@ export async function comparePassword(password: string, hash: string): Promise<b
 export function generateToken(user: SafeUser): string {
   const payload: TokenPayload = {
     id: user.id,
-    username: user.username,
     role: user.role,
+    ...(user.username ? { username: user.username } : {}),
+    ...(user.phone ? { phone: user.phone } : {}),
     ...(user.driverId ? { driverId: user.driverId } : {})
   };
   return jwt.sign(payload, getJwtSecret(), { expiresIn: JWT_EXPIRES_IN });
@@ -117,7 +119,7 @@ export function authenticateUser(req: AuthenticatedRequest, res: Response, next:
  * Checks if the authenticated user has one of the allowed roles.
  * Returns 401 if unauthenticated, 403 if role is forbidden.
  */
-export function requireRole(...allowedRoles: InternalRole[]) {
+export function requireRole(...allowedRoles: UserRole[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({ error: 'Accès non autorisé : Authentification requise.' });
@@ -141,8 +143,12 @@ export function requireRole(...allowedRoles: InternalRole[]) {
 export function isValidStatusTransition(
   currentStatus: OrderStatus,
   targetStatus: OrderStatus,
-  role: InternalRole
+  role: UserRole
 ): boolean {
+  if (role === 'client') {
+    return false; // Les clients ne peuvent jamais modifier les statuts de commande
+  }
+
   if (currentStatus === targetStatus) {
     return true; // Cleanly ignored as a no-op
   }

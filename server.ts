@@ -1,7 +1,7 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
-import { db } from './server/db';
+import { db, normalizePhoneNumber } from './server/db';
 import {
   getJwtSecret,
   authenticateUser,
@@ -9,6 +9,7 @@ import {
   comparePassword,
   hashPassword,
   generateToken,
+  verifyToken,
   sanitizeUser,
   isValidStatusTransition,
   AuthenticatedRequest
@@ -32,17 +33,33 @@ async function startServer() {
 
   // --- Authentication Routes ---
 
-  // POST /api/auth/login (Public)
+  // POST /api/auth/login (Public: Staff username/password or Client phone/password)
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { username, password } = req.body;
+      const { username, phone, password } = req.body;
 
-      if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
-        res.status(400).json({ error: 'Nom d’utilisateur et mot de passe requis.' });
+      if (!password || typeof password !== 'string') {
+        res.status(400).json({ error: 'Mot de passe requis.' });
         return;
       }
 
-      const user = db.getUserByUsername(username);
+      let user: any;
+
+      // 1. Client : authentification par téléphone + mot de passe
+      if (phone && typeof phone === 'string' && phone.trim()) {
+        user = db.getClientByPhone(phone);
+      }
+      // 2. Utilisateurs internes (Admin, Cuisine, Livreur) : nom d’utilisateur + mot de passe
+      else if (username && typeof username === 'string' && username.trim()) {
+        user = db.getUserByUsername(username);
+        // Les comptes clients n'ont pas de username et ne peuvent pas se connecter par ce mode
+        if (user && user.role === 'client') {
+          user = undefined;
+        }
+      } else {
+        res.status(400).json({ error: 'Identifiant (téléphone pour client ou nom d’utilisateur pour le personnel) et mot de passe requis.' });
+        return;
+      }
 
       // Generic error response to prevent user enumeration
       if (!user || !user.active) {
@@ -68,6 +85,62 @@ async function startServer() {
       });
     } catch (err: any) {
       res.status(500).json({ error: 'Erreur interne lors de la connexion.' });
+    }
+  });
+
+  // POST /api/auth/register-client (Public: Client Self-Registration)
+  app.post('/api/auth/register-client', async (req, res) => {
+    try {
+      const { name, phone, password, address } = req.body;
+
+      // 1. Validation des champs obligatoires
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        res.status(400).json({ error: 'Le nom est obligatoire.' });
+        return;
+      }
+      if (!phone || typeof phone !== 'string' || !phone.trim()) {
+        res.status(400).json({ error: 'Le numéro de téléphone est obligatoire.' });
+        return;
+      }
+      if (!password || typeof password !== 'string' || password.length < 4) {
+        res.status(400).json({ error: 'Le mot de passe doit comporter au moins 4 caractères.' });
+        return;
+      }
+
+      // 2. Normalisation du numéro de téléphone
+      const normalizedPhone = normalizePhoneNumber(phone);
+      if (!normalizedPhone) {
+        res.status(400).json({ error: 'Numéro de téléphone invalide (au moins 8 chiffres requis).' });
+        return;
+      }
+
+      // 3. Unicité du téléphone chez les clients
+      const existingClient = db.getClientByPhone(phone);
+      if (existingClient) {
+        res.status(400).json({ error: 'Un compte client avec ce numéro de téléphone existe déjà.' });
+        return;
+      }
+
+      // 4. Hachage sécurisé du mot de passe
+      const passwordHash = await hashPassword(password);
+
+      // 5. Création du compte client (ID généré serveur, rôle forcé à 'client')
+      const newClient = db.createClient({
+        name: name.trim(),
+        phone: phone.trim(),
+        address: typeof address === 'string' ? address.trim() : '',
+        passwordHash
+      });
+
+      const safeUser = sanitizeUser(newClient);
+      const token = generateToken(safeUser);
+
+      res.status(201).json({
+        token,
+        user: safeUser
+      });
+    } catch (err: any) {
+      res.status(400).json({ error: err.message || 'Erreur lors de l’inscription client.' });
     }
   });
 
@@ -514,6 +587,12 @@ async function startServer() {
         });
         return;
       }
+      if (role === 'client') {
+        res.status(400).json({
+          error: 'Les comptes clients doivent être créés via l’inscription client (/api/auth/register-client).'
+        });
+        return;
+      }
       const existing = db.getUserByUsername(username);
       if (existing) {
         res.status(400).json({ error: 'Ce nom d’utilisateur est déjà utilisé.' });
@@ -577,8 +656,8 @@ async function startServer() {
     }
   });
 
-  // GET /api/orders/:id (Staff with IDOR protection)
-  app.get('/api/orders/:id', authenticateUser, requireRole('admin', 'kitchen', 'driver'), (req: AuthenticatedRequest, res) => {
+  // GET /api/orders/:id (Staff & Client with IDOR protection)
+  app.get('/api/orders/:id', authenticateUser, requireRole('admin', 'kitchen', 'driver', 'client'), (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
       const order = db.getOrderById(req.params.id);
@@ -592,6 +671,14 @@ async function startServer() {
       if (user.role === 'driver') {
         if (!user.driverId || order.assignedDriverId !== user.driverId) {
           res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
+          return;
+        }
+      }
+
+      // IDOR Protection: Clients can ONLY access their own orders
+      if (user.role === 'client') {
+        if (!order.clientId || order.clientId !== user.id) {
+          res.status(403).json({ error: 'Accès refusé : Vous ne pouvez pas accéder à cette commande.' });
           return;
         }
       }
@@ -720,13 +807,45 @@ async function startServer() {
     }
   });
 
-  // POST /api/orders (Public Client Order Creation)
+  // POST /api/orders (Public Guest & Authenticated Client Order Creation)
   app.post('/api/orders', (req, res) => {
     try {
-      const newOrder = db.createOrder(req.body);
+      // Identifier le client si un token JWT valide est fourni
+      let authenticatedClientId: string | undefined = undefined;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7).trim();
+        const payload = verifyToken(token);
+        if (payload && payload.id) {
+          const user = db.getUserById(payload.id);
+          if (user && user.active && user.role === 'client') {
+            authenticatedClientId = user.id;
+          }
+        }
+      }
+
+      // Protection anti-spoofing : ignorer totalement tout clientId arbitraire envoyé dans le body
+      const { clientId: _ignoredClientId, ...bodyWithoutClientId } = req.body || {};
+      const orderPayload = {
+        ...bodyWithoutClientId,
+        clientId: authenticatedClientId
+      };
+
+      const newOrder = db.createOrder(orderPayload);
       res.status(201).json(newOrder);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
+    }
+  });
+
+  // GET /api/client/orders (Protected: Client only)
+  app.get('/api/client/orders', authenticateUser, requireRole('client'), (req: AuthenticatedRequest, res) => {
+    try {
+      const clientId = req.user!.id;
+      const clientOrders = db.getOrdersByClientId(clientId);
+      res.json(clientOrders);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
   });
 

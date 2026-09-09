@@ -169,6 +169,7 @@ export interface Order {
   orderNumber: string;
   trackingToken: string;
   createdAt: string;
+  clientId?: string;
   client: {
     name: string;
     phone: string;
@@ -232,11 +233,12 @@ export type UserRole = 'client' | 'kitchen' | 'driver' | 'admin';
 
 export interface User {
   id: string;
-  username: string;
+  username?: string;
   name: string;
   phone?: string;
+  address?: string;
   passwordHash: string;
-  role: InternalRole;
+  role: UserRole;
   driverId?: string;
   active: boolean;
   createdAt: string;
