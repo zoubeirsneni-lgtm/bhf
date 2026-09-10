@@ -76,6 +76,27 @@ export const RoleSwitcher: React.FC = () => {
     }
   ];
 
+  const visibleRoles = roles.filter(r => {
+    // A connected client must NEVER see kitchen, driver, or admin
+    if (isAuthenticated && currentUser?.role === 'client') {
+      return r.role === 'client';
+    }
+    // A connected kitchen staff only sees kitchen and client
+    if (isAuthenticated && currentUser?.role === 'kitchen') {
+      return r.role === 'kitchen' || r.role === 'client';
+    }
+    // A connected driver only sees driver and client
+    if (isAuthenticated && currentUser?.role === 'driver') {
+      return r.role === 'driver' || r.role === 'client';
+    }
+    // Admin sees all roles
+    if (isAuthenticated && currentUser?.role === 'admin') {
+      return true;
+    }
+    // When unauthenticated, show all roles so internal staff can navigate to their portal
+    return true;
+  });
+
   const handleRoleClick = (role: UserRole) => {
     setCurrentRole(role);
   };
@@ -137,12 +158,16 @@ export const RoleSwitcher: React.FC = () => {
             </div>
           </div>
 
-          {/* Role tabs: 2x2 grid on mobile (<sm), horizontal flex row on desktop (>=sm) */}
+          {/* Role tabs: filtered dynamically based on user role */}
           <nav
             aria-label="Sélection de l'espace"
-            className="grid grid-cols-2 gap-1.5 sm:flex sm:items-center sm:gap-1 bg-stone-950 p-1 rounded-xl sm:rounded-lg border border-stone-800 w-full sm:w-auto"
+            className={`${
+              visibleRoles.length === 1
+                ? 'flex items-center sm:gap-1'
+                : 'grid grid-cols-2 gap-1.5 sm:flex sm:items-center sm:gap-1'
+            } bg-stone-950 p-1 rounded-xl sm:rounded-lg border border-stone-800 w-full sm:w-auto`}
           >
-            {roles.map(({ role, label, mobileLabel, icon, badge }) => {
+            {visibleRoles.map(({ role, label, mobileLabel, icon, badge }) => {
               const isActive = currentRole === role;
               const allowed = isRoleAllowed(role);
               const isStaffRole = role !== 'client';

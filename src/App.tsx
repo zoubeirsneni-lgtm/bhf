@@ -23,17 +23,22 @@ const MainContent: React.FC = () => {
   }
 
   const renderView = () => {
-    // 1. Client View is fully open to the public without authentication
+    // 1. Client user is strictly restricted to ClientView
+    if (isAuthenticated && currentUser?.role === 'client') {
+      return <ClientView />;
+    }
+
+    // 2. Client View is fully open to the public without authentication
     if (currentRole === 'client') {
       return <ClientView />;
     }
 
-    // 2. Staff views require verified authentication
+    // 3. Staff views require verified authentication
     if (!isAuthenticated || !currentUser) {
       return <StaffLoginView targetRole={currentRole} />;
     }
 
-    // 3. User is authenticated, enforce strict role access
+    // 4. User is authenticated, enforce strict role access
     if (currentRole === 'kitchen') {
       if (currentUser.role === 'kitchen' || currentUser.role === 'admin') {
         return <KitchenView />;

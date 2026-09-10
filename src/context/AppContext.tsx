@@ -49,6 +49,19 @@ interface AppContextType {
   clearAuthError: () => void;
   login: (username: string, password: string) => Promise<SafeUser>;
   logout: () => Promise<void>;
+  loginClient: (phone: string, password: string) => Promise<SafeUser>;
+  registerClient: (data: {
+    name: string;
+    phone: string;
+    password: string;
+    address?: string;
+  }) => Promise<SafeUser>;
+  isClientAuthModalOpen: boolean;
+  setIsClientAuthModalOpen: (open: boolean) => void;
+  clientAuthModalMode: 'login' | 'register';
+  setClientAuthModalMode: (mode: 'login' | 'register') => void;
+  openClientAuth: (mode?: 'login' | 'register') => void;
+  closeClientAuth: () => void;
 
   // Navigation & Role
   currentRole: UserRole;
@@ -308,6 +321,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   }, []);
 
+  // Client Auth Modal State
+  const [isClientAuthModalOpen, setIsClientAuthModalOpen] = useState(false);
+  const [clientAuthModalMode, setClientAuthModalMode] = useState<'login' | 'register'>('login');
+
+  const openClientAuth = useCallback((mode: 'login' | 'register' = 'login') => {
+    setClientAuthModalMode(mode);
+    setIsClientAuthModalOpen(true);
+    setAuthError(null);
+  }, []);
+
+  const closeClientAuth = useCallback(() => {
+    setIsClientAuthModalOpen(false);
+    setAuthError(null);
+  }, []);
+
   // Notifications
   const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(() => {
     return localStorage.getItem('bebba_notifications') === 'true';
@@ -533,6 +561,152 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       // Revert view to client
       setCurrentRole('client');
       showToast('Déconnexion', 'Vous avez été déconnecté de l’espace personnel.', 'info');
+    }
+  };
+
+  // Client Login handler (Phone + Password ONLY, no username)
+  const loginClient = async (phone: string, password: string): Promise<SafeUser> => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const trimmedPhone = phone.trim();
+      if (!trimmedPhone) {
+        throw new Error('Veuillez saisir votre numéro de téléphone.');
+      }
+      if (!password) {
+        throw new Error('Veuillez saisir votre mot de passe.');
+      }
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({ phone: trimmedPhone, password })
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error('Numéro de téléphone ou mot de passe incorrect.');
+        }
+        let errorMsg = 'Erreur lors de la connexion.';
+        try {
+          const errData = await res.json();
+          if (errData?.error) errorMsg = errData.error;
+        } catch (e) {}
+        throw new Error(errorMsg);
+      }
+
+      const data = await res.json();
+      if (!data?.token || !data?.user) {
+        throw new Error('Réponse d’authentification serveur invalide.');
+      }
+
+      const receivedToken: string = data.token;
+      const safeUser: SafeUser = data.user;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('bebba_auth_token', receivedToken);
+      }
+
+      setToken(receivedToken);
+      setCurrentUser(safeUser);
+      setIsAuthenticated(true);
+      setAuthError(null);
+      setCurrentRole('client');
+      setIsClientAuthModalOpen(false);
+
+      showToast('Connexion réussie', `Bienvenue ${safeUser.name} !`, 'success');
+
+      return safeUser;
+    } catch (err: any) {
+      const message = err.message || 'Serveur inaccessible. Veuillez vérifier votre connexion.';
+      setAuthError(message);
+      throw err;
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  // Client Register handler (Name, Phone, Password, Address - NO username, NO role)
+  const registerClient = async (data: {
+    name: string;
+    phone: string;
+    password: string;
+    address?: string;
+  }): Promise<SafeUser> => {
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const trimmedName = data.name.trim();
+      const trimmedPhone = data.phone.trim();
+      const trimmedAddress = data.address?.trim() || '';
+
+      if (!trimmedName) {
+        throw new Error('Le nom et prénom sont obligatoires.');
+      }
+      if (!trimmedPhone) {
+        throw new Error('Le numéro de téléphone est obligatoire.');
+      }
+      if (!data.password) {
+        throw new Error('Le mot de passe est obligatoire.');
+      }
+      if (data.password.length < 4) {
+        throw new Error('Le mot de passe doit comporter au moins 4 caractères.');
+      }
+
+      const res = await fetch('/api/auth/register-client', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          name: trimmedName,
+          phone: trimmedPhone,
+          password: data.password,
+          address: trimmedAddress
+        })
+      });
+
+      if (!res.ok) {
+        let errorMsg = 'Erreur lors de la création du compte.';
+        try {
+          const errData = await res.json();
+          if (errData?.error) errorMsg = errData.error;
+        } catch (e) {}
+        throw new Error(errorMsg);
+      }
+
+      const resData = await res.json();
+      if (!resData?.token || !resData?.user) {
+        throw new Error('Réponse serveur invalide lors de l’inscription.');
+      }
+
+      const receivedToken: string = resData.token;
+      const safeUser: SafeUser = resData.user;
+
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('bebba_auth_token', receivedToken);
+      }
+
+      setToken(receivedToken);
+      setCurrentUser(safeUser);
+      setIsAuthenticated(true);
+      setAuthError(null);
+      setCurrentRole('client');
+      setIsClientAuthModalOpen(false);
+
+      showToast('Compte créé avec succès', `Bienvenue chez BEBBA Healthy Food, ${safeUser.name} !`, 'success');
+
+      return safeUser;
+    } catch (err: any) {
+      const message = err.message || 'Erreur lors de l’inscription client.';
+      setAuthError(message);
+      throw err;
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -1036,6 +1210,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         clearAuthError,
         login,
         logout,
+        loginClient,
+        registerClient,
+        isClientAuthModalOpen,
+        setIsClientAuthModalOpen,
+        clientAuthModalMode,
+        setClientAuthModalMode,
+        openClientAuth,
+        closeClientAuth,
         currentRole,
         setCurrentRole,
         activeClientTab,
