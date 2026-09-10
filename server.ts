@@ -1023,19 +1023,31 @@ async function startServer() {
         return;
       }
 
+      const { paymentStatus } = req.body;
+      if (!paymentStatus || (paymentStatus !== 'paid' && paymentStatus !== 'to_collect')) {
+        res.status(400).json({ error: 'Statut de paiement invalide.' });
+        return;
+      }
+
+      // Strict Business Rule: ON NE PEUT ENCAISSER UNE COMMANDE QU'APRÈS CONFIRMATION DE SA LIVRAISON.
+      // Even admin and assigned driver cannot set paymentStatus to 'paid' if order.status !== 'delivered'
+      if (paymentStatus === 'paid' && order.status !== 'delivered') {
+        res.status(400).json({ error: "Impossible d'encaisser une commande qui n'est pas encore livrée." });
+        return;
+      }
+
       // Driver can only confirm payment for their assigned orders and when marked as paid
       if (user.role === 'driver') {
         if (!user.driverId || order.assignedDriverId !== user.driverId) {
           res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
           return;
         }
-        if (req.body.paymentStatus !== 'paid') {
+        if (paymentStatus !== 'paid') {
           res.status(400).json({ error: 'Le livreur peut uniquement enregistrer le paiement reçu (paid).' });
           return;
         }
       }
 
-      const { paymentStatus } = req.body;
       const updated = db.updatePaymentStatus(req.params.id, paymentStatus);
       res.json(updated);
     } catch (err: any) {

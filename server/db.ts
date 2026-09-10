@@ -1649,6 +1649,9 @@ class DatabaseManager {
     if (!order) {
       throw new Error(`Commande #${orderId} introuvable.`);
     }
+    if (paymentStatus === 'paid' && order.status !== 'delivered') {
+      throw new Error("Impossible d'encaisser une commande qui n'est pas encore livrée.");
+    }
     order.paymentStatus = paymentStatus;
     this.persist();
     return order;

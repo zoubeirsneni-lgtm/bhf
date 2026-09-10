@@ -2071,7 +2071,7 @@
       "status": "received",
       "stockConsumed": false,
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "paid",
+      "paymentStatus": "to_collect",
       "statusHistory": [
         {
           "status": "received",
@@ -5064,7 +5064,7 @@
       "totalAmount": null,
       "status": "delivering",
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "paid",
+      "paymentStatus": "to_collect",
       "statusHistory": [
         {
           "status": "received",
@@ -5722,7 +5722,7 @@
       "totalAmount": null,
       "status": "delivering",
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "paid",
+      "paymentStatus": "to_collect",
       "statusHistory": [
         {
           "status": "received",
