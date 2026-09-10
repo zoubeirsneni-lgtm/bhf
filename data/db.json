@@ -2071,7 +2071,7 @@
       "status": "received",
       "stockConsumed": false,
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "to_collect",
+      "paymentStatus": "paid",
       "statusHistory": [
         {
           "status": "received",
@@ -2262,7 +2262,7 @@
       "status": "delivered",
       "stockConsumed": true,
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "to_collect",
+      "paymentStatus": "paid",
       "statusHistory": [
         {
           "status": "received",
@@ -2802,7 +2802,7 @@
       "status": "delivered",
       "stockConsumed": true,
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "to_collect",
+      "paymentStatus": "paid",
       "statusHistory": [
         {
           "status": "received",
@@ -3196,7 +3196,7 @@
       "status": "delivered",
       "stockConsumed": true,
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "to_collect",
+      "paymentStatus": "paid",
       "statusHistory": [
         {
           "status": "received",

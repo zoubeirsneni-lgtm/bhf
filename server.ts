@@ -1005,9 +1005,21 @@ async function startServer() {
         return;
       }
 
+      // Clients are strictly forbidden from modifying payment status
+      if (user.role === 'client') {
+        res.status(403).json({ error: 'Accès refusé : Les clients ne sont pas autorisés à modifier le statut de paiement.' });
+        return;
+      }
+
       // Kitchen is strictly forbidden from modifying payment
       if (user.role === 'kitchen') {
         res.status(403).json({ error: 'Accès refusé : La cuisine n’a pas l’autorisation de modifier le statut de paiement.' });
+        return;
+      }
+
+      // Only admin and driver are permitted
+      if (user.role !== 'admin' && user.role !== 'driver') {
+        res.status(403).json({ error: 'Accès refusé : Vous n’avez pas l’autorisation de modifier le statut de paiement.' });
         return;
       }
 
