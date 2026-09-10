@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Order } from '../../types';
 import {
@@ -12,17 +12,34 @@ import {
   CheckCircle2,
   AlertCircle,
   Copy,
-  Check
+  Check,
+  ArrowLeft
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onBackToCart?: () => void;
 }
 
-export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose }) => {
-  const { cart, cartTotal, createOrder, setActiveTrackingToken, setActiveClientTab } = useApp();
+export const CheckoutModal: React.FC<CheckoutModalProps> = ({
+  isOpen,
+  onClose,
+  onBackToCart
+}) => {
+  const {
+    cart,
+    cartTotal,
+    createOrder,
+    setActiveTrackingToken,
+    setActiveClientTab,
+    currentUser,
+    isAuthenticated,
+    setIsCartOpen
+  } = useApp();
+
+  const isClient = Boolean(isAuthenticated && currentUser && currentUser.role === 'client');
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('+216 ');
@@ -37,18 +54,45 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // Synchronisation des coordonnées à l'ouverture du checkout
+  useEffect(() => {
+    if (isOpen) {
+      if (isClient && currentUser) {
+        // Client connecté : pré-remplissage automatique des données du compte
+        setName(currentUser.name || '');
+        setPhone(currentUser.phone || '+216 ');
+        // Si currentUser.address existe, l'utiliser comme adresse initiale
+        setAddress(currentUser.address || '');
+      } else {
+        // Visiteur / Invité : initialiser les champs s'ils étaient vides
+        if (!name && (!phone || phone === '+216 ') && !address) {
+          setName('');
+          setPhone('+216 ');
+          setAddress('');
+        }
+      }
+      setFieldErrors({});
+      setErrorMsg(null);
+    }
+  }, [isOpen, isClient, currentUser]);
+
   if (!isOpen) return null;
 
   const handleClose = () => {
     setConfirmedOrder(null);
     setCopiedCode(false);
-    setName('');
-    setPhone('+216 ');
-    setAddress('');
-    setNotes('');
     setFieldErrors({});
     setErrorMsg(null);
     onClose();
+  };
+
+  const handleBackToCart = () => {
+    if (onBackToCart) {
+      onBackToCart();
+    } else {
+      setIsCartOpen(true);
+      onClose();
+    }
   };
 
   const handleGoToTracking = () => {
@@ -87,7 +131,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
 
     const errors: { phone?: string; address?: string } = {};
 
-    // Règle métier : Le nom/prénom est FACULTATIF.
+    // Règle métier : Le nom/prénom est FACULTATIF pour les invités.
     // Seuls le téléphone et l'adresse de livraison sont obligatoires.
 
     // 1. Contrôle du téléphone (minimum 8 chiffres utiles hors indicatif ou format standard)
@@ -115,7 +159,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
       setIsSubmitting(true);
       const newOrder = await createOrder({
         client: {
-          name: name.trim() || 'Client',
+          name: name.trim() || (isClient && currentUser?.name ? currentUser.name : 'Client'),
           phone: phone.trim(),
           deliveryAddress: address.trim(),
           notes: notes.trim() || undefined
@@ -258,20 +302,31 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
         id="checkout-modal"
         className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-stone-200 overflow-hidden flex flex-col max-h-[95vh]"
       >
-        {/* Header */}
+        {/* Header with Back to Cart button */}
         <div className="p-5 bg-stone-900 text-white flex items-center justify-between flex-shrink-0">
-          <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-              Étape finale
-            </span>
-            <h2 className="text-xl font-bold font-display">
-              Validation de la Commande
-            </h2>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              id="header-back-to-cart-btn"
+              onClick={handleBackToCart}
+              title="Retour au panier"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-800 text-stone-300 hover:text-white hover:bg-stone-700 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                Étape finale
+              </span>
+              <h2 className="text-xl font-bold font-display">
+                Validation de la Commande
+              </h2>
+            </div>
           </div>
           <button
             id="close-checkout-modal-btn"
             onClick={handleClose}
-            className="w-11 h-11 flex items-center justify-center rounded-full bg-stone-800 text-stone-300 hover:text-white hover:bg-stone-700 transition-colors cursor-pointer"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-stone-800 text-stone-300 hover:text-white hover:bg-stone-700 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -287,13 +342,39 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* Quick Notice: No Account Needed */}
-          <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-xs flex items-center gap-2.5">
-            <ShieldCheck className="w-5 h-5 text-emerald-700 flex-shrink-0" />
-            <span>
-              <strong>Commande Express :</strong> Aucun compte requis. Votre code de suivi sécurisé vous sera délivré immédiatement.
-            </span>
-          </div>
+          {/* Connected Client Notice vs Guest Express Notice */}
+          {isClient ? (
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 text-xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs flex-shrink-0">
+                  {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : 'C'}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-extrabold text-stone-900 truncate">
+                      {currentUser?.name || 'Client BEBBA'}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                      Client connecté
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-600 font-mono">
+                    Identifiant : {currentUser?.phone}
+                  </p>
+                </div>
+              </div>
+              <div className="text-[11px] text-emerald-700 font-semibold flex-shrink-0 text-right hidden sm:block">
+                Coordonnées du compte utilisées
+              </div>
+            </div>
+          ) : (
+            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200/80 text-emerald-900 text-xs flex items-center gap-2.5">
+              <ShieldCheck className="w-5 h-5 text-emerald-700 flex-shrink-0" />
+              <span>
+                <strong>Commande Express :</strong> Aucun compte requis. Renseignez vos coordonnées ci-dessous pour la livraison.
+              </span>
+            </div>
+          )}
 
           {/* Contact & Delivery Details Group */}
           <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-4">
@@ -304,12 +385,19 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
               </span>
             </div>
 
-            {/* Full Name (Facultatif) */}
+            {/* Full Name */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <User className="w-3.5 h-3.5 text-stone-500" />
-                  <span>Nom et Prénom <span className="text-stone-400 font-normal text-[11px]">(Facultatif)</span></span>
+                  <span>
+                    Nom et Prénom{' '}
+                    {isClient ? (
+                      <span className="text-emerald-700 font-semibold text-[11px]">(Du compte)</span>
+                    ) : (
+                      <span className="text-stone-400 font-normal text-[11px]">(Facultatif)</span>
+                    )}
+                  </span>
                 </span>
               </label>
               <input
@@ -322,7 +410,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
               />
             </div>
 
-            {/* Phone */}
+            {/* Phone (Identifiant) */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-stone-800 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
@@ -359,7 +447,9 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                 </p>
               ) : (
                 <p className="text-[11px] text-stone-500">
-                  Indispensable : le livreur vous appellera sur ce numéro dès son arrivée.
+                  {isClient
+                    ? 'Numéro de contact associé à votre compte BEBBA pour la livraison.'
+                    : 'Indispensable : le livreur vous appellera sur ce numéro dès son arrivée.'}
                 </p>
               )}
             </div>
@@ -388,18 +478,26 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
                     setFieldErrors(prev => ({ ...prev, address: undefined }));
                   }
                 }}
-                placeholder="Ex: Rue du Lac Biwa, Résidence Émeraude, Bloc B, Apt 12, Les Berges du Lac"
+                placeholder={
+                  isClient && !currentUser?.address
+                    ? 'Renseignez votre adresse de livraison pour cette commande...'
+                    : 'Ex: Rue du Lac Biwa, Résidence Émeraude, Bloc B, Apt 12, Les Berges du Lac'
+                }
                 className={`w-full px-3.5 py-2.5 rounded-xl text-sm focus:outline-none transition-colors ${
                   fieldErrors.address
                     ? 'border-2 border-rose-500 bg-rose-50/20 text-stone-900 focus:ring-2 focus:ring-rose-400'
                     : 'border border-stone-300 bg-white focus:ring-2 focus:ring-emerald-500'
                 }`}
               />
-              {fieldErrors.address && (
+              {fieldErrors.address ? (
                 <p className="text-[11px] font-semibold text-rose-600">
                   {fieldErrors.address}
                 </p>
-              )}
+              ) : isClient && currentUser?.address ? (
+                <p className="text-[11px] text-emerald-700 font-medium">
+                  Adresse de livraison pré-remplie depuis votre compte. Modifiable pour cette commande.
+                </p>
+              ) : null}
             </div>
 
             {/* Notes for Driver */}
@@ -467,7 +565,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
           {/* Order Summary Recap */}
           <div className="p-3.5 rounded-2xl bg-stone-100 text-xs space-y-1.5 text-stone-600">
             <div className="flex justify-between font-medium">
-              <span>Sous-total plats ({cart.length} articles) :</span>
+              <span>Sous-total plats ({cart.length} article{cart.length > 1 ? 's' : ''}) :</span>
               <span>{cartTotal.toFixed(1)} DT</span>
             </div>
             <div className="flex justify-between font-medium">
@@ -480,21 +578,35 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-          {/* Final submit button */}
-          <button
-            type="submit"
-            id="confirm-order-submit-btn"
-            disabled={isSubmitting}
-            className="w-full min-h-[48px] py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-base shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-          >
-            {isSubmitting ? (
-              <span>Transmission de la commande...</span>
-            ) : (
-              <span>CONFIRMER LA COMMANDE ({grandTotal.toFixed(1)} DT)</span>
-            )}
-          </button>
+          {/* Action buttons: Valider la commande + Modifier ma commande / Retour au panier */}
+          <div className="space-y-2.5 pt-2">
+            <button
+              type="submit"
+              id="confirm-order-submit-btn"
+              disabled={isSubmitting}
+              className="w-full min-h-[48px] py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-base shadow-lg shadow-emerald-900/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
+            >
+              {isSubmitting ? (
+                <span>Validation de la commande en cours...</span>
+              ) : (
+                <span>Valider la commande ({grandTotal.toFixed(1)} DT)</span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              id="back-to-cart-btn"
+              onClick={handleBackToCart}
+              disabled={isSubmitting}
+              className="w-full min-h-[44px] py-3 px-4 rounded-2xl bg-stone-100 hover:bg-stone-200 active:bg-stone-300 text-stone-700 font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Modifier ma commande / Retour au panier</span>
+            </button>
+          </div>
         </form>
       </div>
     </div>
   );
 };
+

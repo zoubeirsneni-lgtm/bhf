@@ -240,6 +240,10 @@ export const CartDrawer: React.FC = () => {
       <CheckoutModal
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
+        onBackToCart={() => {
+          setIsCheckoutModalOpen(false);
+          setIsCartOpen(true);
+        }}
       />
     </>
   );
