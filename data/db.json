@@ -1986,7 +1986,7 @@
       "phone": "+216 98 123 456",
       "vehicle": "Scooter Honda 125cc (Rapide)",
       "active": true,
-      "totalDeliveries": 147,
+      "totalDeliveries": 146,
       "rating": 4.9
     },
     {
@@ -2602,10 +2602,10 @@
       "subtotal": 14.5,
       "deliveryFee": 2.5,
       "totalAmount": 17,
-      "status": "delivered",
+      "status": "delivering",
       "stockConsumed": true,
       "paymentMethod": "cash_on_delivery",
-      "paymentStatus": "paid",
+      "paymentStatus": "to_collect",
       "statusHistory": [
         {
           "status": "received",
@@ -2641,13 +2641,6 @@
           "timestamp": "2026-09-03T13:48:18.320Z",
           "note": "",
           "updatedBy": "Équipe BEBBA"
-        },
-        {
-          "status": "delivered",
-          "label": "Commande livrée au client",
-          "timestamp": "2026-09-10T13:00:01.830Z",
-          "note": "Remise physique effectuée au client par le livreur Sami Trabelsi",
-          "updatedBy": "Sami Trabelsi (Livreur)"
         }
       ],
       "assignedDriverId": "drv-1",
@@ -9065,7 +9058,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-10T13:20:03.898Z"
+      "lastLoginAt": "2026-09-08T21:03:34.991Z"
     },
     {
       "id": "usr-kitchen-1",
@@ -9077,7 +9070,7 @@
       "active": true,
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
-      "lastLoginAt": "2026-09-10T13:20:04.007Z"
+      "lastLoginAt": "2026-09-08T20:12:45.358Z"
     },
     {
       "id": "usr-driver-1",
@@ -9090,7 +9083,7 @@
       "createdAt": "2026-09-01T08:13:06.548Z",
       "updatedAt": "2026-09-01T08:13:06.548Z",
       "driverId": "drv-1",
-      "lastLoginAt": "2026-09-10T12:59:35.873Z"
+      "lastLoginAt": "2026-09-02T16:11:25.066Z"
     },
     {
       "id": "usr-driver-2",
@@ -9116,6 +9109,18 @@
       "active": true,
       "createdAt": "2026-09-01T08:27:47.987Z",
       "updatedAt": "2026-09-01T08:27:47.987Z"
+    },
+    {
+      "id": "usr-1788252052142",
+      "username": "agent_test_audit",
+      "name": "Agent Audit",
+      "phone": "",
+      "passwordHash": "$2b$10$oo9fHLAEs45lD3yrBEbFVOibnSy2yqsoJn3Ydu/J6p2Z9roUR96l6",
+      "role": "kitchen",
+      "active": true,
+      "createdAt": "2026-09-01T08:40:52.142Z",
+      "updatedAt": "2026-09-01T08:40:52.142Z",
+      "lastLoginAt": "2026-09-01T08:40:52.263Z"
     }
   ],
   "nextOrderSeq": 1101
