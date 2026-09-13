@@ -559,8 +559,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setSuppliers([]);
       setStats(null);
 
-      // Revert view to client
+      // Revert view and client navigation state to home menu
       setCurrentRole('client');
+      setActiveClientTab('menu');
+      backToMenu();
       showToast('Déconnexion', 'Vous avez été déconnecté de l’espace personnel.', 'info');
     }
   };

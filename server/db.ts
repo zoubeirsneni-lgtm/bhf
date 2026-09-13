@@ -819,10 +819,13 @@ class DatabaseManager {
     itemPrice: number;
     unitPrice: number;
     itemTotalPrice: number;
+    resolvedProteinOption?: { label: string; extraPrice: number; extraGrams: number };
+    resolvedVeggiesOption?: { label: string; extraPrice: number; extraGrams: number };
+    resolvedBaseChoice?: { label: string; extraPrice: number };
   } {
-    let actualProteinOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
-    let actualVeggiesOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
-    let actualBaseChoice: { label: string; extraPrice: number } | undefined = undefined;
+    let inputProteinOption: any = undefined;
+    let inputVeggiesOption: any = undefined;
+    let inputBaseChoice: any = undefined;
     let actualSupplements: Array<{ id?: string; supplementId?: string; quantity: number }> = [];
     let actualSpecialInstructions: string | undefined = undefined;
     let quantityMultiplier = 1;
@@ -836,19 +839,80 @@ class DatabaseManager {
         'baseChoice' in proteinOptionOrOptions ||
         'veggiesOption' in proteinOptionOrOptions)
     ) {
-      actualProteinOption = proteinOptionOrOptions.proteinOption;
-      actualVeggiesOption = proteinOptionOrOptions.veggiesOption;
-      actualBaseChoice = proteinOptionOrOptions.baseChoice;
+      inputProteinOption = proteinOptionOrOptions.proteinOption;
+      inputVeggiesOption = proteinOptionOrOptions.veggiesOption;
+      inputBaseChoice = proteinOptionOrOptions.baseChoice;
       actualSupplements = proteinOptionOrOptions.supplements || [];
       actualSpecialInstructions = proteinOptionOrOptions.specialInstructions;
       quantityMultiplier = Number(proteinOptionOrOptions.quantity) || 1;
     } else {
-      actualProteinOption = proteinOptionOrOptions;
-      actualVeggiesOption = veggiesOption;
-      actualBaseChoice = baseChoice;
+      inputProteinOption = proteinOptionOrOptions;
+      inputVeggiesOption = veggiesOption;
+      inputBaseChoice = baseChoice;
       actualSupplements = supplements || [];
       actualSpecialInstructions = specialInstructions;
       quantityMultiplier = 1;
+    }
+
+    // --- RÉSOLUTION ET VALIDATION STRICTE CÔTÉ SERVEUR DES OPTIONS DE PERSONNALISATION ---
+    // Les valeurs extraPrice et extraGrams proviennent EXCLUSIVEMENT de product.customization
+    let actualProteinOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
+    if (inputProteinOption) {
+      const requestedLabel = (typeof inputProteinOption === 'object' ? inputProteinOption.label : String(inputProteinOption))?.trim();
+      if (requestedLabel) {
+        const officialOptions = product.customization?.proteinOptions || [];
+        const matched = officialOptions.find(
+          opt => opt.label.trim().toLowerCase() === requestedLabel.toLowerCase()
+        );
+        if (!matched) {
+          throw new Error(`L'option de portion de protéine "${requestedLabel}" n'est pas autorisée pour le plat "${product.name}".`);
+        }
+        // Autorité serveur stricte : récupération exclusive des valeurs officielles du produit
+        actualProteinOption = {
+          label: matched.label,
+          extraPrice: Math.max(0, Number(matched.extraPrice) || 0),
+          extraGrams: Math.max(0, Number(matched.extraGrams) || 0)
+        };
+      }
+    }
+
+    let actualVeggiesOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
+    if (inputVeggiesOption) {
+      const requestedLabel = (typeof inputVeggiesOption === 'object' ? inputVeggiesOption.label : String(inputVeggiesOption))?.trim();
+      if (requestedLabel) {
+        const officialOptions = product.customization?.veggiesOptions || [];
+        const matched = officialOptions.find(
+          opt => opt.label.trim().toLowerCase() === requestedLabel.toLowerCase()
+        );
+        if (!matched) {
+          throw new Error(`L'option de portion de légumes "${requestedLabel}" n'est pas autorisée pour le plat "${product.name}".`);
+        }
+        // Autorité serveur stricte : récupération exclusive des valeurs officielles du produit
+        actualVeggiesOption = {
+          label: matched.label,
+          extraPrice: Math.max(0, Number(matched.extraPrice) || 0),
+          extraGrams: Math.max(0, Number(matched.extraGrams) || 0)
+        };
+      }
+    }
+
+    let actualBaseChoice: { label: string; extraPrice: number } | undefined = undefined;
+    if (inputBaseChoice) {
+      const requestedLabel = (typeof inputBaseChoice === 'object' ? inputBaseChoice.label : String(inputBaseChoice))?.trim();
+      if (requestedLabel) {
+        const officialChoices = product.customization?.baseChoices || [];
+        const matched = officialChoices.find(
+          choice => choice.label.trim().toLowerCase() === requestedLabel.toLowerCase()
+        );
+        if (!matched) {
+          throw new Error(`Le choix d'accompagnement/base "${requestedLabel}" n'est pas autorisé pour le plat "${product.name}".`);
+        }
+        // Autorité serveur stricte : récupération exclusive des valeurs officielles du produit
+        actualBaseChoice = {
+          label: matched.label,
+          extraPrice: Math.max(0, Number(matched.extraPrice) || 0)
+        };
+      }
     }
 
     const ingredientMap = new Map<string, { name: string; quantity: number; unit: string }>();
@@ -1036,7 +1100,10 @@ class DatabaseManager {
       enrichedSupplements,
       itemPrice: unitPrice,
       unitPrice,
-      itemTotalPrice
+      itemTotalPrice,
+      resolvedProteinOption: actualProteinOption,
+      resolvedVeggiesOption: actualVeggiesOption,
+      resolvedBaseChoice: actualBaseChoice
     };
   }
 
@@ -1192,7 +1259,16 @@ class DatabaseManager {
           ingredientsMap
         );
 
-        const qty = Math.max(1, rawItem.quantity || 1);
+        if (
+          typeof rawItem.quantity !== 'number' ||
+          !Number.isInteger(rawItem.quantity) ||
+          rawItem.quantity < 1 ||
+          rawItem.quantity > 100
+        ) {
+          throw new Error(`La quantité pour le plat "${product.name}" doit être un nombre entier compris entre 1 et 100 (reçu: ${rawItem.quantity}).`);
+        }
+
+        const qty = rawItem.quantity;
         const itemTotalPrice = Math.round(prep.itemPrice * qty * 10) / 10;
         subtotal += itemTotalPrice;
 
@@ -1202,9 +1278,9 @@ class DatabaseManager {
           productName: product.name,
           unitPrice: prep.itemPrice,
           quantity: qty,
-          proteinOption: rawItem.proteinOption,
-          veggiesOption: rawItem.veggiesOption,
-          baseChoice: rawItem.baseChoice,
+          proteinOption: prep.resolvedProteinOption,
+          veggiesOption: prep.resolvedVeggiesOption,
+          baseChoice: prep.resolvedBaseChoice,
           supplements: prep.enrichedSupplements,
           specialInstructions: rawItem.specialInstructions,
           itemTotalPrice: itemTotalPrice,
