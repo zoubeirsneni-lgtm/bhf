@@ -113,6 +113,7 @@ interface AppContextType {
   refreshAllData: () => Promise<void>;
   createOrder: (payload: {
     client: { name: string; phone: string; deliveryAddress: string; notes?: string };
+    idempotencyKey?: string;
   }) => Promise<Order>;
   updateOrderStatus: (orderId: string, status: OrderStatus, note?: string, updatedBy?: string, assignedDriverId?: string) => Promise<Order>;
   assignDriverToOrder: (orderId: string, driverId: string) => Promise<Order>;
@@ -843,6 +844,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Order actions (Public / Client)
   const createOrder = async (payload: {
     client: { name: string; phone: string; deliveryAddress: string; notes?: string };
+    idempotencyKey?: string;
   }): Promise<Order> => {
     const orderItemsPayload = cart.map(item => ({
       productId: item.product.id,
@@ -854,13 +856,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       specialInstructions: item.specialInstructions
     }));
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+
+    if (payload.idempotencyKey) {
+      headers['Idempotency-Key'] = payload.idempotencyKey;
+    }
+
     const response = await fetch('/api/orders', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
+      headers,
       body: JSON.stringify({
         client: payload.client,
         items: orderItemsPayload
@@ -877,6 +885,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
 
     const createdOrder: Order = await response.json();
+
     clearCart();
     setIsCartOpen(false);
     setActiveTrackingToken(createdOrder.trackingToken);

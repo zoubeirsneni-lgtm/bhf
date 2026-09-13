@@ -83,7 +83,7 @@ export function verifyToken(token: string): TokenPayload | null {
  * 4. Attaches safe user object to req.user
  * 5. Returns 401 on missing, invalid, or inactive user
  */
-export function authenticateUser(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+export async function authenticateUser(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -103,15 +103,19 @@ export function authenticateUser(req: AuthenticatedRequest, res: Response, next:
     return;
   }
 
-  const user = db.getUserById(payload.id);
-  if (!user || !user.active) {
-    res.status(401).json({ error: 'Accès non autorisé : Utilisateur inexistant ou désactivé.' });
-    return;
-  }
+  try {
+    const user = await db.getUserById(payload.id);
+    if (!user || !user.active) {
+      res.status(401).json({ error: 'Accès non autorisé : Utilisateur inexistant ou désactivé.' });
+      return;
+    }
 
-  // Attach the authenticated safe user to the request
-  req.user = sanitizeUser(user);
-  next();
+    // Attach the authenticated safe user to the request
+    req.user = sanitizeUser(user);
+    next();
+  } catch (err: any) {
+    res.status(503).json({ error: 'Base de données temporairement indisponible.' });
+  }
 }
 
 /**

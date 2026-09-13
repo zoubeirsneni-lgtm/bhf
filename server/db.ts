@@ -1,7 +1,22 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import bcrypt from 'bcryptjs';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import {
+  getFirestore,
+  Firestore,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  collection,
+  getDocs,
+  query,
+  where,
+  runTransaction,
+  writeBatch
+} from 'firebase/firestore';
 import {
   Category,
   Ingredient,
@@ -18,32 +33,6 @@ import {
   PreparationIngredient,
   User
 } from '../src/types';
-import {
-  initialCategories,
-  initialSuppliers,
-  initialIngredients,
-  initialSupplements,
-  initialProducts,
-  initialDrivers,
-  initialOrders,
-  initialStockMovements
-} from './seedData';
-
-interface DatabaseSchema {
-  categories: Category[];
-  suppliers: Supplier[];
-  ingredients: Ingredient[];
-  supplements: Supplement[];
-  products: Product[];
-  drivers: Driver[];
-  orders: Order[];
-  stockMovements: StockMovement[];
-  users: User[];
-  nextOrderSeq: number;
-}
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 export interface InsufficientStockDetail {
   ingredientId: string;
@@ -69,6 +58,38 @@ export class InsufficientStockError extends Error {
   }
 }
 
+export class IdempotencyConflictError extends Error {
+  public statusCode = 422;
+  constructor(message = 'Conflit d’idempotence : La clé fournie est associée à un contenu de commande différent.') {
+    super(message);
+    this.name = 'IdempotencyConflictError';
+  }
+}
+
+export class IdempotencyForbiddenError extends Error {
+  public statusCode = 403;
+  constructor(message = 'Accès refusé : La clé d’idempotence appartient à un autre émetteur.') {
+    super(message);
+    this.name = 'IdempotencyForbiddenError';
+  }
+}
+
+export class IdempotencyInconsistencyError extends Error {
+  public statusCode = 500;
+  constructor(message = 'Incohérence technique d’idempotence : enregistrement d’idempotence référençant une commande inexistante.') {
+    super(message);
+    this.name = 'IdempotencyInconsistencyError';
+  }
+}
+
+export class SystemNotReadyError extends Error {
+  public statusCode = 503;
+  constructor(message = 'Système temporairement indisponible (migration en cours ou maintenance).') {
+    super(message);
+    this.name = 'SystemNotReadyError';
+  }
+}
+
 /**
  * Normalisation standard du numéro de téléphone pour BEBBA.
  * Conserve les 8 derniers chiffres utiles pour les comparaisons fiables.
@@ -80,209 +101,79 @@ export function normalizePhoneNumber(phoneRaw: string): string | null {
   return digits.slice(-8);
 }
 
+/**
+ * Normalisation standard de l'adresse de livraison pour BEBBA.
+ * Élimine les espaces superflus et standardise la casse.
+ */
+export function normalizeAddress(addr: string | null | undefined): string {
+  if (!addr || typeof addr !== 'string') return '';
+  return addr.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+/**
+ * Nettoie récursivement tout champ 'undefined' car Firestore interdit les valeurs undefined.
+ */
+export function stripUndefined<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) {
+    return obj.map(item => stripUndefined(item)) as any;
+  }
+  if (typeof obj === 'object' && !(obj instanceof Date)) {
+    const clean: any = {};
+    for (const key of Object.keys(obj)) {
+      const val = (obj as any)[key];
+      if (val !== undefined) {
+        clean[key] = stripUndefined(val);
+      }
+    }
+    return clean;
+  }
+  return obj;
+}
+
+// Initialisation unique du SDK Firestore
+const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
+if (!fs.existsSync(configPath)) {
+  console.error('[DatabaseManager] ERREUR CRITIQUE: firebase-applet-config.json introuvable.');
+}
+
+const firebaseConfig = fs.existsSync(configPath)
+  ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
+  : null;
+
+const firebaseApp = firebaseConfig
+  ? (!getApps().length ? initializeApp(firebaseConfig) : getApp())
+  : null;
+
+const firestore: Firestore | null = firebaseApp
+  ? getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId)
+  : null;
+
 class DatabaseManager {
-  private data: DatabaseSchema;
-  private isLoaded = false;
-
-  constructor() {
-    this.data = this.getDefaultData();
-    this.init();
+  private getDb(): Firestore {
+    if (!firestore) {
+      throw new Error('Base de données Firestore non initialisée.');
+    }
+    return firestore;
   }
 
-  private getDefaultUsers(): User[] {
-    const adminUsername = (process.env.INITIAL_ADMIN_USERNAME || 'admin').trim().toLowerCase();
-    const adminPassword = process.env.INITIAL_ADMIN_PASSWORD;
-    const kitchenPassword = process.env.INITIAL_KITCHEN_PASSWORD;
-    const driverPassword = process.env.INITIAL_DRIVER_PASSWORD;
-
-    if (!adminPassword || adminPassword.trim() === '') {
-      throw new Error("Variable d'environnement INITIAL_ADMIN_PASSWORD obligatoire manquante pour initialiser le compte administrateur.");
+  // --- Contrôle du statut du système ---
+  public async getSystemState(): Promise<string> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'meta', 'system'));
+    if (!snap.exists()) {
+      return 'NOT_STARTED';
     }
-
-    const now = new Date().toISOString();
-
-    const users: User[] = [
-      {
-        id: 'usr-admin-1',
-        username: adminUsername,
-        name: 'Administrateur BEBBA',
-        phone: '+216 71 000 001',
-        passwordHash: bcrypt.hashSync(adminPassword, 10),
-        role: 'admin',
-        active: true,
-        createdAt: now,
-        updatedAt: now
-      }
-    ];
-
-    if (kitchenPassword && kitchenPassword.trim() !== '') {
-      users.push({
-        id: 'usr-kitchen-1',
-        username: 'cuisine',
-        name: 'Chef de Cuisine BEBBA',
-        phone: '+216 71 000 002',
-        passwordHash: bcrypt.hashSync(kitchenPassword, 10),
-        role: 'kitchen',
-        active: true,
-        createdAt: now,
-        updatedAt: now
-      });
-    }
-
-    if (driverPassword && driverPassword.trim() !== '') {
-      users.push(
-        {
-          id: 'usr-driver-1',
-          username: 'livreur1',
-          name: 'Yassine Ben Amor',
-          phone: '+216 98 123 456',
-          passwordHash: bcrypt.hashSync(driverPassword, 10),
-          role: 'driver',
-          driverId: 'drv-1',
-          active: true,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: 'usr-driver-2',
-          username: 'livreur2',
-          name: 'Amine Trabelsi',
-          phone: '+216 55 987 654',
-          passwordHash: bcrypt.hashSync(driverPassword, 10),
-          role: 'driver',
-          driverId: 'drv-2',
-          active: true,
-          createdAt: now,
-          updatedAt: now
-        },
-        {
-          id: 'usr-driver-3',
-          username: 'livreur3',
-          name: 'Karim Bouazizi',
-          phone: '+216 22 456 789',
-          passwordHash: bcrypt.hashSync(driverPassword, 10),
-          role: 'driver',
-          driverId: 'drv-3',
-          active: true,
-          createdAt: now,
-          updatedAt: now
-        }
-      );
-    }
-
-    return users;
-  }
-
-  private getDefaultData(): DatabaseSchema {
-    return {
-      categories: JSON.parse(JSON.stringify(initialCategories)),
-      suppliers: JSON.parse(JSON.stringify(initialSuppliers)),
-      ingredients: JSON.parse(JSON.stringify(initialIngredients)),
-      supplements: JSON.parse(JSON.stringify(initialSupplements)),
-      products: JSON.parse(JSON.stringify(initialProducts)),
-      drivers: JSON.parse(JSON.stringify(initialDrivers)),
-      orders: JSON.parse(JSON.stringify(initialOrders)),
-      stockMovements: JSON.parse(JSON.stringify(initialStockMovements)),
-      users: [],
-      nextOrderSeq: 1050
-    };
-  }
-
-  private init() {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      if (fs.existsSync(DB_FILE)) {
-        const fileContent = fs.readFileSync(DB_FILE, 'utf-8');
-        const parsed = JSON.parse(fileContent);
-        this.data = {
-          ...this.getDefaultData(),
-          ...parsed
-        };
-
-        // Ensure default categories, ingredients, supplements, and products are present
-        let dataUpdated = false;
-
-        initialCategories.forEach(cat => {
-          if (!this.data.categories.some(c => c.id === cat.id)) {
-            this.data.categories.push(cat);
-            dataUpdated = true;
-          }
-        });
-
-        initialIngredients.forEach(ing => {
-          if (!this.data.ingredients.some(i => i.id === ing.id)) {
-            this.data.ingredients.push(ing);
-            dataUpdated = true;
-          }
-        });
-
-        initialSupplements.forEach(sup => {
-          if (!this.data.supplements.some(s => s.id === sup.id)) {
-            this.data.supplements.push(sup);
-            dataUpdated = true;
-          }
-        });
-
-        initialProducts.forEach(prod => {
-          if (!this.data.products.some(p => p.id === prod.id)) {
-            this.data.products.push(prod);
-            dataUpdated = true;
-          }
-        });
-
-        // If users collection does not exist or is empty in db.json, initialize with default users
-        if (!this.data.users || this.data.users.length === 0) {
-          this.data.users = this.getDefaultUsers();
-          dataUpdated = true;
-        } else {
-          this.data.users.forEach(u => {
-            if (u.role === 'driver' && !u.driverId) {
-              if (u.username === 'livreur1') { u.driverId = 'drv-1'; dataUpdated = true; }
-              else if (u.username === 'livreur2') { u.driverId = 'drv-2'; dataUpdated = true; }
-              else if (u.username === 'livreur3') { u.driverId = 'drv-3'; dataUpdated = true; }
-            }
-          });
-        }
-
-        if (dataUpdated) {
-          this.persist();
-        }
-      } else {
-        // Fresh database creation: initialize with default users from environment
-        this.data.users = this.getDefaultUsers();
-        this.persist();
-      }
-      this.isLoaded = true;
-    } catch (err) {
-      console.error('[DB Initialization Error]:', err);
-      throw err;
-    }
-  }
-
-  private persist() {
-    try {
-      if (!fs.existsSync(DATA_DIR)) {
-        fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-      fs.writeFileSync(DB_FILE, JSON.stringify(this.data, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Error persisting database to disk:', err);
-      throw err;
-    }
-  }
-
-  public resetToDefaults() {
-    this.data = this.getDefaultData();
-    this.data.users = this.getDefaultUsers();
-    this.persist();
-    return this.data;
+    return snap.data()?.state || 'NOT_STARTED';
   }
 
   // --- Categories ---
-  public getCategories(options?: { activeOnly?: boolean }): Category[] {
-    let cats = [...this.data.categories];
+  public async getCategories(options?: { activeOnly?: boolean }): Promise<Category[]> {
+    const db = this.getDb();
+    const snap = await getDocs(collection(db, 'categories'));
+    let cats: Category[] = [];
+    snap.forEach(d => cats.push(d.data() as Category));
+
     if (options?.activeOnly) {
       cats = cats.filter(c => c.active);
     }
@@ -293,21 +184,29 @@ class DatabaseManager {
     });
   }
 
-  public getCategoryById(id: string): Category | undefined {
-    return this.data.categories.find(c => c.id === id);
+  public async getCategoryById(id: string): Promise<Category | undefined> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'categories', id));
+    return snap.exists() ? (snap.data() as Category) : undefined;
   }
 
-  public saveCategory(category: Partial<Category> & { name: string }): Category {
+  public async saveCategory(category: Partial<Category> & { name: string }): Promise<Category> {
     if (!category.name || typeof category.name !== 'string' || !category.name.trim()) {
       throw new Error('Le nom de la catégorie est obligatoire.');
     }
 
+    const db = this.getDb();
     const now = new Date().toISOString();
-    const sortOrder = category.sortOrder !== undefined ? Number(category.sortOrder) : (category.order !== undefined ? Number(category.order) : this.data.categories.length + 1);
+    const id = category.id || 'cat-' + Date.now();
+    const existing = await this.getCategoryById(id);
+
+    const sortOrder = category.sortOrder !== undefined
+      ? Number(category.sortOrder)
+      : (category.order !== undefined ? Number(category.order) : 10);
     const slug = category.slug || category.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
     const completeCategory: Category = {
-      id: category.id || 'cat-' + Date.now(),
+      id,
       name: category.name.trim(),
       slug: slug || 'cat-item',
       icon: category.icon || 'Utensils',
@@ -317,126 +216,117 @@ class DatabaseManager {
       active: category.active !== false,
       order: sortOrder,
       sortOrder: sortOrder,
-      createdAt: category.createdAt || now,
+      createdAt: existing?.createdAt || category.createdAt || now,
       updatedAt: now
     };
 
-    const idx = this.data.categories.findIndex(c => c.id === completeCategory.id);
-    if (idx >= 0) {
-      completeCategory.createdAt = this.data.categories[idx].createdAt || now;
-      this.data.categories[idx] = completeCategory;
-    } else {
-      this.data.categories.push(completeCategory);
-    }
-
-    this.persist();
+    await setDoc(doc(db, 'categories', completeCategory.id), completeCategory);
     return completeCategory;
   }
 
-  public deleteCategory(id: string): boolean {
-    // Check if any product is assigned to this category
-    const hasProducts = this.data.products.some(p => p.categoryId === id);
-    if (hasProducts) {
+  public async deleteCategory(id: string): Promise<boolean> {
+    const db = this.getDb();
+    const prodsSnap = await getDocs(query(collection(db, 'products'), where('categoryId', '==', id)));
+    if (!prodsSnap.empty) {
       throw new Error('Impossible de supprimer cette catégorie car des produits y sont rattachés.');
     }
 
-    const initialLen = this.data.categories.length;
-    this.data.categories = this.data.categories.filter(c => c.id !== id);
-    if (this.data.categories.length !== initialLen) {
-      this.persist();
-      return true;
-    }
-    return false;
+    await deleteDoc(doc(db, 'categories', id));
+    return true;
   }
 
   // --- Suppliers ---
-  public getSuppliers(): Supplier[] {
-    return this.data.suppliers;
+  public async getSuppliers(): Promise<Supplier[]> {
+    const db = this.getDb();
+    const snap = await getDocs(collection(db, 'suppliers'));
+    const list: Supplier[] = [];
+    snap.forEach(d => list.push(d.data() as Supplier));
+    return list;
   }
 
-  public saveSupplier(supplier: Supplier): Supplier {
-    const idx = this.data.suppliers.findIndex(s => s.id === supplier.id);
-    if (idx >= 0) {
-      this.data.suppliers[idx] = supplier;
-    } else {
-      if (!supplier.id) supplier.id = 'sup-' + Date.now();
-      this.data.suppliers.push(supplier);
-    }
-    this.persist();
+  public async saveSupplier(supplier: Supplier): Promise<Supplier> {
+    const db = this.getDb();
+    if (!supplier.id) supplier.id = 'sup-' + Date.now();
+    await setDoc(doc(db, 'suppliers', supplier.id), supplier);
     return supplier;
   }
 
-  public deleteSupplier(id: string): boolean {
-    this.data.suppliers = this.data.suppliers.filter(s => s.id !== id);
-    this.persist();
+  public async deleteSupplier(id: string): Promise<boolean> {
+    const db = this.getDb();
+    await deleteDoc(doc(db, 'suppliers', id));
     return true;
   }
 
   // --- Ingredients (Matières Premières) ---
-  public getIngredients(): Ingredient[] {
-    return this.data.ingredients;
+  public async getIngredients(): Promise<Ingredient[]> {
+    const db = this.getDb();
+    const snap = await getDocs(collection(db, 'ingredients'));
+    const list: Ingredient[] = [];
+    snap.forEach(d => list.push(d.data() as Ingredient));
+    return list;
   }
 
-  public getIngredientById(id: string): Ingredient | undefined {
-    return this.data.ingredients.find(i => i.id === id);
+  public async getIngredientById(id: string): Promise<Ingredient | undefined> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'ingredients', id));
+    return snap.exists() ? (snap.data() as Ingredient) : undefined;
   }
 
-  public isIngredientInUse(id: string): {
+  public async isIngredientInUse(id: string): Promise<{
     inUse: boolean;
     products: string[];
     supplements: string[];
     orders: string[];
     hasMovements: boolean;
-  } {
-    const products = this.data.products
+  }> {
+    const [products, supplements, orders, movements] = await Promise.all([
+      this.getProducts(),
+      this.getSupplements(),
+      this.getOrders(),
+      this.getStockMovements()
+    ]);
+
+    const matchingProducts = products
       .filter(p => p.baseIngredients?.some(bi => bi.ingredientId === id))
       .map(p => p.name);
 
-    const supplements = this.data.supplements
+    const matchingSupplements = supplements
       .filter(s => s.ingredientId === id)
       .map(s => s.name);
 
-    const orders = this.data.orders
-      .filter(o => o.items?.some(it => 
+    const matchingOrders = orders
+      .filter(o => o.items?.some(it =>
         it.preparationSheet?.totalIngredients?.some(pi => pi.ingredientId === id) ||
         it.supplements?.some(s => s.ingredientId === id)
       ))
       .map(o => o.orderNumber);
 
-    const hasMovements = this.data.stockMovements.some(m => m.ingredientId === id);
-
-    const inUse = products.length > 0 || supplements.length > 0 || orders.length > 0 || hasMovements;
+    const hasMovements = movements.some(m => m.ingredientId === id);
+    const inUse = matchingProducts.length > 0 || matchingSupplements.length > 0 || matchingOrders.length > 0 || hasMovements;
 
     return {
       inUse,
-      products,
-      supplements,
-      orders,
+      products: matchingProducts,
+      supplements: matchingSupplements,
+      orders: matchingOrders,
       hasMovements
     };
   }
 
-  public saveIngredient(ingredient: Ingredient): Ingredient {
+  public async saveIngredient(ingredient: Ingredient): Promise<Ingredient> {
+    const db = this.getDb();
     ingredient.updatedAt = new Date().toISOString();
-    const idx = this.data.ingredients.findIndex(i => i.id === ingredient.id);
-    if (idx >= 0) {
-      // Preserve active flag if not explicitly provided
-      if (ingredient.active === undefined) {
-        ingredient.active = this.data.ingredients[idx].active !== false;
-      }
-      this.data.ingredients[idx] = ingredient;
-    } else {
-      if (!ingredient.id) ingredient.id = 'ing-' + Date.now();
-      if (!ingredient.createdAt) ingredient.createdAt = new Date().toISOString();
-      if (ingredient.active === undefined) ingredient.active = true;
-      this.data.ingredients.push(ingredient);
-    }
-    this.persist();
+    if (!ingredient.id) ingredient.id = 'ing-' + Date.now();
+    if (!ingredient.createdAt) ingredient.createdAt = new Date().toISOString();
+    if (ingredient.active === undefined) ingredient.active = true;
+
+    await setDoc(doc(db, 'ingredients', ingredient.id), ingredient);
     return ingredient;
   }
 
-  public deleteIngredient(id: string): boolean {
-    const ingredient = this.data.ingredients.find(i => i.id === id);
+  public async deleteIngredient(id: string): Promise<boolean> {
+    const db = this.getDb();
+    const ingredient = await this.getIngredientById(id);
     if (!ingredient) {
       throw new Error('Ingrédient introuvable.');
     }
@@ -445,22 +335,21 @@ class DatabaseManager {
       throw new Error("Impossible de supprimer un ingrédient actif. Veuillez d'abord le désactiver.");
     }
 
-    const usage = this.isIngredientInUse(id);
+    const usage = await this.isIngredientInUse(id);
     if (usage.inUse) {
       const reasons: string[] = [];
       if (usage.products.length > 0) reasons.push(`recettes (${usage.products.join(', ')})`);
       if (usage.supplements.length > 0) reasons.push(`suppléments (${usage.supplements.join(', ')})`);
       if (usage.orders.length > 0) reasons.push(`commandes (#${usage.orders.slice(0, 3).join(', #')})`);
       if (usage.hasMovements) reasons.push(`historique des mouvements de stock`);
-      throw new Error(`Impossible de supprimer définitivement cet ingrédient car il est référencé dans des recettes, suppléments ou historiques (${reasons.join(' ; ')}). Veuillez le désactiver à la place.`);
+      throw new Error(`Impossible de supprimer définitivement cet ingrédient car il est référencé (${reasons.join(' ; ')}). Veuillez le désactiver à la place.`);
     }
 
-    this.data.ingredients = this.data.ingredients.filter(i => i.id !== id);
-    this.persist();
+    await deleteDoc(doc(db, 'ingredients', id));
     return true;
   }
 
-  public addStockMovement(params: {
+  public async addStockMovement(params: {
     ingredientId: string;
     type: StockMovement['type'] | 'order_cancellation';
     quantity: number;
@@ -468,50 +357,72 @@ class DatabaseManager {
     performedBy?: string;
     orderId?: string;
     orderNumber?: string;
-    skipPersist?: boolean;
-  }): { ingredient: Ingredient; movement: StockMovement } {
-    const ing = this.getIngredientById(params.ingredientId);
-    if (!ing) {
-      throw new Error(`Ingrédient #${params.ingredientId} introuvable.`);
-    }
+  }): Promise<{ ingredient: Ingredient; movement: StockMovement }> {
+    const db = this.getDb();
 
-    ing.currentStock = Math.round((ing.currentStock + params.quantity) * 10) / 10;
-    ing.updatedAt = new Date().toISOString();
+    return await runTransaction(db, async (transaction) => {
+      const ingRef = doc(db, 'ingredients', params.ingredientId);
+      const ingSnap = await transaction.get(ingRef);
+      if (!ingSnap.exists()) {
+        throw new Error(`Ingrédient #${params.ingredientId} introuvable.`);
+      }
 
-    const movement: StockMovement = {
-      id: 'mov-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
-      ingredientId: ing.id,
-      ingredientName: ing.name,
-      type: params.type as any,
-      quantity: params.quantity,
-      unit: ing.unit,
-      orderId: params.orderId,
-      orderNumber: params.orderNumber,
-      notes: params.notes,
-      timestamp: new Date().toISOString(),
-      performedBy: params.performedBy || 'Gestionnaire BEBBA'
-    };
+      const ing = ingSnap.data() as Ingredient;
+      ing.currentStock = Math.round((ing.currentStock + params.quantity) * 10) / 10;
+      ing.updatedAt = new Date().toISOString();
 
-    this.data.stockMovements.unshift(movement);
-    if (!params.skipPersist) {
-      this.persist();
-    }
-    return { ingredient: ing, movement };
+      const movId = 'mov-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+      const movement: StockMovement = {
+        id: movId,
+        ingredientId: ing.id,
+        ingredientName: ing.name,
+        type: params.type as any,
+        quantity: params.quantity,
+        unit: ing.unit,
+        orderId: params.orderId,
+        orderNumber: params.orderNumber,
+        notes: params.notes,
+        timestamp: new Date().toISOString(),
+        performedBy: params.performedBy || 'Gestionnaire BEBBA'
+      };
+
+      transaction.update(ingRef, {
+        currentStock: ing.currentStock,
+        updatedAt: ing.updatedAt
+      });
+      transaction.set(doc(db, 'stockMovements', movId), movement);
+
+      return { ingredient: ing, movement };
+    });
   }
 
-  public getStockMovements(): StockMovement[] {
-    return this.data.stockMovements;
+  public async getStockMovements(): Promise<StockMovement[]> {
+    const db = this.getDb();
+    const snap = await getDocs(collection(db, 'stockMovements'));
+    const list: StockMovement[] = [];
+    snap.forEach(d => list.push(d.data() as StockMovement));
+    return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   }
 
   // --- Supplements ---
-  public getSupplements(options?: { activeOnly?: boolean; availableOnly?: boolean }): Supplement[] {
-    let list = this.data.supplements.map(s => {
-      const ing = this.getIngredientById(s.ingredientId);
-      const isIngredientActive = ing ? ing.active !== false : false;
-      return {
+  public async getSupplements(options?: { activeOnly?: boolean; availableOnly?: boolean }): Promise<Supplement[]> {
+    const db = this.getDb();
+    const [supSnap, ingSnap] = await Promise.all([
+      getDocs(collection(db, 'supplements')),
+      getDocs(collection(db, 'ingredients'))
+    ]);
+
+    const ingMap = new Map<string, Ingredient>();
+    ingSnap.forEach(d => ingMap.set(d.id, d.data() as Ingredient));
+
+    let list: Supplement[] = [];
+    supSnap.forEach(d => {
+      const s = d.data() as Supplement;
+      const ing = ingMap.get(s.ingredientId);
+      list.push({
         ...s,
-        ingredientActive: isIngredientActive
-      };
+        ingredientActive: ing ? ing.active !== false : false
+      });
     });
 
     if (options?.activeOnly) {
@@ -527,17 +438,19 @@ class DatabaseManager {
     });
   }
 
-  public getSupplementById(id: string): Supplement | undefined {
-    const s = this.data.supplements.find(s => s.id === id);
-    if (!s) return undefined;
-    const ing = this.getIngredientById(s.ingredientId);
+  public async getSupplementById(id: string): Promise<Supplement | undefined> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'supplements', id));
+    if (!snap.exists()) return undefined;
+    const s = snap.data() as Supplement;
+    const ing = await this.getIngredientById(s.ingredientId);
     return {
       ...s,
       ingredientActive: ing ? ing.active !== false : false
     };
   }
 
-  public saveSupplement(sup: Partial<Supplement> & { name: string; price: number }): Supplement {
+  public async saveSupplement(sup: Partial<Supplement> & { name: string; price: number }): Promise<Supplement> {
     if (!sup.name || typeof sup.name !== 'string' || !sup.name.trim()) {
       throw new Error('Le nom du supplément est obligatoire.');
     }
@@ -545,15 +458,19 @@ class DatabaseManager {
       throw new Error('Le prix du supplément doit être un nombre positif.');
     }
 
+    const db = this.getDb();
     const now = new Date().toISOString();
-    const sortOrder = sup.sortOrder !== undefined ? Number(sup.sortOrder) : (sup.order !== undefined ? Number(sup.order) : this.data.supplements.length + 1);
+    const id = sup.id || 'sup-' + Date.now();
+    const existing = await this.getSupplementById(id);
+
+    const sortOrder = sup.sortOrder !== undefined ? Number(sup.sortOrder) : (sup.order !== undefined ? Number(sup.order) : 10);
     const quantityConsumed = sup.quantityConsumed !== undefined ? Number(sup.quantityConsumed) : (sup.quantity !== undefined ? Number(sup.quantity) : 100);
 
-    const ing = sup.ingredientId ? this.getIngredientById(sup.ingredientId) : undefined;
+    const ing = sup.ingredientId ? await this.getIngredientById(sup.ingredientId) : undefined;
     const isAvailable = sup.available !== false && sup.isAvailable !== false;
 
     const completeSup: Supplement = {
-      id: sup.id || 'sup-' + Date.now(),
+      id,
       name: sup.name.trim(),
       description: sup.description || '',
       price: Math.round(sup.price * 10) / 10,
@@ -567,43 +484,42 @@ class DatabaseManager {
       active: sup.active !== false,
       order: sortOrder,
       sortOrder: sortOrder,
-      createdAt: sup.createdAt || now,
+      createdAt: existing?.createdAt || sup.createdAt || now,
       updatedAt: now
     };
 
-    const idx = this.data.supplements.findIndex(s => s.id === completeSup.id);
-    if (idx >= 0) {
-      completeSup.createdAt = this.data.supplements[idx].createdAt || now;
-      this.data.supplements[idx] = completeSup;
-    } else {
-      this.data.supplements.push(completeSup);
-    }
-
-    this.persist();
+    await setDoc(doc(db, 'supplements', completeSup.id), completeSup);
     return completeSup;
   }
 
-  public deleteSupplement(id: string): boolean {
-    const initialLen = this.data.supplements.length;
-    this.data.supplements = this.data.supplements.filter(s => s.id !== id);
-    if (this.data.supplements.length !== initialLen) {
-      this.persist();
-      return true;
-    }
-    return false;
+  public async deleteSupplement(id: string): Promise<boolean> {
+    const db = this.getDb();
+    await deleteDoc(doc(db, 'supplements', id));
+    return true;
   }
 
   // --- Products ---
-  public getProducts(options?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Product[] {
-    let prods = this.data.products.map(p => {
+  public async getProducts(options?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<Product[]> {
+    const db = this.getDb();
+    const [prodSnap, ingSnap] = await Promise.all([
+      getDocs(collection(db, 'products')),
+      getDocs(collection(db, 'ingredients'))
+    ]);
+
+    const ingMap = new Map<string, Ingredient>();
+    ingSnap.forEach(d => ingMap.set(d.id, d.data() as Ingredient));
+
+    let prods: Product[] = [];
+    prodSnap.forEach(d => {
+      const p = d.data() as Product;
       const hasInactiveIngredient = (p.baseIngredients || []).some(bi => {
-        const ing = this.getIngredientById(bi.ingredientId);
+        const ing = ingMap.get(bi.ingredientId);
         return ing && ing.active === false;
       });
-      return {
+      prods.push({
         ...p,
         hasInactiveIngredient
-      };
+      });
     });
 
     if (options?.categoryId && options.categoryId !== 'all') {
@@ -622,20 +538,28 @@ class DatabaseManager {
     });
   }
 
-  public getProductById(id: string): Product | undefined {
-    const p = this.data.products.find(p => p.id === id);
-    if (!p) return undefined;
+  public async getProductById(id: string): Promise<Product | undefined> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'products', id));
+    if (!snap.exists()) return undefined;
+
+    const p = snap.data() as Product;
+    const ingSnap = await getDocs(collection(db, 'ingredients'));
+    const ingMap = new Map<string, Ingredient>();
+    ingSnap.forEach(d => ingMap.set(d.id, d.data() as Ingredient));
+
     const hasInactiveIngredient = (p.baseIngredients || []).some(bi => {
-      const ing = this.getIngredientById(bi.ingredientId);
+      const ing = ingMap.get(bi.ingredientId);
       return ing && ing.active === false;
     });
+
     return {
       ...p,
       hasInactiveIngredient
     };
   }
 
-  public saveProduct(prod: Partial<Product> & { name: string; basePrice: number; categoryId: string }): Product {
+  public async saveProduct(prod: Partial<Product> & { name: string; basePrice: number; categoryId: string }): Promise<Product> {
     if (!prod.name || typeof prod.name !== 'string' || !prod.name.trim()) {
       throw new Error('Le nom du produit est obligatoire.');
     }
@@ -646,12 +570,16 @@ class DatabaseManager {
       throw new Error('La catégorie du produit est obligatoire.');
     }
 
+    const db = this.getDb();
     const now = new Date().toISOString();
-    const sortOrder = prod.sortOrder !== undefined ? Number(prod.sortOrder) : (prod.order !== undefined ? Number(prod.order) : this.data.products.length + 1);
+    const id = prod.id || 'prod-' + Date.now();
+    const existing = await this.getProductById(id);
+
+    const sortOrder = prod.sortOrder !== undefined ? Number(prod.sortOrder) : (prod.order !== undefined ? Number(prod.order) : 10);
     const isAvailable = prod.available !== false && prod.isAvailable !== false;
 
     const completeProduct: Product = {
-      id: prod.id || 'prod-' + Date.now(),
+      id,
       name: prod.name.trim(),
       description: prod.description || '',
       categoryId: prod.categoryId,
@@ -668,7 +596,7 @@ class DatabaseManager {
       isPopular: prod.isPopular || false,
       order: sortOrder,
       sortOrder: sortOrder,
-      createdAt: prod.createdAt || now,
+      createdAt: existing?.createdAt || prod.createdAt || now,
       updatedAt: now,
       baseIngredients: Array.isArray(prod.baseIngredients) ? prod.baseIngredients : [],
       customization: prod.customization || {
@@ -676,100 +604,88 @@ class DatabaseManager {
       }
     };
 
-    const idx = this.data.products.findIndex(p => p.id === completeProduct.id);
-    if (idx >= 0) {
-      completeProduct.createdAt = this.data.products[idx].createdAt || now;
-      this.data.products[idx] = completeProduct;
-    } else {
-      this.data.products.push(completeProduct);
-    }
-
-    this.persist();
+    await setDoc(doc(db, 'products', completeProduct.id), completeProduct);
     return completeProduct;
   }
 
-  public deleteProduct(id: string): boolean {
-    const initialLen = this.data.products.length;
-    this.data.products = this.data.products.filter(p => p.id !== id);
-    if (this.data.products.length !== initialLen) {
-      this.persist();
-      return true;
-    }
-    return false;
+  public async deleteProduct(id: string): Promise<boolean> {
+    const db = this.getDb();
+    await deleteDoc(doc(db, 'products', id));
+    return true;
   }
 
   // --- Drivers ---
-  public getDrivers(): Driver[] {
-    return this.data.drivers.map(drv => {
-      const user = (this.data.users || []).find(u => u.role === 'driver' && u.driverId === drv.id);
-      return {
-        ...drv,
-        username: user ? user.username : undefined
-      };
+  public async getDrivers(): Promise<Driver[]> {
+    const db = this.getDb();
+    const [drvSnap, usrSnap] = await Promise.all([
+      getDocs(collection(db, 'drivers')),
+      getDocs(query(collection(db, 'users'), where('role', '==', 'driver')))
+    ]);
+
+    const userMap = new Map<string, string>();
+    usrSnap.forEach(d => {
+      const u = d.data() as User;
+      if (u.driverId) userMap.set(u.driverId, u.username);
     });
+
+    const list: Driver[] = [];
+    drvSnap.forEach(d => {
+      const drv = d.data() as Driver;
+      list.push({
+        ...drv,
+        username: userMap.get(drv.id)
+      });
+    });
+    return list;
   }
 
-  public getDriverById(id: string): Driver | undefined {
-    return this.data.drivers.find(d => d.id === id);
+  public async getDriverById(id: string): Promise<Driver | undefined> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'drivers', id));
+    return snap.exists() ? (snap.data() as Driver) : undefined;
   }
 
-  public getUserByDriverId(driverId: string): User | undefined {
-    return (this.data.users || []).find(u => u.role === 'driver' && u.driverId === driverId);
+  public async getUserByDriverId(driverId: string): Promise<User | undefined> {
+    const db = this.getDb();
+    const snap = await getDocs(query(collection(db, 'users'), where('driverId', '==', driverId)));
+    if (snap.empty) return undefined;
+    return snap.docs[0].data() as User;
   }
 
-  public saveDriver(driver: Driver): Driver {
-    const idx = this.data.drivers.findIndex(d => d.id === driver.id);
-    if (idx >= 0) {
-      this.data.drivers[idx] = driver;
-    } else {
-      if (!driver.id) driver.id = 'drv-' + Date.now();
-      this.data.drivers.push(driver);
-    }
-    this.persist();
+  public async saveDriver(driver: Driver): Promise<Driver> {
+    const db = this.getDb();
+    if (!driver.id) driver.id = 'drv-' + Date.now();
+    await setDoc(doc(db, 'drivers', driver.id), driver);
     return driver;
   }
 
-  /**
-   * Atomic creation of Driver entity + linked User account (role: driver, driverId: driver.id).
-   * Ensures uniqueness of username and driverId, and validates all constraints.
-   */
-  public createDriverWithAccount(data: {
+  public async createDriverWithAccount(data: {
     name: string;
     phone: string;
     vehicle: string;
     username: string;
     passwordHash: string;
     active?: boolean;
-  }): { driver: Driver; user: User } {
+  }): Promise<{ driver: Driver; user: User }> {
     const cleanUsername = (data.username || '').trim().toLowerCase();
-    if (!cleanUsername) {
-      throw new Error('Le nom d’utilisateur est obligatoire.');
-    }
-    if (!data.name || !data.name.trim()) {
-      throw new Error('Le nom du livreur est obligatoire.');
-    }
-    if (!data.phone || !data.phone.trim()) {
-      throw new Error('Le téléphone du livreur est obligatoire.');
-    }
-    if (!data.passwordHash) {
-      throw new Error('Le mot de passe haché est requis.');
+    if (!cleanUsername) throw new Error('Le nom d’utilisateur est obligatoire.');
+    if (!data.name || !data.name.trim()) throw new Error('Le nom du livreur est obligatoire.');
+    if (!data.phone || !data.phone.trim()) throw new Error('Le téléphone du livreur est obligatoire.');
+    if (!data.passwordHash) throw new Error('Le mot de passe haché est requis.');
+
+    const db = this.getDb();
+
+    // 1. Vérifier l'unicité du nom d'utilisateur
+    const userSnap = await getDocs(query(collection(db, 'users'), where('username', '==', cleanUsername)));
+    if (!userSnap.empty) {
+      throw new Error(`Le nom d’utilisateur "${cleanUsername}" est déjà attribué.`);
     }
 
-    // 1. Check username uniqueness
-    const existingUser = this.data.users.find(u => u.username.toLowerCase() === cleanUsername);
-    if (existingUser) {
-      throw new Error(`Le nom d’utilisateur "${cleanUsername}" est déjà attribué à un autre compte.`);
-    }
-
-    // 2. Generate unique driver ID
-    let driverId = 'drv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-    while (this.data.drivers.some(d => d.id === driverId)) {
-      driverId = 'drv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-    }
-
+    const driverId = 'drv-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    const userId = 'usr-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+    const now = new Date().toISOString();
     const isActive = data.active !== false;
 
-    // 3. Create Driver object
     const driver: Driver = {
       id: driverId,
       name: data.name.trim(),
@@ -780,10 +696,8 @@ class DatabaseManager {
       rating: 5.0
     };
 
-    // 4. Create User account with link driverId === driver.id
-    const now = new Date().toISOString();
     const user: User = {
-      id: 'usr-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      id: userId,
       username: cleanUsername,
       name: data.name.trim(),
       phone: data.phone.trim(),
@@ -795,130 +709,108 @@ class DatabaseManager {
       updatedAt: now
     };
 
-    // 5. Atomic persistence: rollback if save fails
-    const prevDrivers = [...this.data.drivers];
-    const prevUsers = [...this.data.users];
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'drivers', driverId), driver);
+    batch.set(doc(db, 'users', userId), user);
+    await batch.commit();
 
-    try {
-      this.data.drivers.push(driver);
-      this.data.users.push(user);
-      this.persist();
-      return { driver, user };
-    } catch (err: any) {
-      this.data.drivers = prevDrivers;
-      this.data.users = prevUsers;
-      throw new Error(`Échec de la création atomique du livreur : ${err.message}`);
-    }
-  }
-
-  /**
-   * Update driver business profile and propagate changes (name, phone) to User.
-   */
-  public updateDriverWithAccount(
-    driverId: string,
-    data: { name?: string; phone?: string; vehicle?: string }
-  ): Driver {
-    const driver = this.data.drivers.find(d => d.id === driverId);
-    if (!driver) {
-      throw new Error(`Livreur #${driverId} introuvable.`);
-    }
-
-    if (data.name && data.name.trim()) {
-      driver.name = data.name.trim();
-    }
-    if (data.phone && data.phone.trim()) {
-      driver.phone = data.phone.trim();
-    }
-    if (data.vehicle && data.vehicle.trim()) {
-      driver.vehicle = data.vehicle.trim();
-    }
-
-    // Synchronize linked User account
-    const user = this.data.users.find(u => u.role === 'driver' && u.driverId === driverId);
-    if (user) {
-      if (data.name && data.name.trim()) user.name = data.name.trim();
-      if (data.phone && data.phone.trim()) user.phone = data.phone.trim();
-      user.updatedAt = new Date().toISOString();
-    }
-
-    this.persist();
-    return driver;
-  }
-
-  /**
-   * Synchronized activation/deactivation of Driver AND User.
-   * If Driver is deactivated, User is immediately deactivated (cannot log in or use token).
-   */
-  public setDriverActiveStatus(driverId: string, active: boolean): { driver: Driver; user?: User } {
-    const driver = this.data.drivers.find(d => d.id === driverId);
-    if (!driver) {
-      throw new Error(`Livreur #${driverId} introuvable.`);
-    }
-
-    driver.active = active;
-
-    const user = this.data.users.find(u => u.role === 'driver' && u.driverId === driverId);
-    if (user) {
-      user.active = active;
-      user.updatedAt = new Date().toISOString();
-    }
-
-    this.persist();
     return { driver, user };
   }
 
-  /**
-   * Admin password reset for a driver.
-   */
-  public resetDriverPassword(driverId: string, newPasswordHash: string): User {
-    const driver = this.data.drivers.find(d => d.id === driverId);
+  public async updateDriverWithAccount(
+    driverId: string,
+    data: { name?: string; phone?: string; vehicle?: string }
+  ): Promise<Driver> {
+    const db = this.getDb();
+    const driver = await this.getDriverById(driverId);
     if (!driver) {
       throw new Error(`Livreur #${driverId} introuvable.`);
     }
 
-    const user = this.data.users.find(u => u.role === 'driver' && u.driverId === driverId);
-    if (!user) {
-      throw new Error(`Compte utilisateur introuvable pour le livreur #${driverId}.`);
+    if (data.name && data.name.trim()) driver.name = data.name.trim();
+    if (data.phone && data.phone.trim()) driver.phone = data.phone.trim();
+    if (data.vehicle && data.vehicle.trim()) driver.vehicle = data.vehicle.trim();
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'drivers', driverId), driver);
+
+    const linkedUser = await this.getUserByDriverId(driverId);
+    if (linkedUser) {
+      if (data.name && data.name.trim()) linkedUser.name = data.name.trim();
+      if (data.phone && data.phone.trim()) linkedUser.phone = data.phone.trim();
+      linkedUser.updatedAt = new Date().toISOString();
+      batch.set(doc(db, 'users', linkedUser.id), linkedUser);
     }
 
-    user.passwordHash = newPasswordHash;
-    user.updatedAt = new Date().toISOString();
-    this.persist();
-    return user;
+    await batch.commit();
+    return driver;
   }
 
-  /**
-   * Safe deletion: refuses if driver has historical orders to preserve order history.
-   */
-  public deleteDriver(driverId: string): boolean {
-    const driver = this.data.drivers.find(d => d.id === driverId);
-    if (!driver) {
-      throw new Error(`Livreur #${driverId} introuvable.`);
+  public async setDriverActiveStatus(driverId: string, active: boolean): Promise<{ driver: Driver; user?: User }> {
+    const db = this.getDb();
+    const driver = await this.getDriverById(driverId);
+    if (!driver) throw new Error(`Livreur #${driverId} introuvable.`);
+
+    driver.active = active;
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'drivers', driverId), { active });
+
+    const linkedUser = await this.getUserByDriverId(driverId);
+    if (linkedUser) {
+      linkedUser.active = active;
+      linkedUser.updatedAt = new Date().toISOString();
+      batch.update(doc(db, 'users', linkedUser.id), { active, updatedAt: linkedUser.updatedAt });
     }
 
-    const hasHistoricalOrders = (this.data.orders || []).some(o => o.assignedDriverId === driverId);
-    if (hasHistoricalOrders) {
-      throw new Error(
-        `Impossible de supprimer définitivement le livreur "${driver.name}" car des commandes historiques lui sont associées. Pour préserver l'historique comptable et la traçabilité, veuillez plutôt le désactiver.`
-      );
+    await batch.commit();
+    return { driver, user: linkedUser };
+  }
+
+  public async resetDriverPassword(driverId: string, newPasswordHash: string): Promise<User> {
+    const db = this.getDb();
+    const linkedUser = await this.getUserByDriverId(driverId);
+    if (!linkedUser) throw new Error(`Compte utilisateur introuvable pour le livreur #${driverId}.`);
+
+    linkedUser.passwordHash = newPasswordHash;
+    linkedUser.updatedAt = new Date().toISOString();
+    await updateDoc(doc(db, 'users', linkedUser.id), {
+      passwordHash: newPasswordHash,
+      updatedAt: linkedUser.updatedAt
+    });
+    return linkedUser;
+  }
+
+  public async deleteDriver(driverId: string): Promise<boolean> {
+    const db = this.getDb();
+    const driver = await this.getDriverById(driverId);
+    if (!driver) throw new Error(`Livreur #${driverId} introuvable.`);
+
+    // Vérifier l'historique des commandes
+    const ordersSnap = await getDocs(query(collection(db, 'orders'), where('assignedDriverId', '==', driverId)));
+    if (!ordersSnap.empty) {
+      throw new Error(`Impossible de supprimer définitivement le livreur "${driver.name}" car des commandes historiques lui sont associées. Veuillez le désactiver.`);
     }
 
-    // Remove driver and any linked user account
-    this.data.drivers = this.data.drivers.filter(d => d.id !== driverId);
-    this.data.users = this.data.users.filter(u => !(u.role === 'driver' && u.driverId === driverId));
-    this.persist();
+    const linkedUser = await this.getUserByDriverId(driverId);
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'drivers', driverId));
+    if (linkedUser) {
+      batch.delete(doc(db, 'users', linkedUser.id));
+    }
+    await batch.commit();
     return true;
   }
 
-  // --- Order Computation & Creation ---
+  // --- Calcul de fiche de préparation (en mémoire) ---
   public computePreparationSheet(
-    productOrId: Product | string,
+    product: Product,
     proteinOptionOrOptions?: any,
     veggiesOption?: { label: string; extraPrice: number; extraGrams: number },
     baseChoice?: { label: string; extraPrice: number },
     supplements: Array<{ id?: string; supplementId?: string; quantity: number }> = [],
     specialInstructions?: string,
-    options?: { validateActiveIngredients?: boolean }
+    allSupplementsMap: Map<string, Supplement> = new Map(),
+    allIngredientsMap: Map<string, Ingredient> = new Map()
   ): {
     totalIngredients: PreparationIngredient[];
     ingredientConsumptions: PreparationIngredient[];
@@ -928,15 +820,6 @@ class DatabaseManager {
     unitPrice: number;
     itemTotalPrice: number;
   } {
-    const product: Product | undefined =
-      typeof productOrId === 'string'
-        ? this.getProductById(productOrId)
-        : productOrId;
-
-    if (!product) {
-      throw new Error(`Produit introuvable pour la préparation.`);
-    }
-
     let actualProteinOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
     let actualVeggiesOption: { label: string; extraPrice: number; extraGrams: number } | undefined = undefined;
     let actualBaseChoice: { label: string; extraPrice: number } | undefined = undefined;
@@ -944,7 +827,6 @@ class DatabaseManager {
     let actualSpecialInstructions: string | undefined = undefined;
     let quantityMultiplier = 1;
 
-    // Check if options passed as single configuration object
     if (
       proteinOptionOrOptions &&
       typeof proteinOptionOrOptions === 'object' &&
@@ -971,14 +853,12 @@ class DatabaseManager {
 
     const ingredientMap = new Map<string, { name: string; quantity: number; unit: string }>();
 
-    // 1. Base recipe ingredients (safe array fallback)
+    // 1. Ingrédients de base
     const baseIngredientsList = product.baseIngredients || [];
     for (const base of baseIngredientsList) {
-      if (options?.validateActiveIngredients !== false) {
-        const baseIng = this.getIngredientById(base.ingredientId);
-        if (baseIng && baseIng.active === false) {
-          throw new Error(`Le produit "${product.name}" ne peut pas être commandé car l'ingrédient de base "${baseIng.name}" est désactivé.`);
-        }
+      const baseIng = allIngredientsMap.get(base.ingredientId);
+      if (baseIng && baseIng.active === false) {
+        throw new Error(`Le produit "${product.name}" ne peut pas être commandé car l'ingrédient de base "${baseIng.name}" est désactivé.`);
       }
       ingredientMap.set(base.ingredientId, {
         name: base.ingredientName,
@@ -987,7 +867,7 @@ class DatabaseManager {
       });
     }
 
-    // 2. Extra protein option grams
+    // 2. Extra protéine
     if (actualProteinOption && actualProteinOption.extraGrams > 0) {
       const proteinBase = baseIngredientsList.find(b =>
         b.ingredientId.includes('poulet') ||
@@ -1001,26 +881,22 @@ class DatabaseManager {
       );
       if (proteinBase) {
         const existing = ingredientMap.get(proteinBase.ingredientId);
-        if (existing) {
-          existing.quantity += actualProteinOption.extraGrams;
-        }
+        if (existing) existing.quantity += actualProteinOption.extraGrams;
       }
     }
 
-    // 3. Extra veggies option grams
+    // 3. Extra légumes
     if (actualVeggiesOption && actualVeggiesOption.extraGrams > 0) {
       const veggiesBase = baseIngredientsList.find(b =>
         b.ingredientId.includes('legumes') || b.ingredientId.includes('ing-4') || b.ingredientId.includes('ing-5')
       );
       if (veggiesBase) {
         const existing = ingredientMap.get(veggiesBase.ingredientId);
-        if (existing) {
-          existing.quantity += actualVeggiesOption.extraGrams;
-        }
+        if (existing) existing.quantity += actualVeggiesOption.extraGrams;
       }
     }
 
-    // 4. Base choice replacements if applicable
+    // 4. Choix de base
     if (actualBaseChoice && actualBaseChoice.label.includes('Quinoa')) {
       const riceBase = baseIngredientsList.find(b => b.ingredientId === 'ing-riz' || b.ingredientId === 'ing-6');
       if (riceBase) {
@@ -1049,34 +925,27 @@ class DatabaseManager {
         const qty = riceBase.quantity;
         ingredientMap.delete(riceBase.ingredientId);
         const leg = ingredientMap.get('ing-legumes') || ingredientMap.get('ing-5');
-        if (leg) {
-          leg.quantity += qty;
-        }
+        if (leg) leg.quantity += qty;
       }
     }
 
-    // 5. Supplements calculation & stock tracking
+    // 5. Suppléments
     const enrichedSupplements: any[] = [];
     let supplementsPrice = 0;
 
     for (const itemSup of actualSupplements) {
       const supId = itemSup.id || (itemSup as any).supplementId;
-      const supDef = this.getSupplementById(supId) || this.getSupplements().find(s => s.id === supId);
+      const supDef = allSupplementsMap.get(supId);
       if (supDef && itemSup.quantity > 0) {
-        if (options?.validateActiveIngredients !== false) {
-          if (!supDef.active) {
-            throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
-          }
-          if (supDef.available === false || supDef.isAvailable === false) {
-            throw new Error(`Le supplément "${supDef.name}" est actuellement indisponible.`);
-          }
-          const supIng = this.getIngredientById(supDef.ingredientId);
-          if (!supIng) {
-            throw new Error(`L'ingrédient associé au supplément "${supDef.name}" est introuvable.`);
-          }
-          if (supIng.active === false) {
-            throw new Error(`Le supplément "${supDef.name}" n'est plus disponible car son ingrédient associé "${supIng.name}" est désactivé.`);
-          }
+        if (!supDef.active) {
+          throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
+        }
+        if (supDef.available === false || supDef.isAvailable === false) {
+          throw new Error(`Le supplément "${supDef.name}" est actuellement indisponible.`);
+        }
+        const supIng = allIngredientsMap.get(supDef.ingredientId);
+        if (supIng && supIng.active === false) {
+          throw new Error(`Le supplément "${supDef.name}" n'est plus disponible car son ingrédient "${supIng.name}" est désactivé.`);
         }
 
         const totalSupQty = (supDef.quantityConsumed || supDef.quantity || 100) * itemSup.quantity;
@@ -1106,14 +975,12 @@ class DatabaseManager {
       }
     }
 
-    // Calculate unit price and total item price
     const proteinExtraPrice = actualProteinOption ? (actualProteinOption.extraPrice || 0) : 0;
     const veggiesExtraPrice = actualVeggiesOption ? (actualVeggiesOption.extraPrice || 0) : 0;
     const baseExtraPrice = actualBaseChoice ? (actualBaseChoice.extraPrice || 0) : 0;
     const unitPrice = Math.round((product.basePrice + proteinExtraPrice + veggiesExtraPrice + baseExtraPrice + supplementsPrice) * 10) / 10;
     const itemTotalPrice = Math.round(unitPrice * quantityMultiplier * 10) / 10;
 
-    // Formatted list for single unit & total consumed
     const totalIngredients: PreparationIngredient[] = [];
     const ingredientConsumptions: PreparationIngredient[] = [];
     const summaryLines: string[] = [];
@@ -1173,20 +1040,27 @@ class DatabaseManager {
     };
   }
 
-  // --- Create Order ---
-  public createOrder(payload: {
-    clientId?: string;
-    client: { name: string; phone: string; deliveryAddress: string; notes?: string };
-    items: Array<{
-      productId: string;
-      quantity: number;
-      proteinOption?: { label: string; extraPrice: number; extraGrams: number };
-      veggiesOption?: { label: string; extraPrice: number; extraGrams: number };
-      baseChoice?: { label: string; extraPrice: number };
-      supplements?: Array<{ id: string; quantity: number }>;
-      specialInstructions?: string;
-    }>;
-  }): Order {
+  // --- Création Transactionnelle et Atomique d'une Commande ---
+  public async createOrder(
+    payload: {
+      clientId?: string;
+      client: { name: string; phone: string; deliveryAddress: string; notes?: string };
+      items: Array<{
+        productId: string;
+        quantity: number;
+        proteinOption?: { label: string; extraPrice: number; extraGrams: number };
+        veggiesOption?: { label: string; extraPrice: number; extraGrams: number };
+        baseChoice?: { label: string; extraPrice: number };
+        supplements?: Array<{ id: string; quantity: number }>;
+        specialInstructions?: string;
+      }>;
+    },
+    idempotency?: {
+      idempotencyKey?: string;
+      callerId?: string;
+      requestHash?: string;
+    }
+  ): Promise<{ order: Order; isExisting: boolean }> {
     if (!payload.items || payload.items.length === 0) {
       throw new Error('Le panier est vide.');
     }
@@ -1194,217 +1068,368 @@ class DatabaseManager {
       throw new Error('Veuillez renseigner le nom, téléphone et adresse de livraison.');
     }
 
-    let subtotal = 0;
-    const computedItems: OrderItem[] = [];
+    const db = this.getDb();
 
-    // 1. Valider tous les articles et calculer la fiche de préparation (sans déduire de stock)
-    for (const rawItem of payload.items) {
-      const product = this.getProductById(rawItem.productId);
-      if (!product) {
-        throw new Error(`Produit #${rawItem.productId} introuvable.`);
+    return await runTransaction(db, async (transaction) => {
+      // 1. VÉRIFICATION DU VERROU SYSTÈME
+      const sysRef = doc(db, 'meta', 'system');
+      const sysSnap = await transaction.get(sysRef);
+      if (!sysSnap.exists() || sysSnap.data()?.state !== 'READY') {
+        throw new SystemNotReadyError('Système temporairement indisponible (migration en cours ou maintenance).');
       }
 
-      // Check product active status
-      if (!product.active) {
-        throw new Error(`Le produit "${product.name}" n'est plus actif au catalogue.`);
-      }
+      // 2. VÉRIFICATION DE L'IDEMPOTENCE (Idempotency-Key)
+      let idemRef: any = null;
+      if (idempotency?.idempotencyKey) {
+        idemRef = doc(db, 'orderIdempotencyKeys', idempotency.idempotencyKey);
+        const idemSnap = await transaction.get(idemRef);
 
-      // Check product availability
-      if (product.available === false || product.isAvailable === false) {
-        throw new Error(`Le produit "${product.name}" est actuellement indisponible / en rupture de stock.`);
-      }
+        if (idemSnap.exists()) {
+          const idemData = idemSnap.data() as any;
 
-      // Check base ingredients
-      if (product.baseIngredients && product.baseIngredients.length > 0) {
-        for (const base of product.baseIngredients) {
-          const baseIng = this.getIngredientById(base.ingredientId);
-          if (baseIng && baseIng.active === false) {
-            throw new Error(`Le produit "${product.name}" n'est plus disponible car son ingrédient de base "${baseIng.name}" est désactivé.`);
+          // Comportement 3 : same key + different caller -> 403 Forbidden
+          if (idemData.callerId !== idempotency.callerId) {
+            throw new IdempotencyForbiddenError('Accès refusé : La clé d’idempotence appartient à un autre émetteur.');
           }
+
+          // Comportement 2 : same key + same caller + different hash -> 422 Unprocessable Entity
+          if (idemData.requestHash !== idempotency.requestHash) {
+            throw new IdempotencyConflictError('Conflit d’idempotence : La clé fournie est associée à un contenu de commande différent.');
+          }
+
+          // Cas incohérent : enregistrement existant mais commande inexistante ou sans ID
+          if (!idemData.orderId) {
+            throw new IdempotencyInconsistencyError('Incohérence technique d’idempotence : enregistrement d’idempotence sans identifiant de commande.');
+          }
+
+          // Comportement 1 : same key + same caller + same hash -> retourner la commande existante
+          const existingOrderRef = doc(db, 'orders', idemData.orderId);
+          const existingOrderSnap = await transaction.get(existingOrderRef);
+          if (!existingOrderSnap.exists()) {
+            throw new IdempotencyInconsistencyError(`Incohérence technique d’idempotence : la commande #${idemData.orderId} référencée est introuvable.`);
+          }
+
+          return {
+            order: existingOrderSnap.data() as Order,
+            isExisting: true
+          };
         }
       }
 
-      // Check supplements
-      if (rawItem.supplements && rawItem.supplements.length > 0) {
-        for (const s of rawItem.supplements) {
-          const sQty = s.quantity || 0;
-          if (sQty > 0) {
-            const supDef = this.getSupplementById(s.id);
-            if (!supDef) {
-              throw new Error(`Le supplément #${s.id} est introuvable.`);
-            }
-            if (!supDef.active) {
-              throw new Error(`Le supplément "${supDef.name}" n'est plus actif au catalogue.`);
-            }
-            if (supDef.available === false || supDef.isAvailable === false) {
-              throw new Error(`Le supplément "${supDef.name}" est actuellement indisponible.`);
-            }
-            const supIng = this.getIngredientById(supDef.ingredientId);
-            if (!supIng) {
-              throw new Error(`L'ingrédient associé au supplément "${supDef.name}" est introuvable.`);
-            }
-            if (supIng.active === false) {
-              throw new Error(`Le supplément "${supDef.name}" n'est plus disponible car son ingrédient associé "${supIng.name}" est désactivé.`);
-            }
-          }
-        }
-      }
+      // 3. LECTURE DU COMPTEUR DE COMMANDE
+      const counterRef = doc(db, 'meta', 'counters');
+      const counterSnap = await transaction.get(counterRef);
+      const nextOrderSeq: number = counterSnap.exists() ? (counterSnap.data()?.nextOrderSeq || 1101) : 1101;
 
-      const prep = this.computePreparationSheet(
-        product,
-        rawItem.proteinOption,
-        rawItem.veggiesOption,
-        rawItem.baseChoice,
-        rawItem.supplements || [],
-        rawItem.specialInstructions
+      // 4. COLLECTE ET LECTURE DE TOUS LES PRODUITS, SUPPLÉMENTS ET INGRÉDIENTS REQUIS
+      const rawProductIds = Array.from(new Set(payload.items.map(it => it.productId)));
+      const rawSupplementIds = Array.from(
+        new Set(payload.items.flatMap(it => (it.supplements || []).map(s => s.id)).filter(Boolean))
       );
 
-      const qty = Math.max(1, rawItem.quantity || 1);
-      const itemTotalPrice = Math.round(prep.itemPrice * qty * 10) / 10;
-      subtotal += itemTotalPrice;
+      // Lectures parallèles des produits et suppléments
+      const productSnaps = await Promise.all(rawProductIds.map(pid => transaction.get(doc(db, 'products', pid))));
+      const productsMap = new Map<string, Product>();
+      productSnaps.forEach(snap => {
+        if (snap.exists()) productsMap.set(snap.id, snap.data() as Product);
+      });
 
-      computedItems.push({
-        id: 'item-' + Math.random().toString(36).substring(2, 9),
-        productId: product.id,
-        productName: product.name,
-        unitPrice: prep.itemPrice,
-        quantity: qty,
-        proteinOption: rawItem.proteinOption,
-        veggiesOption: rawItem.veggiesOption,
-        baseChoice: rawItem.baseChoice,
-        supplements: prep.enrichedSupplements,
-        specialInstructions: rawItem.specialInstructions,
-        itemTotalPrice: itemTotalPrice,
-        preparationSheet: {
-          totalIngredients: prep.totalIngredients,
-          summaryLines: prep.summaryLines
+      const supplementSnaps = await Promise.all(rawSupplementIds.map(sid => transaction.get(doc(db, 'supplements', sid))));
+      const supplementsMap = new Map<string, Supplement>();
+      supplementSnaps.forEach(snap => {
+        if (snap.exists()) supplementsMap.set(snap.id, snap.data() as Supplement);
+      });
+
+      // Identifier tous les identifiants d'ingrédients nécessaires
+      const neededIngredientIds = new Set<string>();
+      productsMap.forEach(p => {
+        (p.baseIngredients || []).forEach(bi => neededIngredientIds.add(bi.ingredientId));
+      });
+      supplementsMap.forEach(s => {
+        if (s.ingredientId) neededIngredientIds.add(s.ingredientId);
+      });
+      // Ingrédients par défaut pour substitutions éventuelles
+      neededIngredientIds.add('ing-quinoa');
+      neededIngredientIds.add('ing-patate-douce');
+      neededIngredientIds.add('ing-legumes');
+      neededIngredientIds.add('ing-riz');
+
+      const ingredientSnaps = await Promise.all(
+        Array.from(neededIngredientIds).map(iid => transaction.get(doc(db, 'ingredients', iid)))
+      );
+      const ingredientsMap = new Map<string, Ingredient>();
+      ingredientSnaps.forEach(snap => {
+        if (snap.exists()) ingredientsMap.set(snap.id, snap.data() as Ingredient);
+      });
+
+      // TOUTES LES LECTURES FIRESTORE SONT EFFECTUÉES AVANT TOUTE ÉCRITURE
+      // --- PHASE DE CALCUL & VALIDATION MÉTIER ---
+
+      let subtotal = 0;
+      const computedItems: OrderItem[] = [];
+      const requiredStockMap = new Map<string, { ingredient: Ingredient; required: number }>();
+
+      for (const rawItem of payload.items) {
+        const product = productsMap.get(rawItem.productId);
+        if (!product) {
+          throw new Error(`Produit #${rawItem.productId} introuvable.`);
+        }
+        if (!product.active) {
+          throw new Error(`Le produit "${product.name}" n'est plus actif au catalogue.`);
+        }
+        if (product.available === false || product.isAvailable === false) {
+          throw new Error(`Le produit "${product.name}" est actuellement indisponible.`);
+        }
+
+        const prep = this.computePreparationSheet(
+          product,
+          rawItem.proteinOption,
+          rawItem.veggiesOption,
+          rawItem.baseChoice,
+          rawItem.supplements || [],
+          rawItem.specialInstructions,
+          supplementsMap,
+          ingredientsMap
+        );
+
+        const qty = Math.max(1, rawItem.quantity || 1);
+        const itemTotalPrice = Math.round(prep.itemPrice * qty * 10) / 10;
+        subtotal += itemTotalPrice;
+
+        computedItems.push({
+          id: 'item-' + Math.random().toString(36).substring(2, 9),
+          productId: product.id,
+          productName: product.name,
+          unitPrice: prep.itemPrice,
+          quantity: qty,
+          proteinOption: rawItem.proteinOption,
+          veggiesOption: rawItem.veggiesOption,
+          baseChoice: rawItem.baseChoice,
+          supplements: prep.enrichedSupplements,
+          specialInstructions: rawItem.specialInstructions,
+          itemTotalPrice: itemTotalPrice,
+          preparationSheet: {
+            totalIngredients: prep.totalIngredients,
+            summaryLines: prep.summaryLines
+          }
+        });
+
+        // Cumuler la consommation requise pour chaque ingrédient
+        for (const ingredientUsage of prep.totalIngredients) {
+          const totalNeeded = Math.round(ingredientUsage.totalQuantity * qty * 10) / 10;
+          const ing = ingredientsMap.get(ingredientUsage.ingredientId);
+          if (!ing) {
+            throw new Error(`Ingrédient requis #${ingredientUsage.ingredientId} (${ingredientUsage.ingredientName}) introuvable dans le stock.`);
+          }
+
+          const existing = requiredStockMap.get(ing.id);
+          if (existing) {
+            existing.required = Math.round((existing.required + totalNeeded) * 10) / 10;
+          } else {
+            requiredStockMap.set(ing.id, {
+              ingredient: ing,
+              required: totalNeeded
+            });
+          }
+        }
+      }
+
+      // 5. VÉRIFICATION STRICTE DE LA DISPONIBILITÉ DU STOCK
+      const missingStockDetails: InsufficientStockDetail[] = [];
+      requiredStockMap.forEach(({ ingredient, required }) => {
+        const currentStock = Math.round(ingredient.currentStock * 10) / 10;
+        if (currentStock < required) {
+          const missing = Math.round((required - currentStock) * 10) / 10;
+          missingStockDetails.push({
+            ingredientId: ingredient.id,
+            ingredientName: ingredient.name,
+            required,
+            available: currentStock,
+            missing,
+            unit: ingredient.unit
+          });
         }
       });
-    }
 
-    // 2. Création de la commande : Statut 'received', stock STRICTEMENT INCHANGÉ, AUCUN mouvement créé
-    const orderSeq = this.data.nextOrderSeq++;
-    const orderNumber = `BEBBA-${orderSeq}`;
-    const trackingToken = 'tk_' + crypto.randomBytes(6).toString('hex');
-    const orderId = 'ord-' + Date.now();
+      if (missingStockDetails.length > 0) {
+        throw new InsufficientStockError(missingStockDetails);
+      }
 
-    const deliveryFee = 2.5; // Flat delivery fee in DT
-    const totalAmount = Math.round((subtotal + deliveryFee) * 10) / 10;
+      // 6. PRÉPARATION DE LA COMMANDE
+      const orderNumber = `BEBBA-${nextOrderSeq}`;
+      const trackingToken = 'tk_' + crypto.randomBytes(6).toString('hex');
+      const orderId = 'ord-' + Date.now();
+      const deliveryFee = 2.5;
+      const totalAmount = Math.round((subtotal + deliveryFee) * 10) / 10;
+      const now = new Date().toISOString();
 
-    const newOrder: Order = {
-      id: orderId,
-      orderNumber: orderNumber,
-      trackingToken: trackingToken,
-      createdAt: new Date().toISOString(),
-      clientId: payload.clientId ? payload.clientId.trim() : undefined,
-      client: {
-        name: payload.client.name.trim(),
-        phone: payload.client.phone.trim(),
-        deliveryAddress: payload.client.deliveryAddress.trim(),
-        notes: payload.client.notes?.trim() || ''
-      },
-      items: computedItems,
-      subtotal: Math.round(subtotal * 10) / 10,
-      deliveryFee: deliveryFee,
-      totalAmount: totalAmount,
-      status: 'received',
-      stockConsumed: false,
-      paymentMethod: 'cash_on_delivery',
-      paymentStatus: 'to_collect',
-      statusHistory: [
-        {
-          status: 'received',
-          label: 'Commande reçue & transmise à la cuisine',
-          timestamp: new Date().toISOString(),
-          note: 'Paiement à la livraison sélectionné',
-          updatedBy: 'Système Client'
-        }
-      ]
-    };
+      const newOrder: Order = {
+        id: orderId,
+        orderNumber: orderNumber,
+        trackingToken: trackingToken,
+        createdAt: now,
+        clientId: payload.clientId ? payload.clientId.trim() : undefined,
+        client: {
+          name: payload.client.name.trim(),
+          phone: payload.client.phone.trim(),
+          deliveryAddress: payload.client.deliveryAddress.trim(),
+          notes: payload.client.notes?.trim() || ''
+        },
+        items: computedItems,
+        subtotal: Math.round(subtotal * 10) / 10,
+        deliveryFee: deliveryFee,
+        totalAmount: totalAmount,
+        status: 'received',
+        stockConsumed: true,
+        paymentMethod: 'cash_on_delivery',
+        paymentStatus: 'to_collect',
+        statusHistory: [
+          {
+            status: 'received',
+            label: 'Commande reçue & transmise à la cuisine',
+            timestamp: now,
+            note: 'Paiement à la livraison sélectionné',
+            updatedBy: 'Système Client'
+          }
+        ]
+      };
 
-    this.data.orders.unshift(newOrder);
-    this.persist();
-    return newOrder;
+      // --- PHASE D'ÉCRITURE FIRESTORE (ATOMICITÉ TOTALE) ---
+
+      // 6.1 Enregistrement de la commande
+      transaction.set(doc(db, 'orders', orderId), stripUndefined(newOrder));
+
+      // 6.2 Décrémentation du stock et création des mouvements
+      requiredStockMap.forEach(({ ingredient, required }) => {
+        const newStock = Math.round((ingredient.currentStock - required) * 10) / 10;
+        transaction.update(doc(db, 'ingredients', ingredient.id), {
+          currentStock: newStock,
+          updatedAt: now
+        });
+
+        const movId = 'mov-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+        const movement: StockMovement = {
+          id: movId,
+          ingredientId: ingredient.id,
+          ingredientName: ingredient.name,
+          type: 'order_consumption',
+          quantity: -required,
+          unit: ingredient.unit,
+          orderId: newOrder.id,
+          orderNumber: newOrder.orderNumber,
+          notes: `Consommation automatique commande #${newOrder.orderNumber}`,
+          timestamp: now,
+          performedBy: 'Système BEBBA'
+        };
+        transaction.set(doc(db, 'stockMovements', movId), movement);
+      });
+
+      // 6.3 Enregistrement de la clé d'idempotence si fournie
+      if (idemRef && idempotency) {
+        transaction.set(idemRef, {
+          key: idempotency.idempotencyKey,
+          callerId: idempotency.callerId,
+          requestHash: idempotency.requestHash,
+          orderId: newOrder.id,
+          createdAt: now
+        });
+      }
+
+      // 6.4 Incrémentation atomique du compteur de commande
+      transaction.set(counterRef, {
+        nextOrderSeq: nextOrderSeq + 1,
+        updatedAt: now
+      });
+
+      return {
+        order: newOrder,
+        isExisting: false
+      };
+    });
   }
 
-  // --- Orders Management ---
-  public getOrders(): Order[] {
-    return this.data.orders;
+  // --- Gestion des commandes ---
+  public async getOrders(): Promise<Order[]> {
+    const db = this.getDb();
+    const snap = await getDocs(collection(db, 'orders'));
+    const list: Order[] = [];
+    snap.forEach(d => list.push(d.data() as Order));
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  public getOrdersByClientId(clientId: string): Order[] {
+  public async getOrdersByClientId(clientId: string): Promise<Order[]> {
     if (!clientId) return [];
-    return this.data.orders.filter(o => o.clientId === clientId);
+    const db = this.getDb();
+    const snap = await getDocs(query(collection(db, 'orders'), where('clientId', '==', clientId)));
+    const list: Order[] = [];
+    snap.forEach(d => list.push(d.data() as Order));
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
 
-  public getOrderById(id: string): Order | undefined {
-    return this.data.orders.find(o => o.id === id);
+  public async getOrderById(id: string): Promise<Order | undefined> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'orders', id));
+    return snap.exists() ? (snap.data() as Order) : undefined;
   }
 
-  public getOrderByTrackingToken(token: string): Order | undefined {
-    return this.data.orders.find(o => o.trackingToken === token);
+  public async getOrderByTrackingToken(token: string): Promise<Order | undefined> {
+    const db = this.getDb();
+    const snap = await getDocs(query(collection(db, 'orders'), where('trackingToken', '==', token)));
+    if (snap.empty) return undefined;
+    return snap.docs[0].data() as Order;
   }
 
-  public getOrderByOrderNumberAndPhone(orderNumberRaw: string, phoneRaw: string): Order | undefined {
+  public async getOrderByOrderNumberAndPhone(orderNumberRaw: string, phoneRaw: string): Promise<Order | undefined> {
     if (!orderNumberRaw || !phoneRaw || typeof orderNumberRaw !== 'string' || typeof phoneRaw !== 'string') {
       return undefined;
     }
 
-    // 1. Normalisation du numéro de commande (ex: BEBBA-1047, bebba-1047, #BEBBA-1047, 1047)
     let cleanOrderNum = orderNumberRaw.trim().replace(/^#/, '').toUpperCase();
     if (/^\d+$/.test(cleanOrderNum)) {
       cleanOrderNum = `BEBBA-${cleanOrderNum}`;
     }
 
-    // 2. Normalisation du numéro de téléphone (comparaison sur les 8 derniers chiffres utiles)
     const inputDigits = phoneRaw.replace(/\D/g, '');
-    if (inputDigits.length < 8) {
-      return undefined;
-    }
+    if (inputDigits.length < 8) return undefined;
     const inputLast8 = inputDigits.slice(-8);
 
-    return this.data.orders.find(o => {
-      const storedOrderNum = (o.orderNumber || '').trim().replace(/^#/, '').toUpperCase();
-      if (storedOrderNum !== cleanOrderNum) {
-        return false;
-      }
+    const db = this.getDb();
+    const snap = await getDocs(query(collection(db, 'orders'), where('orderNumber', '==', cleanOrderNum)));
+    if (snap.empty) return undefined;
 
-      const storedPhone = o.client?.phone || (o as any).phone || '';
+    for (const docSnap of snap.docs) {
+      const order = docSnap.data() as Order;
+      const storedPhone = order.client?.phone || (order as any).phone || '';
       const storedDigits = storedPhone.replace(/\D/g, '');
-      if (storedDigits.length < 8) {
-        return false;
+      if (storedDigits.length >= 8 && storedDigits.slice(-8) === inputLast8) {
+        return order;
       }
-      const storedLast8 = storedDigits.slice(-8);
+    }
 
-      return inputLast8 === storedLast8;
-    });
+    return undefined;
   }
 
-  public updateOrderStatus(params: {
+  public async updateOrderStatus(params: {
     orderId: string;
     status: OrderStatus;
     updatedBy?: string;
     note?: string;
     assignedDriverId?: string;
-  }): Order {
-    const order = this.getOrderById(params.orderId);
-    if (!order) {
+  }): Promise<Order> {
+    const db = this.getDb();
+    const orderRef = doc(db, 'orders', params.orderId);
+    const orderSnap = await getDoc(orderRef);
+    if (!orderSnap.exists()) {
       throw new Error(`Commande #${params.orderId} introuvable.`);
     }
 
+    const order = orderSnap.data() as Order;
     const previousStatus = order.status;
 
-    // Règle d'idempotence : si le statut demandé est identique au statut actuel,
-    // ignorer proprement et renvoyer la commande sans effet de bord ni doublon d'historique
     if (previousStatus === params.status) {
       return order;
     }
 
-    // RÈGLES DE TRANSITION DU WORKFLOW STRICT (Bloc B) :
-    // Workflow cible : Reçue → En préparation → Prête → En attente de livreur → En cours de livraison → Livrée
-    // Interdictions absolues :
-    // - Sauter une étape est strictement interdit
-    // - Revenir en arrière est strictement interdit
     const allowedTransitions: Record<OrderStatus, OrderStatus[]> = {
       received: ['preparing', 'cancelled'],
       preparing: ['ready', 'cancelled'],
@@ -1417,166 +1442,70 @@ class DatabaseManager {
 
     if (!allowedTransitions[previousStatus]?.includes(params.status)) {
       throw new Error(
-        `Transition interdite : Impossible de passer du statut '${previousStatus}' au statut '${params.status}'. Le saut d'étape et le retour en arrière sont strictement interdits.`
+        `Transition interdite : Impossible de passer du statut '${previousStatus}' au statut '${params.status}'.`
       );
     }
 
-    // RÈGLE 4 : En attente de livreur → En cours de livraison
-    // Une commande ne doit passer en livraison qu'après attribution d'un livreur
     if (params.status === 'delivering') {
       const driverIdToUse = params.assignedDriverId || order.assignedDriverId;
       if (!driverIdToUse) {
-        throw new Error("Une commande ne peut pas passer en cours de livraison sans attribution préalable d'un livreur.");
+        throw new Error("Une commande ne peut pas passer en livraison sans attribution préalable d'un livreur.");
       }
-      const driver = this.data.drivers.find(d => d.id === driverIdToUse);
-      if (!driver) {
-        throw new Error(`Livreur #${driverIdToUse} introuvable.`);
-      }
-      if (driver.active === false) {
-        throw new Error(`Le livreur "${driver.name}" est désactivé et ne peut pas recevoir de nouvelle commande.`);
-      }
+      const driver = await this.getDriverById(driverIdToUse);
+      if (!driver) throw new Error(`Livreur #${driverIdToUse} introuvable.`);
+      if (driver.active === false) throw new Error(`Le livreur "${driver.name}" est désactivé.`);
       order.assignedDriverId = driver.id;
       order.assignedDriverName = driver.name;
     }
 
-    // --- CONSOMMATION DU STOCK AU PASSAGE 'Reçue' -> 'En préparation' ---
-    if (params.status === 'preparing') {
-      const alreadyConsumed = order.stockConsumed === true || this.data.stockMovements.some(
-        m => m.orderId === order.id && m.type === 'order_consumption'
-      );
+    // Gestion de la consommation du stock lors du passage à 'preparing' si non déjà consommé
+    if (params.status === 'preparing' && !order.stockConsumed) {
+      // Les commandes créées avec V2.2.4 consomment immédiatement à la création.
+      // Pour toute commande rétrocompatible non consommée :
+      const [allIngs, allSups] = await Promise.all([this.getIngredients(), this.getSupplements()]);
+      const ingMap = new Map<string, Ingredient>();
+      allIngs.forEach(i => ingMap.set(i.id, i));
+      const supMap = new Map<string, Supplement>();
+      allSups.forEach(s => supMap.set(s.id, s));
 
-      // Protection stricte contre double consommation
-      if (!alreadyConsumed && previousStatus !== 'preparing') {
-        // 1. Calculer la totalité des besoins en matières premières de la commande
-        const requiredStockMap = new Map<string, { ingredient: Ingredient; required: number }>();
-
-        for (const item of order.items) {
-          const qty = Math.max(1, item.quantity || 1);
-          let prepIngredients = item.preparationSheet?.totalIngredients;
-
-          // Si la fiche n'est pas déjà présente, calculer via computePreparationSheet
-          if (!prepIngredients || prepIngredients.length === 0) {
-            const product = this.getProductById(item.productId);
-            if (product) {
-              const prep = this.computePreparationSheet(
-                product,
-                item.proteinOption,
-                item.veggiesOption,
-                item.baseChoice,
-                item.supplements,
-                item.specialInstructions,
-                { validateActiveIngredients: false }
-              );
-              item.preparationSheet = {
-                totalIngredients: prep.totalIngredients,
-                summaryLines: prep.summaryLines
-              };
-              prepIngredients = prep.totalIngredients;
+      const requiredStockMap = new Map<string, { ingredient: Ingredient; required: number }>();
+      for (const item of order.items) {
+        const qty = Math.max(1, item.quantity || 1);
+        if (item.preparationSheet?.totalIngredients) {
+          for (const ingUsage of item.preparationSheet.totalIngredients) {
+            const needed = Math.round(ingUsage.totalQuantity * qty * 10) / 10;
+            const ing = ingMap.get(ingUsage.ingredientId);
+            if (ing) {
+              const prev = requiredStockMap.get(ing.id);
+              requiredStockMap.set(ing.id, {
+                ingredient: ing,
+                required: prev ? Math.round((prev.required + needed) * 10) / 10 : needed
+              });
             }
           }
-
-          if (prepIngredients) {
-            for (const ingredientUsage of prepIngredients) {
-              const totalNeeded = Math.round(ingredientUsage.totalQuantity * qty * 10) / 10;
-              const ing = this.getIngredientById(ingredientUsage.ingredientId);
-              if (!ing) {
-                throw new Error(`Ingrédient requis #${ingredientUsage.ingredientId} (${ingredientUsage.ingredientName}) introuvable dans le stock.`);
-              }
-
-              const existing = requiredStockMap.get(ing.id);
-              if (existing) {
-                existing.required = Math.round((existing.required + totalNeeded) * 10) / 10;
-              } else {
-                requiredStockMap.set(ing.id, {
-                  ingredient: ing,
-                  required: totalNeeded
-                });
-              }
-            }
-          }
-        }
-
-        // 2. Vérification STRICTE et ATOMIQUE de la disponibilité AVANT toute déduction
-        const missingStockDetails: InsufficientStockDetail[] = [];
-
-        requiredStockMap.forEach(({ ingredient, required }) => {
-          const currentStock = Math.round(ingredient.currentStock * 10) / 10;
-          if (currentStock < required) {
-            const missing = Math.round((required - currentStock) * 10) / 10;
-            missingStockDetails.push({
-              ingredientId: ingredient.id,
-              ingredientName: ingredient.name,
-              required,
-              available: currentStock,
-              missing,
-              unit: ingredient.unit
-            });
-          }
-        });
-
-        if (missingStockDetails.length > 0) {
-          // L'opération est atomique :
-          // - La commande reste strictement à son statut précédent (ex: 'received')
-          // - Aucune quantité de stock n'est modifiée
-          // - Aucun mouvement de consommation n'est créé
-          // - Aucune déduction partielle n'est autorisée
-          throw new InsufficientStockError(missingStockDetails);
-        }
-
-        // 3. TOUS les ingrédients sont disponibles : déduction en mémoire et mouvements (sans persistance intermédiaire)
-        const backupIngredients: Array<{ ing: Ingredient; originalStock: number; originalUpdatedAt: string }> = [];
-        const createdMovements: StockMovement[] = [];
-
-        try {
-          for (const item of order.items) {
-            const qty = Math.max(1, item.quantity || 1);
-            if (item.preparationSheet?.totalIngredients) {
-              for (const ingredientUsage of item.preparationSheet.totalIngredients) {
-                const totalUsed = Math.round(ingredientUsage.totalQuantity * qty * 10) / 10;
-                const ing = this.getIngredientById(ingredientUsage.ingredientId);
-                if (!ing) {
-                  throw new Error(`Ingrédient requis #${ingredientUsage.ingredientId} (${ingredientUsage.ingredientName}) introuvable dans le stock.`);
-                }
-
-                if (!backupIngredients.some(b => b.ing.id === ing.id)) {
-                  backupIngredients.push({
-                    ing,
-                    originalStock: ing.currentStock,
-                    originalUpdatedAt: ing.updatedAt
-                  });
-                }
-
-                const res = this.addStockMovement({
-                  ingredientId: ingredientUsage.ingredientId,
-                  type: 'order_consumption',
-                  quantity: -totalUsed,
-                  notes: `Préparation commande #${order.orderNumber} (${item.productName} x${qty})`,
-                  performedBy: params.updatedBy || 'Cuisine BEBBA',
-                  orderId: order.id,
-                  orderNumber: order.orderNumber,
-                  skipPersist: true
-                });
-                createdMovements.push(res.movement);
-              }
-            }
-          }
-
-          order.stockConsumed = true;
-        } catch (err) {
-          // ROLLBACK ATOMIQUE EN CAS D'ERREUR PENDANT LA CONSOMMATION
-          for (const b of backupIngredients) {
-            b.ing.currentStock = b.originalStock;
-            b.ing.updatedAt = b.originalUpdatedAt;
-          }
-          if (createdMovements.length > 0) {
-            const createdIds = new Set(createdMovements.map(m => m.id));
-            this.data.stockMovements = this.data.stockMovements.filter(m => !createdIds.has(m.id));
-          }
-          order.stockConsumed = false;
-          order.status = previousStatus;
-          throw err;
         }
       }
+
+      // Vérification disponibilité
+      for (const [, reqData] of requiredStockMap) {
+        if (reqData.ingredient.currentStock < reqData.required) {
+          throw new Error(`Stock insuffisant pour l'ingrédient ${reqData.ingredient.name}.`);
+        }
+      }
+
+      // Déduction
+      for (const [, reqData] of requiredStockMap) {
+        await this.addStockMovement({
+          ingredientId: reqData.ingredient.id,
+          type: 'order_consumption',
+          quantity: -reqData.required,
+          notes: `Consommation préparation commande #${order.orderNumber}`,
+          performedBy: params.updatedBy || 'Cuisine BEBBA',
+          orderId: order.id,
+          orderNumber: order.orderNumber
+        });
+      }
+      order.stockConsumed = true;
     }
 
     const statusLabels: Record<OrderStatus, string> = {
@@ -1589,10 +1518,6 @@ class DatabaseManager {
       cancelled: 'Commande annulée'
     };
 
-    // RÈGLE 3 : Prête → En attente de livreur
-    // Après le passage d'une commande à 'ready', le système bascule AUTOMATIQUEMENT la commande
-    // en 'waiting_for_driver' dans TOUS LES CAS (même lorsqu'un livreur est disponible).
-    // Cette étape ne doit pas consommer de stock.
     if (params.status === 'ready') {
       order.statusHistory.push({
         status: 'ready',
@@ -1607,30 +1532,25 @@ class DatabaseManager {
         status: 'waiting_for_driver',
         label: statusLabels.waiting_for_driver,
         timestamp: new Date().toISOString(),
-        note: 'Placée automatiquement en attente d\'attribution d\'un livreur',
+        note: "Placée automatiquement en attente d'attribution d'un livreur",
         updatedBy: 'Système BEBBA'
       });
 
-      this.persist();
+      await setDoc(orderRef, order);
       return order;
     }
 
     order.status = params.status;
 
-    // RÈGLE 5 : En cours de livraison → Livrée
-    // Le livreur confirme que la commande a physiquement été remise au client.
-    // Cette étape ne signifie PAS automatiquement que le paiement est encaissé (Bloc C).
-    if (params.status === 'delivered') {
-      if (order.assignedDriverId) {
-        const driver = this.data.drivers.find(d => d.id === order.assignedDriverId);
-        if (driver) {
-          driver.totalDeliveries = (driver.totalDeliveries || 0) + 1;
-        }
+    if (params.status === 'delivered' && order.assignedDriverId) {
+      const driver = await this.getDriverById(order.assignedDriverId);
+      if (driver) {
+        driver.totalDeliveries = (driver.totalDeliveries || 0) + 1;
+        await updateDoc(doc(db, 'drivers', driver.id), {
+          totalDeliveries: driver.totalDeliveries
+        });
       }
     }
-
-    // RÈGLE 8 : En cas d'annulation ('cancelled'), NE PAS restaurer automatiquement le stock
-    // (qu'elle soit annulée avant ou après préparation). Pas de mouvement inverse automatique.
 
     order.statusHistory.push({
       status: params.status,
@@ -1640,26 +1560,62 @@ class DatabaseManager {
       updatedBy: params.updatedBy || 'Équipe BEBBA'
     });
 
-    this.persist();
+    await setDoc(orderRef, order);
     return order;
   }
 
-  public updatePaymentStatus(orderId: string, paymentStatus: PaymentStatus): Order {
-    const order = this.getOrderById(orderId);
-    if (!order) {
-      throw new Error(`Commande #${orderId} introuvable.`);
+  public async assignDriver(orderId: string, driverId: string, updatedBy: string): Promise<Order> {
+    const db = this.getDb();
+    const orderRef = doc(db, 'orders', orderId);
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) throw new Error(`Commande #${orderId} introuvable.`);
+    const order = snap.data() as Order;
+
+    if (order.status === 'delivered' || order.status === 'cancelled') {
+      throw new Error('Impossible de modifier l’affectation d’une commande clôturée ou annulée.');
     }
+
+    const driver = await this.getDriverById(driverId);
+    if (!driver) throw new Error(`Livreur #${driverId} introuvable.`);
+    if (driver.active === false) {
+      throw new Error(`Le livreur "${driver.name}" est désactivé et ne peut pas recevoir de nouvelle commande.`);
+    }
+
+    order.assignedDriverId = driver.id;
+    order.assignedDriverName = driver.name;
+
+    if (!order.statusHistory) order.statusHistory = [];
+    order.statusHistory.push({
+      status: order.status,
+      label: `Livreur affecté : ${driver.name}`,
+      timestamp: new Date().toISOString(),
+      note: 'Affectation livreur mise à jour par l\'administrateur',
+      updatedBy
+    });
+
+    await setDoc(orderRef, order);
+    return order;
+  }
+
+  public async updatePaymentStatus(orderId: string, paymentStatus: PaymentStatus): Promise<Order> {
+    const db = this.getDb();
+    const orderRef = doc(db, 'orders', orderId);
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) throw new Error(`Commande #${orderId} introuvable.`);
+
+    const order = snap.data() as Order;
     if (paymentStatus === 'paid' && order.status !== 'delivered') {
       throw new Error("Impossible d'encaisser une commande qui n'est pas encore livrée.");
     }
+
     order.paymentStatus = paymentStatus;
-    this.persist();
+    await updateDoc(orderRef, { paymentStatus });
     return order;
   }
 
   // --- Dashboard Stats ---
-  public getDashboardStats(): DashboardStats {
-    const orders = this.data.orders;
+  public async getDashboardStats(): Promise<DashboardStats> {
+    const [orders, ingredients] = await Promise.all([this.getOrders(), this.getIngredients()]);
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
 
@@ -1680,19 +1636,13 @@ class DatabaseManager {
     let pendingCashToCollect = 0;
 
     orders.forEach(o => {
-      if (statusCounts[o.status] !== undefined) {
-        statusCounts[o.status]++;
-      }
-      if (o.paymentStatus === 'paid') {
-        totalCollectedCash += o.totalAmount;
-      } else if (o.status !== 'cancelled') {
-        pendingCashToCollect += o.totalAmount;
-      }
+      if (statusCounts[o.status] !== undefined) statusCounts[o.status]++;
+      if (o.paymentStatus === 'paid') totalCollectedCash += o.totalAmount;
+      else if (o.status !== 'cancelled') pendingCashToCollect += o.totalAmount;
     });
 
-    const lowStockCount = this.data.ingredients.filter(i => i.currentStock <= i.minThreshold).length;
+    const lowStockCount = ingredients.filter(i => i.currentStock <= i.minThreshold).length;
 
-    // Top selling products
     const productCountMap = new Map<string, { name: string; count: number; totalDT: number }>();
     orders.forEach(o => {
       if (o.status !== 'cancelled') {
@@ -1720,70 +1670,93 @@ class DatabaseManager {
     };
   }
 
-  // --- Users & Authentication ---
-  public getUsers(): User[] {
-    return this.data.users;
+  // --- Users & Authentification ---
+  public async getUsers(): Promise<User[]> {
+    const db = this.getDb();
+    const snap = await getDocs(collection(db, 'users'));
+    const list: User[] = [];
+    snap.forEach(d => list.push(d.data() as User));
+    return list;
   }
 
-  public getUserById(id: string): User | undefined {
-    return this.data.users.find(u => u.id === id);
+  public async getUserById(id: string): Promise<User | undefined> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'users', id));
+    return snap.exists() ? (snap.data() as User) : undefined;
   }
 
-  public getUserByUsername(username: string): User | undefined {
+  public async getUserByUsername(username: string): Promise<User | undefined> {
     if (!username || typeof username !== 'string') return undefined;
     const cleanUsername = username.trim().toLowerCase();
-    return this.data.users.find(u => u.username && u.username.toLowerCase() === cleanUsername);
+    const db = this.getDb();
+    const snap = await getDocs(query(collection(db, 'users'), where('username', '==', cleanUsername)));
+    if (snap.empty) return undefined;
+    return snap.docs[0].data() as User;
   }
 
-  public getUserByPhone(phoneRaw: string): User | undefined {
+  public async getUserByPhone(phoneRaw: string): Promise<User | undefined> {
     const norm = normalizePhoneNumber(phoneRaw);
     if (!norm) return undefined;
-    return this.data.users.find(u => {
-      if (!u.phone) return false;
-      return normalizePhoneNumber(u.phone) === norm;
-    });
+    return await this.getClientByPhone(phoneRaw);
   }
 
-  public getClientByPhone(phoneRaw: string): User | undefined {
+  public async getClientByPhone(phoneRaw: string): Promise<User | undefined> {
     const norm = normalizePhoneNumber(phoneRaw);
     if (!norm) return undefined;
-    return this.data.users.find(u => {
-      if (u.role !== 'client' || !u.phone) return false;
-      return normalizePhoneNumber(u.phone) === norm;
-    });
+    const db = this.getDb();
+
+    // 1. Recherche par clientPhoneIndex
+    const indexSnap = await getDoc(doc(db, 'clientPhoneIndex', norm));
+    if (indexSnap.exists()) {
+      const userId = indexSnap.data()?.userId;
+      if (userId) {
+        const userSnap = await getDoc(doc(db, 'users', userId));
+        if (userSnap.exists()) return userSnap.data() as User;
+      }
+    }
+
+    // 2. Recherche directe si l'index n'est pas encore synchronisé
+    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'client')));
+    for (const docSnap of snap.docs) {
+      const u = docSnap.data() as User;
+      if (u.phone && normalizePhoneNumber(u.phone) === norm) {
+        // Enregistrement différé dans l'index
+        await setDoc(doc(db, 'clientPhoneIndex', norm), {
+          userId: u.id,
+          phone: u.phone,
+          normalizedPhone: norm,
+          name: u.name || '',
+          createdAt: u.createdAt || new Date().toISOString()
+        }).catch(() => {});
+        return u;
+      }
+    }
+
+    return undefined;
   }
 
-  public createClient(data: {
+  public async createClient(data: {
     name: string;
     phone: string;
     passwordHash: string;
     address?: string;
-  }): User {
-    if (!data.name || !data.name.trim()) {
-      throw new Error('Le nom est obligatoire.');
-    }
-    if (!data.phone || !data.phone.trim()) {
-      throw new Error('Le numéro de téléphone est obligatoire.');
-    }
+  }): Promise<User> {
+    if (!data.name || !data.name.trim()) throw new Error('Le nom est obligatoire.');
+    if (!data.phone || !data.phone.trim()) throw new Error('Le numéro de téléphone est obligatoire.');
     const norm = normalizePhoneNumber(data.phone);
-    if (!norm) {
-      throw new Error('Numéro de téléphone invalide (au moins 8 chiffres requis).');
-    }
-    if (!data.passwordHash) {
-      throw new Error('Le mot de passe haché est requis.');
-    }
+    if (!norm) throw new Error('Numéro de téléphone invalide (au moins 8 chiffres requis).');
+    if (!data.passwordHash) throw new Error('Le mot de passe haché est requis.');
+
+    const db = this.getDb();
 
     // Unicité du téléphone chez les clients
-    const existing = this.getClientByPhone(data.phone);
+    const existing = await this.getClientByPhone(data.phone);
     if (existing) {
       throw new Error('Un compte client avec ce numéro de téléphone existe déjà.');
     }
 
     const now = new Date().toISOString();
-    let clientId = 'cli-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-    while (this.data.users.some(u => u.id === clientId)) {
-      clientId = 'cli-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
-    }
+    const clientId = 'cli-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
 
     const clientUser: User = {
       id: clientId,
@@ -1797,16 +1770,31 @@ class DatabaseManager {
       updatedAt: now
     };
 
-    this.data.users.push(clientUser);
-    this.persist();
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'users', clientId), clientUser);
+    batch.set(doc(db, 'clientPhoneIndex', norm), {
+      userId: clientId,
+      phone: data.phone.trim(),
+      normalizedPhone: norm,
+      name: data.name.trim(),
+      createdAt: now
+    });
+    await batch.commit();
+
     return clientUser;
   }
 
-  public updateClientProfile(clientId: string, data: { name?: string; phone?: string; address?: string }): User {
-    const user = this.data.users.find(u => u.id === clientId && u.role === 'client');
-    if (!user) {
+  public async updateClientProfile(clientId: string, data: { name?: string; phone?: string; address?: string }): Promise<User> {
+    const db = this.getDb();
+    const userRef = doc(db, 'users', clientId);
+    const snap = await getDoc(userRef);
+    if (!snap.exists() || snap.data()?.role !== 'client') {
       throw new Error('Client introuvable.');
     }
+
+    const user = snap.data() as User;
+    const oldNormPhone = user.phone ? normalizePhoneNumber(user.phone) : null;
+    let newNormPhone: string | null = null;
 
     if (data.name !== undefined) {
       if (!data.name.trim()) throw new Error('Le nom ne peut pas être vide.');
@@ -1816,11 +1804,12 @@ class DatabaseManager {
     if (data.phone !== undefined) {
       const norm = normalizePhoneNumber(data.phone);
       if (!norm) throw new Error('Numéro de téléphone invalide (au moins 8 chiffres requis).');
-      const existing = this.data.users.find(u => u.id !== clientId && u.role === 'client' && u.phone && normalizePhoneNumber(u.phone) === norm);
-      if (existing) {
+      const existing = await this.getClientByPhone(data.phone);
+      if (existing && existing.id !== clientId) {
         throw new Error('Ce numéro de téléphone est déjà utilisé par un autre compte client.');
       }
       user.phone = data.phone.trim();
+      newNormPhone = norm;
     }
 
     if (data.address !== undefined) {
@@ -1828,40 +1817,57 @@ class DatabaseManager {
     }
 
     user.updatedAt = new Date().toISOString();
-    this.persist();
+
+    const batch = writeBatch(db);
+    batch.set(userRef, user);
+
+    if (newNormPhone && newNormPhone !== oldNormPhone) {
+      if (oldNormPhone) {
+        batch.delete(doc(db, 'clientPhoneIndex', oldNormPhone));
+      }
+      batch.set(doc(db, 'clientPhoneIndex', newNormPhone), {
+        userId: user.id,
+        phone: user.phone,
+        normalizedPhone: newNormPhone,
+        name: user.name,
+        createdAt: user.createdAt
+      });
+    }
+
+    await batch.commit();
     return user;
   }
 
-  public saveUser(user: User): User {
+  public async saveUser(user: User): Promise<User> {
+    const db = this.getDb();
     user.updatedAt = new Date().toISOString();
-    const idx = this.data.users.findIndex(u => u.id === user.id);
-    if (idx >= 0) {
-      this.data.users[idx] = user;
-    } else {
-      if (!user.id) user.id = 'usr-' + Date.now();
-      if (!user.createdAt) user.createdAt = new Date().toISOString();
-      this.data.users.push(user);
-    }
-    this.persist();
+    if (!user.id) user.id = 'usr-' + Date.now();
+    if (!user.createdAt) user.createdAt = new Date().toISOString();
+    await setDoc(doc(db, 'users', user.id), user);
     return user;
   }
 
-  public updateUserLastLogin(id: string): void {
-    const user = this.getUserById(id);
-    if (user) {
-      user.lastLoginAt = new Date().toISOString();
-      this.persist();
-    }
+  public async updateUserLastLogin(id: string): Promise<void> {
+    const db = this.getDb();
+    await updateDoc(doc(db, 'users', id), {
+      lastLoginAt: new Date().toISOString()
+    }).catch(() => {});
   }
 
-  public deleteUser(id: string): boolean {
-    const initialLen = this.data.users.length;
-    this.data.users = this.data.users.filter(u => u.id !== id);
-    if (this.data.users.length !== initialLen) {
-      this.persist();
-      return true;
+  public async deleteUser(id: string): Promise<boolean> {
+    const db = this.getDb();
+    const snap = await getDoc(doc(db, 'users', id));
+    if (!snap.exists()) return false;
+    const user = snap.data() as User;
+
+    const batch = writeBatch(db);
+    batch.delete(doc(db, 'users', id));
+    if (user.role === 'client' && user.phone) {
+      const norm = normalizePhoneNumber(user.phone);
+      if (norm) batch.delete(doc(db, 'clientPhoneIndex', norm));
     }
-    return false;
+    await batch.commit();
+    return true;
   }
 }
 

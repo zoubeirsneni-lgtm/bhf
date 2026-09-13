@@ -1,7 +1,17 @@
 import express from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
-import { db, normalizePhoneNumber } from './server/db';
+import {
+  db,
+  normalizePhoneNumber,
+  normalizeAddress,
+  InsufficientStockError,
+  IdempotencyConflictError,
+  IdempotencyForbiddenError,
+  IdempotencyInconsistencyError,
+  SystemNotReadyError
+} from './server/db';
 import {
   getJwtSecret,
   authenticateUser,
@@ -23,6 +33,30 @@ async function startServer() {
   const PORT = 3000;
 
   app.use(express.json());
+
+  // Fail-Fast Middleware : Vérification de l'état système dans Firestore
+  app.use(async (req, res, next) => {
+    // Laisser passer les assets statiques, Vite et la route de santé
+    if (!req.path.startsWith('/api/') || req.path === '/api/health') {
+      return next();
+    }
+    try {
+      const sysState = await db.getSystemState();
+      if (sysState !== 'READY') {
+        res.status(503).json({
+          error: 'Système temporairement indisponible (migration en cours ou maintenance).',
+          systemStatus: sysState
+        });
+        return;
+      }
+      next();
+    } catch (err: any) {
+      res.status(503).json({
+        error: 'Base de données Firestore indisponible.',
+        details: err.message
+      });
+    }
+  });
 
   // --- API Routes ---
 
@@ -47,11 +81,11 @@ async function startServer() {
 
       // 1. Client : authentification par téléphone + mot de passe
       if (phone && typeof phone === 'string' && phone.trim()) {
-        user = db.getClientByPhone(phone);
+        user = await db.getClientByPhone(phone);
       }
       // 2. Utilisateurs internes (Admin, Cuisine, Livreur) : nom d’utilisateur + mot de passe
       else if (username && typeof username === 'string' && username.trim()) {
-        user = db.getUserByUsername(username);
+        user = await db.getUserByUsername(username);
         // Les comptes clients n'ont pas de username et ne peuvent pas se connecter par ce mode
         if (user && user.role === 'client') {
           user = undefined;
@@ -74,7 +108,7 @@ async function startServer() {
       }
 
       // Update last login timestamp
-      db.updateUserLastLogin(user.id);
+      await db.updateUserLastLogin(user.id);
 
       const safeUser = sanitizeUser(user);
       const token = generateToken(safeUser);
@@ -115,7 +149,7 @@ async function startServer() {
       }
 
       // 3. Unicité du téléphone chez les clients
-      const existingClient = db.getClientByPhone(phone);
+      const existingClient = await db.getClientByPhone(phone);
       if (existingClient) {
         res.status(400).json({ error: 'Un compte client avec ce numéro de téléphone existe déjà.' });
         return;
@@ -125,7 +159,7 @@ async function startServer() {
       const passwordHash = await hashPassword(password);
 
       // 5. Création du compte client (ID généré serveur, rôle forcé à 'client')
-      const newClient = db.createClient({
+      const newClient = await db.createClient({
         name: name.trim(),
         phone: phone.trim(),
         address: typeof address === 'string' ? address.trim() : '',
@@ -162,19 +196,20 @@ async function startServer() {
 
   // --- Categories Management ---
   // GET /api/categories (Public for menu browsing)
-  app.get('/api/categories', (req, res) => {
+  app.get('/api/categories', async (req, res) => {
     try {
       const activeOnly = req.query.activeOnly === 'true' || req.query.active === 'true';
-      res.json(db.getCategories({ activeOnly }));
+      const list = await db.getCategories({ activeOnly });
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
   // GET /api/categories/:id
-  app.get('/api/categories/:id', (req, res) => {
+  app.get('/api/categories/:id', async (req, res) => {
     try {
-      const cat = db.getCategoryById(req.params.id);
+      const cat = await db.getCategoryById(req.params.id);
       if (!cat) {
         res.status(404).json({ error: 'Catégorie non trouvée.' });
         return;
@@ -186,9 +221,9 @@ async function startServer() {
   });
 
   // POST /api/categories (Admin only)
-  app.post('/api/categories', authenticateUser, requireRole('admin'), (req, res) => {
+  app.post('/api/categories', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const saved = db.saveCategory(req.body);
+      const saved = await db.saveCategory(req.body);
       res.status(201).json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -196,10 +231,10 @@ async function startServer() {
   });
 
   // PUT /api/categories/:id (Admin only)
-  app.put('/api/categories/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.put('/api/categories/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
       const category = { ...req.body, id: req.params.id };
-      const saved = db.saveCategory(category);
+      const saved = await db.saveCategory(category);
       res.json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -207,9 +242,9 @@ async function startServer() {
   });
 
   // DELETE /api/categories/:id (Admin only)
-  app.delete('/api/categories/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.delete('/api/categories/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const success = db.deleteCategory(req.params.id);
+      const success = await db.deleteCategory(req.params.id);
       res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -218,21 +253,22 @@ async function startServer() {
 
   // --- Products Management ---
   // GET /api/products (Public for catalog browsing)
-  app.get('/api/products', (req, res) => {
+  app.get('/api/products', async (req, res) => {
     try {
       const categoryId = req.query.categoryId as string | undefined;
       const activeOnly = req.query.activeOnly === 'true' || req.query.active === 'true';
       const availableOnly = req.query.availableOnly === 'true' || req.query.available === 'true';
-      res.json(db.getProducts({ categoryId, activeOnly, availableOnly }));
+      const list = await db.getProducts({ categoryId, activeOnly, availableOnly });
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
   // GET /api/products/:id
-  app.get('/api/products/:id', (req, res) => {
+  app.get('/api/products/:id', async (req, res) => {
     try {
-      const prod = db.getProductById(req.params.id);
+      const prod = await db.getProductById(req.params.id);
       if (!prod) {
         res.status(404).json({ error: 'Produit non trouvé.' });
         return;
@@ -244,9 +280,9 @@ async function startServer() {
   });
 
   // POST /api/products (Admin only)
-  app.post('/api/products', authenticateUser, requireRole('admin'), (req, res) => {
+  app.post('/api/products', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const saved = db.saveProduct(req.body);
+      const saved = await db.saveProduct(req.body);
       res.status(201).json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -254,10 +290,10 @@ async function startServer() {
   });
 
   // PUT /api/products/:id (Admin only)
-  app.put('/api/products/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.put('/api/products/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
       const prod = { ...req.body, id: req.params.id };
-      const saved = db.saveProduct(prod);
+      const saved = await db.saveProduct(prod);
       res.json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -265,9 +301,9 @@ async function startServer() {
   });
 
   // DELETE /api/products/:id (Admin only)
-  app.delete('/api/products/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.delete('/api/products/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const success = db.deleteProduct(req.params.id);
+      const success = await db.deleteProduct(req.params.id);
       res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -276,20 +312,21 @@ async function startServer() {
 
   // --- Supplements Management ---
   // GET /api/supplements (Public for menu customization)
-  app.get('/api/supplements', (req, res) => {
+  app.get('/api/supplements', async (req, res) => {
     try {
       const activeOnly = req.query.activeOnly === 'true' || req.query.active === 'true';
       const availableOnly = req.query.availableOnly === 'true' || req.query.available === 'true';
-      res.json(db.getSupplements({ activeOnly, availableOnly }));
+      const list = await db.getSupplements({ activeOnly, availableOnly });
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
   // GET /api/supplements/:id
-  app.get('/api/supplements/:id', (req, res) => {
+  app.get('/api/supplements/:id', async (req, res) => {
     try {
-      const sup = db.getSupplementById(req.params.id);
+      const sup = await db.getSupplementById(req.params.id);
       if (!sup) {
         res.status(404).json({ error: 'Supplément non trouvé.' });
         return;
@@ -301,9 +338,9 @@ async function startServer() {
   });
 
   // POST /api/supplements (Admin only)
-  app.post('/api/supplements', authenticateUser, requireRole('admin'), (req, res) => {
+  app.post('/api/supplements', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const saved = db.saveSupplement(req.body);
+      const saved = await db.saveSupplement(req.body);
       res.status(201).json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -311,10 +348,10 @@ async function startServer() {
   });
 
   // PUT /api/supplements/:id (Admin only)
-  app.put('/api/supplements/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.put('/api/supplements/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
       const sup = { ...req.body, id: req.params.id };
-      const saved = db.saveSupplement(sup);
+      const saved = await db.saveSupplement(sup);
       res.json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -322,9 +359,9 @@ async function startServer() {
   });
 
   // DELETE /api/supplements/:id (Admin only)
-  app.delete('/api/supplements/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.delete('/api/supplements/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const success = db.deleteSupplement(req.params.id);
+      const success = await db.deleteSupplement(req.params.id);
       res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -333,29 +370,30 @@ async function startServer() {
 
   // --- Ingredients & Stock Management ---
   // GET /api/ingredients (Admin & Kitchen)
-  app.get('/api/ingredients', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
+  app.get('/api/ingredients', authenticateUser, requireRole('admin', 'kitchen'), async (req, res) => {
     try {
-      res.json(db.getIngredients());
+      const list = await db.getIngredients();
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
   // POST /api/ingredients (Admin & Kitchen)
-  app.post('/api/ingredients', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
+  app.post('/api/ingredients', authenticateUser, requireRole('admin', 'kitchen'), async (req, res) => {
     try {
-      const saved = db.saveIngredient(req.body);
-      res.json(saved);
+      const saved = await db.saveIngredient(req.body);
+      res.status(201).json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
   // PUT /api/ingredients/:id (Admin & Kitchen)
-  app.put('/api/ingredients/:id', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
+  app.put('/api/ingredients/:id', authenticateUser, requireRole('admin', 'kitchen'), async (req, res) => {
     try {
       const ing = { ...req.body, id: req.params.id };
-      const saved = db.saveIngredient(ing);
+      const saved = await db.saveIngredient(ing);
       res.json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -363,9 +401,9 @@ async function startServer() {
   });
 
   // DELETE /api/ingredients/:id (Admin only - Protected against referenced ingredients)
-  app.delete('/api/ingredients/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.delete('/api/ingredients/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const success = db.deleteIngredient(req.params.id);
+      const success = await db.deleteIngredient(req.params.id);
       res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -373,7 +411,7 @@ async function startServer() {
   });
 
   // Manual Stock Adjustments / Restock (Admin & Kitchen)
-  app.post('/api/ingredients/:id/stock', authenticateUser, requireRole('admin', 'kitchen'), (req: AuthenticatedRequest, res) => {
+  app.post('/api/ingredients/:id/stock', authenticateUser, requireRole('admin', 'kitchen'), async (req: AuthenticatedRequest, res) => {
     try {
       const { type, quantity, notes } = req.body;
       if (typeof quantity !== 'number' || isNaN(quantity)) {
@@ -381,7 +419,7 @@ async function startServer() {
         return;
       }
       const performer = req.user ? `${req.user.name} (${req.user.role === 'admin' ? 'Admin' : 'Cuisine'})` : 'Administrateur';
-      const result = db.addStockMovement({
+      const result = await db.addStockMovement({
         ingredientId: req.params.id,
         type: type || 'manual_in',
         quantity: Number(quantity),
@@ -395,9 +433,10 @@ async function startServer() {
   });
 
   // GET /api/stock-movements (Admin only)
-  app.get('/api/stock-movements', authenticateUser, requireRole('admin'), (req, res) => {
+  app.get('/api/stock-movements', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      res.json(db.getStockMovements());
+      const list = await db.getStockMovements();
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -405,9 +444,10 @@ async function startServer() {
 
   // --- Drivers Management ---
   // GET /api/drivers (Admin & Kitchen)
-  app.get('/api/drivers', authenticateUser, requireRole('admin', 'kitchen'), (req, res) => {
+  app.get('/api/drivers', authenticateUser, requireRole('admin', 'kitchen'), async (req, res) => {
     try {
-      res.json(db.getDrivers());
+      const list = await db.getDrivers();
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -439,7 +479,7 @@ async function startServer() {
       const passwordHash = await hashPassword(password);
 
       // Atomic creation in db
-      const result = db.createDriverWithAccount({
+      const result = await db.createDriverWithAccount({
         name,
         phone,
         vehicle: vehicle || 'Scooter standard',
@@ -461,10 +501,10 @@ async function startServer() {
   });
 
   // PUT /api/drivers/:id (Admin only - Update business profile & sync User)
-  app.put('/api/drivers/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.put('/api/drivers/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const updated = db.updateDriverWithAccount(req.params.id, req.body);
-      const user = db.getUserByDriverId(req.params.id);
+      const updated = await db.updateDriverWithAccount(req.params.id, req.body);
+      const user = await db.getUserByDriverId(req.params.id);
       res.json({
         ...updated,
         username: user ? user.username : undefined
@@ -475,7 +515,7 @@ async function startServer() {
   });
 
   // PATCH /api/drivers/:id/status (Admin only - Synchronized active toggle for Driver AND User)
-  app.patch('/api/drivers/:id/status', authenticateUser, requireRole('admin'), (req, res) => {
+  app.patch('/api/drivers/:id/status', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
       const { active } = req.body;
       if (typeof active !== 'boolean') {
@@ -483,7 +523,7 @@ async function startServer() {
         return;
       }
 
-      const result = db.setDriverActiveStatus(req.params.id, active);
+      const result = await db.setDriverActiveStatus(req.params.id, active);
       res.json({
         success: true,
         driver: {
@@ -506,7 +546,7 @@ async function startServer() {
       }
 
       const passwordHash = await hashPassword(newPassword);
-      db.resetDriverPassword(req.params.id, passwordHash);
+      await db.resetDriverPassword(req.params.id, passwordHash);
 
       res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
     } catch (err: any) {
@@ -515,9 +555,9 @@ async function startServer() {
   });
 
   // DELETE /api/drivers/:id (Admin only - Safe delete with historical order protection)
-  app.delete('/api/drivers/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.delete('/api/drivers/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const success = db.deleteDriver(req.params.id);
+      const success = await db.deleteDriver(req.params.id);
       res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -526,18 +566,19 @@ async function startServer() {
 
   // --- Suppliers Management ---
   // GET /api/suppliers (Admin only)
-  app.get('/api/suppliers', authenticateUser, requireRole('admin'), (req, res) => {
+  app.get('/api/suppliers', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      res.json(db.getSuppliers());
+      const list = await db.getSuppliers();
+      res.json(list);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });
 
   // POST /api/suppliers (Admin only)
-  app.post('/api/suppliers', authenticateUser, requireRole('admin'), (req, res) => {
+  app.post('/api/suppliers', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const saved = db.saveSupplier(req.body);
+      const saved = await db.saveSupplier(req.body);
       res.json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -545,9 +586,9 @@ async function startServer() {
   });
 
   // PUT /api/suppliers/:id (Admin only)
-  app.put('/api/suppliers/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.put('/api/suppliers/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const saved = db.saveSupplier({ ...req.body, id: req.params.id });
+      const saved = await db.saveSupplier({ ...req.body, id: req.params.id });
       res.json(saved);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -555,9 +596,9 @@ async function startServer() {
   });
 
   // DELETE /api/suppliers/:id (Admin only)
-  app.delete('/api/suppliers/:id', authenticateUser, requireRole('admin'), (req, res) => {
+  app.delete('/api/suppliers/:id', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const success = db.deleteSupplier(req.params.id);
+      const success = await db.deleteSupplier(req.params.id);
       res.json({ success });
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -565,9 +606,9 @@ async function startServer() {
   });
 
   // --- Users Management (Admin only) ---
-  app.get('/api/users', authenticateUser, requireRole('admin'), (req, res) => {
+  app.get('/api/users', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      const users = db.getUsers().map(sanitizeUser);
+      const users = (await db.getUsers()).map(sanitizeUser);
       res.json(users);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -593,13 +634,13 @@ async function startServer() {
         });
         return;
       }
-      const existing = db.getUserByUsername(username);
+      const existing = await db.getUserByUsername(username);
       if (existing) {
         res.status(400).json({ error: 'Ce nom d’utilisateur est déjà utilisé.' });
         return;
       }
       const passwordHash = await hashPassword(password);
-      const newUser = db.saveUser({
+      const newUser = await db.saveUser({
         id: 'usr-' + Date.now(),
         username: username.trim().toLowerCase(),
         name: name || username,
@@ -620,10 +661,10 @@ async function startServer() {
   // --- Orders Management & Role-Based Isolation ---
 
   // GET /api/orders (Staff: Admin, Kitchen, Driver with strict server-side isolation)
-  app.get('/api/orders', authenticateUser, requireRole('admin', 'kitchen', 'driver'), (req: AuthenticatedRequest, res) => {
+  app.get('/api/orders', authenticateUser, requireRole('admin', 'kitchen', 'driver'), async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
-      const allOrders = db.getOrders();
+      const allOrders = await db.getOrders();
 
       if (user.role === 'admin') {
         // Admin views all orders
@@ -632,7 +673,7 @@ async function startServer() {
       }
 
       if (user.role === 'kitchen') {
-        // Kitchen views all orders except cancelled (focus on received, preparing, ready, delivering, delivered)
+        // Kitchen views all orders except cancelled
         const kitchenOrders = allOrders.filter(o => o.status !== 'cancelled');
         res.json(kitchenOrders);
         return;
@@ -657,10 +698,10 @@ async function startServer() {
   });
 
   // GET /api/orders/:id (Staff & Client with IDOR protection)
-  app.get('/api/orders/:id', authenticateUser, requireRole('admin', 'kitchen', 'driver', 'client'), (req: AuthenticatedRequest, res) => {
+  app.get('/api/orders/:id', authenticateUser, requireRole('admin', 'kitchen', 'driver', 'client'), async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
-      const order = db.getOrderById(req.params.id);
+      const order = await db.getOrderById(req.params.id);
 
       if (!order) {
         res.status(404).json({ error: 'Commande non trouvée.' });
@@ -698,15 +739,10 @@ async function startServer() {
       createdAt: order.createdAt,
       status: order.status,
       paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
       totalAmount: order.totalAmount,
-      subtotal: order.subtotal,
       deliveryFee: order.deliveryFee,
-      client: {
-        name: order.client?.name || '',
-        phone: order.client?.phone || '',
-        deliveryAddress: order.client?.deliveryAddress || '',
-        notes: order.client?.notes || ''
-      },
+      subtotal: order.subtotal,
       clientName: order.client?.name || '',
       phone: order.client?.phone || '',
       deliveryAddress: order.client?.deliveryAddress || '',
@@ -737,9 +773,9 @@ async function startServer() {
   const lookupRateLimiter = new Map<string, LookupRateLimitEntry>();
 
   // Public Order Tracking by unique token (No auth required)
-  app.get('/api/orders/track/:token', (req, res) => {
+  app.get('/api/orders/track/:token', async (req, res) => {
     try {
-      const order = db.getOrderByTrackingToken(req.params.token);
+      const order = await db.getOrderByTrackingToken(req.params.token);
       if (!order) {
         res.status(404).json({ error: 'Lien de suivi invalide ou commande introuvable.' });
         return;
@@ -752,7 +788,7 @@ async function startServer() {
   });
 
   // POST /api/orders/track-lookup (Public Order Recovery with orderNumber + phone)
-  app.post('/api/orders/track-lookup', (req, res) => {
+  app.post('/api/orders/track-lookup', async (req, res) => {
     try {
       const clientIp = (req.ip || req.socket.remoteAddress || 'unknown').toString();
       const now = Date.now();
@@ -778,7 +814,7 @@ async function startServer() {
         return;
       }
 
-      const order = db.getOrderByOrderNumberAndPhone(orderNumber, phone);
+      const order = await db.getOrderByOrderNumberAndPhone(orderNumber, phone);
 
       if (!order) {
         // Enregistrer l'échec pour le rate limiting
@@ -807,42 +843,164 @@ async function startServer() {
     }
   });
 
-  // POST /api/orders (Public Guest & Authenticated Client Order Creation)
-  app.post('/api/orders', (req, res) => {
+  // Helper : Construction déterministe et canonique du requestHash (Section 4 & 5)
+  function buildDeterministicOrderHash(params: {
+    callerId: string;
+    client: { name?: string; phone?: string; deliveryAddress?: string; notes?: string };
+    items: Array<{
+      productId: string;
+      quantity: number;
+      proteinOption?: { label: string; extraPrice: number; extraGrams: number };
+      veggiesOption?: { label: string; extraPrice: number; extraGrams: number };
+      baseChoice?: { label: string; extraPrice: number };
+      supplements?: Array<{ id: string; quantity: number }>;
+      specialInstructions?: string;
+    }>;
+  }): string {
+    const callerId = (params.callerId || '').trim();
+    const phoneNormalized = normalizePhoneNumber(params.client?.phone || '') || '';
+    const addressNormalized = normalizeAddress(params.client?.deliveryAddress || '');
+    const clientName = (params.client?.name || '').trim();
+    const clientNotes = (params.client?.notes || '').trim();
+
+    // Canonicaliser chaque item avec toutes ses composantes
+    const canonicalItems = (params.items || []).map((item) => {
+      // Suppléments triés par identifiant de supplément de façon déterministe
+      const sortedSupplements = (item.supplements || [])
+        .map(s => ({
+          id: ((s as any).id || (s as any).supplementId || '').trim(),
+          quantity: Number(s.quantity) || 1
+        }))
+        .filter(s => s.id && s.quantity > 0)
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      const proteinLabel = (item.proteinOption?.label || '').trim();
+      const proteinGrams = Number(item.proteinOption?.extraGrams) || 0;
+      const proteinExtraPrice = Number(item.proteinOption?.extraPrice) || 0;
+
+      const veggiesLabel = (item.veggiesOption?.label || '').trim();
+      const veggiesGrams = Number(item.veggiesOption?.extraGrams) || 0;
+      const veggiesExtraPrice = Number(item.veggiesOption?.extraPrice) || 0;
+
+      const baseLabel = (item.baseChoice?.label || '').trim();
+      const baseExtraPrice = Number(item.baseChoice?.extraPrice) || 0;
+
+      const instructions = (item.specialInstructions || '').trim();
+
+      return {
+        productId: (item.productId || '').trim(),
+        quantity: Number(item.quantity) || 1,
+        protein: { label: proteinLabel, grams: proteinGrams, price: proteinExtraPrice },
+        veggies: { label: veggiesLabel, grams: veggiesGrams, price: veggiesExtraPrice },
+        base: { label: baseLabel, price: baseExtraPrice },
+        supplements: sortedSupplements,
+        specialInstructions: instructions
+      };
+    });
+
+    // Tri déterministe basé sur la représentation canonique complète de chaque item
+    canonicalItems.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+
+    const canonicalPayload = {
+      callerId,
+      phoneNormalized,
+      addressNormalized,
+      clientName,
+      clientNotes,
+      items: canonicalItems
+    };
+
+    return crypto
+      .createHash('sha256')
+      .update(JSON.stringify(canonicalPayload))
+      .digest('hex');
+  }
+
+  // POST /api/orders (Public Guest & Authenticated Client Order Creation with Strict Idempotency)
+  app.post('/api/orders', async (req, res) => {
     try {
-      // Identifier le client si un token JWT valide est fourni
+      // 1. Identifier le client si un token JWT valide est fourni
       let authenticatedClientId: string | undefined = undefined;
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7).trim();
         const payload = verifyToken(token);
         if (payload && payload.id) {
-          const user = db.getUserById(payload.id);
+          const user = await db.getUserById(payload.id);
           if (user && user.active && user.role === 'client') {
             authenticatedClientId = user.id;
           }
         }
       }
 
-      // Protection anti-spoofing : ignorer totalement tout clientId arbitraire envoyé dans le body
+      // 2. Protection anti-spoofing : ignorer totalement tout clientId arbitraire envoyé dans le body
       const { clientId: _ignoredClientId, ...bodyWithoutClientId } = req.body || {};
       const orderPayload = {
         ...bodyWithoutClientId,
         clientId: authenticatedClientId
       };
 
-      const newOrder = db.createOrder(orderPayload);
-      res.status(201).json(newOrder);
+      // 3. Extraction et calcul des paramètres d'idempotence
+      const idempotencyKey = (req.headers['idempotency-key'] as string | undefined)?.trim();
+      const normalizedPhone = normalizePhoneNumber(orderPayload.client?.phone) || '';
+      // callerId déterministe (client authentifié ou guest:phoneNormalized)
+      const callerId = authenticatedClientId ? `client:${authenticatedClientId}` : `guest:${normalizedPhone || 'unknown'}`;
+
+      // requestHash canonique et déterministe calculé côté serveur (SHA-256)
+      const requestHash = buildDeterministicOrderHash({
+        callerId,
+        client: orderPayload.client || {},
+        items: orderPayload.items || []
+      });
+
+      // 4. Création atomique transactionnelle Firestore
+      const result = await db.createOrder(orderPayload, {
+        idempotencyKey,
+        callerId,
+        requestHash
+      });
+
+      // 5. Code de réponse : 200 si la commande existait déjà (idempotence), 201 si nouvelle
+      if (result.isExisting) {
+        res.status(200).json(result.order);
+      } else {
+        res.status(201).json(result.order);
+      }
     } catch (err: any) {
-      res.status(400).json({ error: err.message });
+      if (err instanceof IdempotencyForbiddenError) {
+        res.status(403).json({ error: err.message });
+      } else if (err instanceof IdempotencyConflictError) {
+        res.status(422).json({ error: err.message });
+      } else if (err instanceof IdempotencyInconsistencyError) {
+        res.status(500).json({ error: err.message });
+      } else if (err instanceof SystemNotReadyError) {
+        res.status(503).json({ error: err.message });
+      } else if (err instanceof InsufficientStockError) {
+        res.status(409).json({ error: err.message, details: err.details });
+      } else {
+        // Détection explicite de l'indisponibilité Firestore (HTTP 503)
+        if (
+          err?.code === 'unavailable' ||
+          err?.message?.includes('indisponible') ||
+          err?.message?.includes('offline') ||
+          err?.message?.includes('database unavailable')
+        ) {
+          res.status(503).json({
+            error: 'Base de données Firestore indisponible.',
+            details: err.message
+          });
+        } else {
+          res.status(400).json({ error: err.message });
+        }
+      }
     }
   });
 
   // GET /api/client/orders (Protected: Client only)
-  app.get('/api/client/orders', authenticateUser, requireRole('client'), (req: AuthenticatedRequest, res) => {
+  app.get('/api/client/orders', authenticateUser, requireRole('client'), async (req: AuthenticatedRequest, res) => {
     try {
       const clientId = req.user!.id;
-      const clientOrders = db.getOrdersByClientId(clientId);
+      const clientOrders = await db.getOrdersByClientId(clientId);
       res.json(clientOrders);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -850,10 +1008,10 @@ async function startServer() {
   });
 
   // PATCH /api/orders/:id/status (Protected & strictly validated by role)
-  app.patch('/api/orders/:id/status', authenticateUser, requireRole('admin', 'kitchen', 'driver'), (req: AuthenticatedRequest, res) => {
+  app.patch('/api/orders/:id/status', authenticateUser, requireRole('admin', 'kitchen', 'driver'), async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
-      const order = db.getOrderById(req.params.id);
+      const order = await db.getOrderById(req.params.id);
 
       if (!order) {
         res.status(404).json({ error: 'Commande non trouvée.' });
@@ -896,7 +1054,6 @@ async function startServer() {
       // Driver assignment can ONLY be performed by Admin strictly upon transition to 'delivering'
       const validAssignedDriverId = (user.role === 'admin' && status === 'delivering') ? assignedDriverId : undefined;
 
-      // Rule 4 & 5: Une commande ne doit passer en livraison qu'après attribution d'un livreur valide
       if (status === 'delivering') {
         const driverIdToUse = validAssignedDriverId || order.assignedDriverId;
         if (!driverIdToUse) {
@@ -905,7 +1062,7 @@ async function startServer() {
           });
           return;
         }
-        const driver = db.getDrivers().find(d => d.id === driverIdToUse);
+        const driver = await db.getDriverById(driverIdToUse);
         if (!driver) {
           res.status(400).json({
             error: `Livreur #${driverIdToUse} introuvable.`
@@ -920,7 +1077,7 @@ async function startServer() {
         }
       }
 
-      const updated = db.updateOrderStatus({
+      const updated = await db.updateOrderStatus({
         orderId: req.params.id,
         status,
         note,
@@ -936,69 +1093,27 @@ async function startServer() {
   });
 
   // PATCH /api/orders/:id/assign-driver (Protected: Admin only)
-  app.patch('/api/orders/:id/assign-driver', authenticateUser, requireRole('admin'), (req: AuthenticatedRequest, res) => {
+  app.patch('/api/orders/:id/assign-driver', authenticateUser, requireRole('admin'), async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
-      const order = db.getOrderById(req.params.id);
-
-      if (!order) {
-        res.status(404).json({ error: 'Commande non trouvée.' });
-        return;
-      }
-
-      // Interdire la réaffectation sur commandes clôturées ou annulées
-      if (order.status === 'delivered' || order.status === 'cancelled') {
-        res.status(400).json({ error: 'Impossible de modifier l’affectation d’une commande clôturée ou annulée.' });
-        return;
-      }
-
       const targetDriverId = req.body.driverId || req.body.assignedDriverId;
       if (!targetDriverId) {
         res.status(400).json({ error: 'L’identifiant du livreur (driverId) est requis.' });
         return;
       }
 
-      const driver = db.getDrivers().find(d => d.id === targetDriverId);
-      if (!driver) {
-        res.status(404).json({ error: `Livreur #${targetDriverId} introuvable.` });
-        return;
-      }
-
-      if (driver.active === false) {
-        res.status(400).json({
-          error: `Le livreur "${driver.name}" est désactivé et ne peut pas recevoir de nouvelle commande.`
-        });
-        return;
-      }
-
-      // Préserver le statut actuel de la commande et mettre à jour le livreur affecté
-      order.assignedDriverId = driver.id;
-      order.assignedDriverName = driver.name;
-
-      if (!order.statusHistory) {
-        order.statusHistory = [];
-      }
-      order.statusHistory.push({
-        status: order.status,
-        label: `Livreur affecté : ${driver.name}`,
-        timestamp: new Date().toISOString(),
-        note: `Affectation livreur mise à jour par l'administrateur`,
-        updatedBy: `${user.name} (Admin)`
-      });
-
-      (db as any).persist();
-
-      res.json(order);
+      const updatedOrder = await db.assignDriver(req.params.id, targetDriverId, `${user.name} (Admin)`);
+      res.json(updatedOrder);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
     }
   });
 
   // PATCH /api/orders/:id/payment (Protected: Admin or Assigned Driver only)
-  app.patch('/api/orders/:id/payment', authenticateUser, (req: AuthenticatedRequest, res) => {
+  app.patch('/api/orders/:id/payment', authenticateUser, async (req: AuthenticatedRequest, res) => {
     try {
       const user = req.user!;
-      const order = db.getOrderById(req.params.id);
+      const order = await db.getOrderById(req.params.id);
 
       if (!order) {
         res.status(404).json({ error: 'Commande non trouvée.' });
@@ -1029,14 +1144,11 @@ async function startServer() {
         return;
       }
 
-      // Strict Business Rule: ON NE PEUT ENCAISSER UNE COMMANDE QU'APRÈS CONFIRMATION DE SA LIVRAISON.
-      // Even admin and assigned driver cannot set paymentStatus to 'paid' if order.status !== 'delivered'
       if (paymentStatus === 'paid' && order.status !== 'delivered') {
         res.status(400).json({ error: "Impossible d'encaisser une commande qui n'est pas encore livrée." });
         return;
       }
 
-      // Driver can only confirm payment for their assigned orders and when marked as paid
       if (user.role === 'driver') {
         if (!user.driverId || order.assignedDriverId !== user.driverId) {
           res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
@@ -1048,7 +1160,7 @@ async function startServer() {
         }
       }
 
-      const updated = db.updatePaymentStatus(req.params.id, paymentStatus);
+      const updated = await db.updatePaymentStatus(req.params.id, paymentStatus);
       res.json(updated);
     } catch (err: any) {
       res.status(400).json({ error: err.message });
@@ -1056,19 +1168,10 @@ async function startServer() {
   });
 
   // Dashboard Stats (Admin only)
-  app.get('/api/stats', authenticateUser, requireRole('admin'), (req, res) => {
+  app.get('/api/stats', authenticateUser, requireRole('admin'), async (req, res) => {
     try {
-      res.json(db.getDashboardStats());
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  });
-
-  // Reset Demo Data (Admin only)
-  app.post('/api/reset-demo-data', authenticateUser, requireRole('admin'), (req, res) => {
-    try {
-      const freshData = db.resetToDefaults();
-      res.json({ message: 'Données de démonstration réinitialisées avec succès.', freshData });
+      const stats = await db.getDashboardStats();
+      res.json(stats);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -1095,4 +1198,3 @@ async function startServer() {
 }
 
 startServer();
-

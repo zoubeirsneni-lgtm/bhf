@@ -39,6 +39,17 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsCartOpen
   } = useApp();
 
+function generateUUIDv4(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
   const isClient = Boolean(isAuthenticated && currentUser && currentUser.role === 'client');
 
   const [name, setName] = useState('');
@@ -53,10 +64,15 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
   }>({});
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  // Clé d'idempotence UUID v4 stable générée à l'ouverture du cycle de checkout
+  const [idempotencyKey, setIdempotencyKey] = useState<string>('');
 
-  // Synchronisation des coordonnées à l'ouverture du checkout
+  // Synchronisation des coordonnées et de la clé d'idempotence à l'ouverture du checkout
   useEffect(() => {
     if (isOpen) {
+      if (!idempotencyKey) {
+        setIdempotencyKey(generateUUIDv4());
+      }
       if (isClient && currentUser) {
         // Client connecté : pré-remplissage automatique des données du compte
         setName(currentUser.name || '');
@@ -73,6 +89,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
       setFieldErrors({});
       setErrorMsg(null);
+    } else {
+      setIdempotencyKey('');
     }
   }, [isOpen, isClient, currentUser]);
 
@@ -83,6 +101,7 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setCopiedCode(false);
     setFieldErrors({});
     setErrorMsg(null);
+    setIdempotencyKey('');
     onClose();
   };
 
@@ -163,7 +182,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
           phone: phone.trim(),
           deliveryAddress: address.trim(),
           notes: notes.trim() || undefined
-        }
+        },
+        idempotencyKey
       });
 
       // Celebration confetti
@@ -177,6 +197,8 @@ export const CheckoutModal: React.FC<CheckoutModalProps> = ({
         // ignore
       }
 
+      // Commande réussie : régénérer immédiatement la clé pour tout nouveau cycle futur
+      setIdempotencyKey(generateUUIDv4());
       setConfirmedOrder(newOrder);
     } catch (err: any) {
       setErrorMsg(err.message || 'Une erreur est survenue lors de la commande.');
