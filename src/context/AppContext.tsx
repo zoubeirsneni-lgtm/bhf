@@ -485,6 +485,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         body: JSON.stringify({ username: username.trim(), password })
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Le serveur a renvoyé une réponse non-JSON (serveur temporairement indisponible ou en cours de démarrage).');
+      }
+
       if (!res.ok) {
         if (res.status === 401) {
           throw new Error('Identifiants invalides. Veuillez vérifier votre nom d’utilisateur et mot de passe.');
@@ -588,6 +593,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         },
         body: JSON.stringify({ phone: trimmedPhone, password })
       });
+
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error('Le serveur a renvoyé une réponse non-JSON (serveur temporairement indisponible ou en cours de démarrage).');
+      }
 
       if (!res.ok) {
         if (res.status === 401) {
