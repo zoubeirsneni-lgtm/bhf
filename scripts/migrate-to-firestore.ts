@@ -1,15 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { initializeApp } from 'firebase/app';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  getDocs,
-  collection,
-  writeBatch
-} from 'firebase/firestore';
+import { Firestore } from '@google-cloud/firestore';
 
 // Read Firebase config
 const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
@@ -19,9 +10,11 @@ if (!fs.existsSync(configPath)) {
 }
 const firebaseConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 
-// Initialize Firebase SDK
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// Initialize Firestore Server SDK
+const db = new Firestore({
+  projectId: firebaseConfig.projectId || 'active-presence-n4jp1',
+  databaseId: firebaseConfig.firestoreDatabaseId || 'ai-studio-bebbahealthyfood-102ba276-a1c8-4054-a23d-7f9d280d95fa'
+});
 
 export function normalizePhoneNumber(phoneRaw: string): string | null {
   if (!phoneRaw || typeof phoneRaw !== 'string') return null;
@@ -36,7 +29,7 @@ async function commitInBatches(docsToSet: Array<{ ref: any; data: any }>) {
   const BATCH_SIZE = 400;
   for (let i = 0; i < docsToSet.length; i += BATCH_SIZE) {
     const chunk = docsToSet.slice(i, i + BATCH_SIZE);
-    const batch = writeBatch(db);
+    const batch = db.batch();
     for (const item of chunk) {
       batch.set(item.ref, item.data);
     }
@@ -56,7 +49,7 @@ async function runMigration() {
 
   // 1. Verrouillage du système: état IN_PROGRESS
   console.log('1. Mise à jour de /meta/system -> IN_PROGRESS');
-  await setDoc(doc(db, 'meta', 'system'), {
+  await db.collection('meta').doc('system').set({
     state: 'IN_PROGRESS',
     startedAt: new Date().toISOString(),
     version: 'V2.2.5'
@@ -86,7 +79,7 @@ async function runMigration() {
           throw new Error(`Élément sans id dans la collection ${colName}: ${JSON.stringify(item)}`);
         }
         docsToSet.push({
-          ref: doc(db, colName, item.id),
+          ref: db.collection(colName).doc(item.id),
           data: item
         });
       }
@@ -107,7 +100,7 @@ async function runMigration() {
           }
           phoneMap.set(normPhone, u.id);
           docsToSet.push({
-            ref: doc(db, 'clientPhoneIndex', normPhone),
+            ref: db.collection('clientPhoneIndex').doc(normPhone),
             data: {
               userId: u.id,
               phone: u.phone,
@@ -128,7 +121,7 @@ async function runMigration() {
       throw new Error(`Anomalie critique : nextOrderSeq source est ${nextOrderSeq}, impérativement attendu 1101`);
     }
     docsToSet.push({
-      ref: doc(db, 'meta', 'counters'),
+      ref: db.collection('meta').doc('counters'),
       data: {
         nextOrderSeq: nextOrderSeq,
         updatedAt: new Date().toISOString()
@@ -146,7 +139,7 @@ async function runMigration() {
 
     for (const colName of collectionsToMigrate) {
       const sourceItems = sourceData[colName] || [];
-      const snapshot = await getDocs(collection(db, colName));
+      const snapshot = await db.collection(colName).get();
       const firestoreItemsMap = new Map<string, any>();
       snapshot.forEach(d => firestoreItemsMap.set(d.id, d.data()));
 
@@ -198,7 +191,7 @@ async function runMigration() {
     }
 
     // 6.4 Réconciliation bidirectionnelle stricte de clientPhoneIndex (Section 11)
-    const phoneSnap = await getDocs(collection(db, 'clientPhoneIndex'));
+    const phoneSnap = await db.collection('clientPhoneIndex').get();
     const phoneIndexDocs = new Map<string, any>();
     phoneSnap.forEach(d => phoneIndexDocs.set(d.id, d.data()));
 
@@ -226,22 +219,22 @@ async function runMigration() {
     console.log(`✓ Index clientPhoneIndex: ${phoneSnap.size} entrées réconciliées sans orphelin ni divergence.`);
 
     // 6.5 Vérification bloquante que orderIdempotencyKeys est initialement vide (Section 12)
-    const idemSnap = await getDocs(collection(db, 'orderIdempotencyKeys'));
+    const idemSnap = await db.collection('orderIdempotencyKeys').get();
     if (idemSnap.size !== 0) {
       throw new Error(`Anomalie bloquante de migration : orderIdempotencyKeys doit être impérativement vide lors de la migration initiale (0 clés), trouvé ${idemSnap.size}`);
     }
     console.log('✓ orderIdempotencyKeys initialement vide (0 clés).');
 
     // 6.6 Vérification du compteur nextOrderSeq (Section 13)
-    const countersDoc = await getDoc(doc(db, 'meta', 'counters'));
-    if (!countersDoc.exists() || countersDoc.data()?.nextOrderSeq !== 1101) {
+    const countersDoc = await db.collection('meta').doc('counters').get();
+    if (!countersDoc.exists || countersDoc.data()?.nextOrderSeq !== 1101) {
       throw new Error(`Échec réconciliation /meta/counters: nextOrderSeq attendu 1101, obtenu ${countersDoc.data()?.nextOrderSeq}`);
     }
     console.log('✓ /meta/counters.nextOrderSeq === 1101 validé avec succès.');
 
     // 7. Mise à jour de /meta/system -> READY UNIQUEMENT après succès complet
     console.log('\n7. Mise à jour de /meta/system -> READY');
-    await setDoc(doc(db, 'meta', 'system'), {
+    await db.collection('meta').doc('system').set({
       state: 'READY',
       migratedAt: new Date().toISOString(),
       version: 'V2.2.5',
@@ -253,7 +246,7 @@ async function runMigration() {
   } catch (err: any) {
     console.error('!!! ÉCHEC CRITIQUE DE LA MIGRATION !!!', err.message);
     try {
-      await setDoc(doc(db, 'meta', 'system'), {
+      await db.collection('meta').doc('system').set({
         state: 'FAILED',
         error: err.message,
         failedAt: new Date().toISOString()

@@ -1,22 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import {
-  getFirestore,
-  Firestore,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  collection,
-  getDocs,
-  query,
-  where,
-  runTransaction,
-  writeBatch
-} from 'firebase/firestore';
+import { Firestore, DocumentReference } from '@google-cloud/firestore';
 import {
   Category,
   Ingredient,
@@ -131,23 +116,16 @@ export function stripUndefined<T>(obj: T): T {
   return obj;
 }
 
-// Initialisation unique du SDK Firestore
+// Initialisation unique du SDK Firestore Server
 const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-if (!fs.existsSync(configPath)) {
-  console.error('[DatabaseManager] ERREUR CRITIQUE: firebase-applet-config.json introuvable.');
-}
-
 const firebaseConfig = fs.existsSync(configPath)
   ? JSON.parse(fs.readFileSync(configPath, 'utf8'))
   : null;
 
-const firebaseApp = firebaseConfig
-  ? (!getApps().length ? initializeApp(firebaseConfig) : getApp())
-  : null;
-
-const firestore: Firestore | null = firebaseApp
-  ? getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId)
-  : null;
+const firestore: Firestore = new Firestore({
+  projectId: firebaseConfig?.projectId || 'active-presence-n4jp1',
+  databaseId: firebaseConfig?.firestoreDatabaseId || 'ai-studio-bebbahealthyfood-102ba276-a1c8-4054-a23d-7f9d280d95fa'
+});
 
 class DatabaseManager {
   private getDb(): Firestore {
@@ -160,8 +138,8 @@ class DatabaseManager {
   // --- Contrôle du statut du système ---
   public async getSystemState(): Promise<string> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'meta', 'system'));
-    if (!snap.exists()) {
+    const snap = await db.collection('meta').doc('system').get();
+    if (!snap.exists) {
       return 'NOT_STARTED';
     }
     return snap.data()?.state || 'NOT_STARTED';
@@ -170,7 +148,7 @@ class DatabaseManager {
   // --- Categories ---
   public async getCategories(options?: { activeOnly?: boolean }): Promise<Category[]> {
     const db = this.getDb();
-    const snap = await getDocs(collection(db, 'categories'));
+    const snap = await db.collection('categories').get();
     let cats: Category[] = [];
     snap.forEach(d => cats.push(d.data() as Category));
 
@@ -186,8 +164,8 @@ class DatabaseManager {
 
   public async getCategoryById(id: string): Promise<Category | undefined> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'categories', id));
-    return snap.exists() ? (snap.data() as Category) : undefined;
+    const snap = await db.collection('categories').doc(id).get();
+    return snap.exists ? (snap.data() as Category) : undefined;
   }
 
   public async saveCategory(category: Partial<Category> & { name: string }): Promise<Category> {
@@ -220,25 +198,25 @@ class DatabaseManager {
       updatedAt: now
     };
 
-    await setDoc(doc(db, 'categories', completeCategory.id), completeCategory);
+    await db.collection('categories').doc(completeCategory.id).set(completeCategory);
     return completeCategory;
   }
 
   public async deleteCategory(id: string): Promise<boolean> {
     const db = this.getDb();
-    const prodsSnap = await getDocs(query(collection(db, 'products'), where('categoryId', '==', id)));
+    const prodsSnap = await db.collection('products').where('categoryId', '==', id).get();
     if (!prodsSnap.empty) {
       throw new Error('Impossible de supprimer cette catégorie car des produits y sont rattachés.');
     }
 
-    await deleteDoc(doc(db, 'categories', id));
+    await db.collection('categories').doc(id).delete();
     return true;
   }
 
   // --- Suppliers ---
   public async getSuppliers(): Promise<Supplier[]> {
     const db = this.getDb();
-    const snap = await getDocs(collection(db, 'suppliers'));
+    const snap = await db.collection('suppliers').get();
     const list: Supplier[] = [];
     snap.forEach(d => list.push(d.data() as Supplier));
     return list;
@@ -247,20 +225,20 @@ class DatabaseManager {
   public async saveSupplier(supplier: Supplier): Promise<Supplier> {
     const db = this.getDb();
     if (!supplier.id) supplier.id = 'sup-' + Date.now();
-    await setDoc(doc(db, 'suppliers', supplier.id), supplier);
+    await db.collection('suppliers').doc(supplier.id).set(supplier);
     return supplier;
   }
 
   public async deleteSupplier(id: string): Promise<boolean> {
     const db = this.getDb();
-    await deleteDoc(doc(db, 'suppliers', id));
+    await db.collection('suppliers').doc(id).delete();
     return true;
   }
 
   // --- Ingredients (Matières Premières) ---
   public async getIngredients(): Promise<Ingredient[]> {
     const db = this.getDb();
-    const snap = await getDocs(collection(db, 'ingredients'));
+    const snap = await db.collection('ingredients').get();
     const list: Ingredient[] = [];
     snap.forEach(d => list.push(d.data() as Ingredient));
     return list;
@@ -268,8 +246,8 @@ class DatabaseManager {
 
   public async getIngredientById(id: string): Promise<Ingredient | undefined> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'ingredients', id));
-    return snap.exists() ? (snap.data() as Ingredient) : undefined;
+    const snap = await db.collection('ingredients').doc(id).get();
+    return snap.exists ? (snap.data() as Ingredient) : undefined;
   }
 
   public async isIngredientInUse(id: string): Promise<{
@@ -320,7 +298,7 @@ class DatabaseManager {
     if (!ingredient.createdAt) ingredient.createdAt = new Date().toISOString();
     if (ingredient.active === undefined) ingredient.active = true;
 
-    await setDoc(doc(db, 'ingredients', ingredient.id), ingredient);
+    await db.collection('ingredients').doc(ingredient.id).set(ingredient);
     return ingredient;
   }
 
@@ -345,7 +323,7 @@ class DatabaseManager {
       throw new Error(`Impossible de supprimer définitivement cet ingrédient car il est référencé (${reasons.join(' ; ')}). Veuillez le désactiver à la place.`);
     }
 
-    await deleteDoc(doc(db, 'ingredients', id));
+    await db.collection('ingredients').doc(id).delete();
     return true;
   }
 
@@ -360,10 +338,10 @@ class DatabaseManager {
   }): Promise<{ ingredient: Ingredient; movement: StockMovement }> {
     const db = this.getDb();
 
-    return await runTransaction(db, async (transaction) => {
-      const ingRef = doc(db, 'ingredients', params.ingredientId);
+    return await db.runTransaction(async (transaction) => {
+      const ingRef = db.collection('ingredients').doc(params.ingredientId);
       const ingSnap = await transaction.get(ingRef);
-      if (!ingSnap.exists()) {
+      if (!ingSnap.exists) {
         throw new Error(`Ingrédient #${params.ingredientId} introuvable.`);
       }
 
@@ -390,7 +368,7 @@ class DatabaseManager {
         currentStock: ing.currentStock,
         updatedAt: ing.updatedAt
       });
-      transaction.set(doc(db, 'stockMovements', movId), movement);
+      transaction.set(db.collection('stockMovements').doc(movId), movement);
 
       return { ingredient: ing, movement };
     });
@@ -398,7 +376,7 @@ class DatabaseManager {
 
   public async getStockMovements(): Promise<StockMovement[]> {
     const db = this.getDb();
-    const snap = await getDocs(collection(db, 'stockMovements'));
+    const snap = await db.collection('stockMovements').get();
     const list: StockMovement[] = [];
     snap.forEach(d => list.push(d.data() as StockMovement));
     return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
@@ -408,8 +386,8 @@ class DatabaseManager {
   public async getSupplements(options?: { activeOnly?: boolean; availableOnly?: boolean }): Promise<Supplement[]> {
     const db = this.getDb();
     const [supSnap, ingSnap] = await Promise.all([
-      getDocs(collection(db, 'supplements')),
-      getDocs(collection(db, 'ingredients'))
+      db.collection('supplements').get(),
+      db.collection('ingredients').get()
     ]);
 
     const ingMap = new Map<string, Ingredient>();
@@ -440,8 +418,8 @@ class DatabaseManager {
 
   public async getSupplementById(id: string): Promise<Supplement | undefined> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'supplements', id));
-    if (!snap.exists()) return undefined;
+    const snap = await db.collection('supplements').doc(id).get();
+    if (!snap.exists) return undefined;
     const s = snap.data() as Supplement;
     const ing = await this.getIngredientById(s.ingredientId);
     return {
@@ -488,13 +466,13 @@ class DatabaseManager {
       updatedAt: now
     };
 
-    await setDoc(doc(db, 'supplements', completeSup.id), completeSup);
+    await db.collection('supplements').doc(completeSup.id).set(completeSup);
     return completeSup;
   }
 
   public async deleteSupplement(id: string): Promise<boolean> {
     const db = this.getDb();
-    await deleteDoc(doc(db, 'supplements', id));
+    await db.collection('supplements').doc(id).delete();
     return true;
   }
 
@@ -502,8 +480,8 @@ class DatabaseManager {
   public async getProducts(options?: { categoryId?: string; activeOnly?: boolean; availableOnly?: boolean }): Promise<Product[]> {
     const db = this.getDb();
     const [prodSnap, ingSnap] = await Promise.all([
-      getDocs(collection(db, 'products')),
-      getDocs(collection(db, 'ingredients'))
+      db.collection('products').get(),
+      db.collection('ingredients').get()
     ]);
 
     const ingMap = new Map<string, Ingredient>();
@@ -540,11 +518,11 @@ class DatabaseManager {
 
   public async getProductById(id: string): Promise<Product | undefined> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'products', id));
-    if (!snap.exists()) return undefined;
+    const snap = await db.collection('products').doc(id).get();
+    if (!snap.exists) return undefined;
 
     const p = snap.data() as Product;
-    const ingSnap = await getDocs(collection(db, 'ingredients'));
+    const ingSnap = await db.collection('ingredients').get();
     const ingMap = new Map<string, Ingredient>();
     ingSnap.forEach(d => ingMap.set(d.id, d.data() as Ingredient));
 
@@ -604,13 +582,13 @@ class DatabaseManager {
       }
     };
 
-    await setDoc(doc(db, 'products', completeProduct.id), completeProduct);
+    await db.collection('products').doc(completeProduct.id).set(completeProduct);
     return completeProduct;
   }
 
   public async deleteProduct(id: string): Promise<boolean> {
     const db = this.getDb();
-    await deleteDoc(doc(db, 'products', id));
+    await db.collection('products').doc(id).delete();
     return true;
   }
 
@@ -618,8 +596,8 @@ class DatabaseManager {
   public async getDrivers(): Promise<Driver[]> {
     const db = this.getDb();
     const [drvSnap, usrSnap] = await Promise.all([
-      getDocs(collection(db, 'drivers')),
-      getDocs(query(collection(db, 'users'), where('role', '==', 'driver')))
+      db.collection('drivers').get(),
+      db.collection('users').where('role', '==', 'driver').get()
     ]);
 
     const userMap = new Map<string, string>();
@@ -641,13 +619,13 @@ class DatabaseManager {
 
   public async getDriverById(id: string): Promise<Driver | undefined> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'drivers', id));
-    return snap.exists() ? (snap.data() as Driver) : undefined;
+    const snap = await db.collection('drivers').doc(id).get();
+    return snap.exists ? (snap.data() as Driver) : undefined;
   }
 
   public async getUserByDriverId(driverId: string): Promise<User | undefined> {
     const db = this.getDb();
-    const snap = await getDocs(query(collection(db, 'users'), where('driverId', '==', driverId)));
+    const snap = await db.collection('users').where('driverId', '==', driverId).get();
     if (snap.empty) return undefined;
     return snap.docs[0].data() as User;
   }
@@ -655,7 +633,7 @@ class DatabaseManager {
   public async saveDriver(driver: Driver): Promise<Driver> {
     const db = this.getDb();
     if (!driver.id) driver.id = 'drv-' + Date.now();
-    await setDoc(doc(db, 'drivers', driver.id), driver);
+    await db.collection('drivers').doc(driver.id).set(driver);
     return driver;
   }
 
@@ -676,7 +654,7 @@ class DatabaseManager {
     const db = this.getDb();
 
     // 1. Vérifier l'unicité du nom d'utilisateur
-    const userSnap = await getDocs(query(collection(db, 'users'), where('username', '==', cleanUsername)));
+    const userSnap = await db.collection('users').where('username', '==', cleanUsername).get();
     if (!userSnap.empty) {
       throw new Error(`Le nom d’utilisateur "${cleanUsername}" est déjà attribué.`);
     }
@@ -709,9 +687,9 @@ class DatabaseManager {
       updatedAt: now
     };
 
-    const batch = writeBatch(db);
-    batch.set(doc(db, 'drivers', driverId), driver);
-    batch.set(doc(db, 'users', userId), user);
+    const batch = db.batch();
+    batch.set(db.collection('drivers').doc(driverId), driver);
+    batch.set(db.collection('users').doc(userId), user);
     await batch.commit();
 
     return { driver, user };
@@ -731,15 +709,15 @@ class DatabaseManager {
     if (data.phone && data.phone.trim()) driver.phone = data.phone.trim();
     if (data.vehicle && data.vehicle.trim()) driver.vehicle = data.vehicle.trim();
 
-    const batch = writeBatch(db);
-    batch.set(doc(db, 'drivers', driverId), driver);
+    const batch = db.batch();
+    batch.set(db.collection('drivers').doc(driverId), driver);
 
     const linkedUser = await this.getUserByDriverId(driverId);
     if (linkedUser) {
       if (data.name && data.name.trim()) linkedUser.name = data.name.trim();
       if (data.phone && data.phone.trim()) linkedUser.phone = data.phone.trim();
       linkedUser.updatedAt = new Date().toISOString();
-      batch.set(doc(db, 'users', linkedUser.id), linkedUser);
+      batch.set(db.collection('users').doc(linkedUser.id), linkedUser);
     }
 
     await batch.commit();
@@ -752,14 +730,14 @@ class DatabaseManager {
     if (!driver) throw new Error(`Livreur #${driverId} introuvable.`);
 
     driver.active = active;
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'drivers', driverId), { active });
+    const batch = db.batch();
+    batch.update(db.collection('drivers').doc(driverId), { active });
 
     const linkedUser = await this.getUserByDriverId(driverId);
     if (linkedUser) {
       linkedUser.active = active;
       linkedUser.updatedAt = new Date().toISOString();
-      batch.update(doc(db, 'users', linkedUser.id), { active, updatedAt: linkedUser.updatedAt });
+      batch.update(db.collection('users').doc(linkedUser.id), { active, updatedAt: linkedUser.updatedAt });
     }
 
     await batch.commit();
@@ -773,7 +751,7 @@ class DatabaseManager {
 
     linkedUser.passwordHash = newPasswordHash;
     linkedUser.updatedAt = new Date().toISOString();
-    await updateDoc(doc(db, 'users', linkedUser.id), {
+    await db.collection('users').doc(linkedUser.id).update({
       passwordHash: newPasswordHash,
       updatedAt: linkedUser.updatedAt
     });
@@ -786,16 +764,16 @@ class DatabaseManager {
     if (!driver) throw new Error(`Livreur #${driverId} introuvable.`);
 
     // Vérifier l'historique des commandes
-    const ordersSnap = await getDocs(query(collection(db, 'orders'), where('assignedDriverId', '==', driverId)));
+    const ordersSnap = await db.collection('orders').where('assignedDriverId', '==', driverId).get();
     if (!ordersSnap.empty) {
       throw new Error(`Impossible de supprimer définitivement le livreur "${driver.name}" car des commandes historiques lui sont associées. Veuillez le désactiver.`);
     }
 
     const linkedUser = await this.getUserByDriverId(driverId);
-    const batch = writeBatch(db);
-    batch.delete(doc(db, 'drivers', driverId));
+    const batch = db.batch();
+    batch.delete(db.collection('drivers').doc(driverId));
     if (linkedUser) {
-      batch.delete(doc(db, 'users', linkedUser.id));
+      batch.delete(db.collection('users').doc(linkedUser.id));
     }
     await batch.commit();
     return true;
@@ -1137,21 +1115,21 @@ class DatabaseManager {
 
     const db = this.getDb();
 
-    return await runTransaction(db, async (transaction) => {
+    return await db.runTransaction(async (transaction) => {
       // 1. VÉRIFICATION DU VERROU SYSTÈME
-      const sysRef = doc(db, 'meta', 'system');
+      const sysRef = db.collection('meta').doc('system');
       const sysSnap = await transaction.get(sysRef);
-      if (!sysSnap.exists() || sysSnap.data()?.state !== 'READY') {
+      if (!sysSnap.exists || sysSnap.data()?.state !== 'READY') {
         throw new SystemNotReadyError('Système temporairement indisponible (migration en cours ou maintenance).');
       }
 
       // 2. VÉRIFICATION DE L'IDEMPOTENCE (Idempotency-Key)
-      let idemRef: any = null;
+      let idemRef: DocumentReference | null = null;
       if (idempotency?.idempotencyKey) {
-        idemRef = doc(db, 'orderIdempotencyKeys', idempotency.idempotencyKey);
+        idemRef = db.collection('orderIdempotencyKeys').doc(idempotency.idempotencyKey);
         const idemSnap = await transaction.get(idemRef);
 
-        if (idemSnap.exists()) {
+        if (idemSnap.exists) {
           const idemData = idemSnap.data() as any;
 
           // Comportement 3 : same key + different caller -> 403 Forbidden
@@ -1170,9 +1148,9 @@ class DatabaseManager {
           }
 
           // Comportement 1 : same key + same caller + same hash -> retourner la commande existante
-          const existingOrderRef = doc(db, 'orders', idemData.orderId);
+          const existingOrderRef = db.collection('orders').doc(idemData.orderId);
           const existingOrderSnap = await transaction.get(existingOrderRef);
-          if (!existingOrderSnap.exists()) {
+          if (!existingOrderSnap.exists) {
             throw new IdempotencyInconsistencyError(`Incohérence technique d’idempotence : la commande #${idemData.orderId} référencée est introuvable.`);
           }
 
@@ -1184,9 +1162,9 @@ class DatabaseManager {
       }
 
       // 3. LECTURE DU COMPTEUR DE COMMANDE
-      const counterRef = doc(db, 'meta', 'counters');
+      const counterRef = db.collection('meta').doc('counters');
       const counterSnap = await transaction.get(counterRef);
-      const nextOrderSeq: number = counterSnap.exists() ? (counterSnap.data()?.nextOrderSeq || 1101) : 1101;
+      const nextOrderSeq: number = counterSnap.exists ? (counterSnap.data()?.nextOrderSeq || 1101) : 1101;
 
       // 4. COLLECTE ET LECTURE DE TOUS LES PRODUITS, SUPPLÉMENTS ET INGRÉDIENTS REQUIS
       const rawProductIds = Array.from(new Set(payload.items.map(it => it.productId)));
@@ -1195,16 +1173,16 @@ class DatabaseManager {
       );
 
       // Lectures parallèles des produits et suppléments
-      const productSnaps = await Promise.all(rawProductIds.map(pid => transaction.get(doc(db, 'products', pid))));
+      const productSnaps = await Promise.all(rawProductIds.map(pid => transaction.get(db.collection('products').doc(pid))));
       const productsMap = new Map<string, Product>();
       productSnaps.forEach(snap => {
-        if (snap.exists()) productsMap.set(snap.id, snap.data() as Product);
+        if (snap.exists) productsMap.set(snap.id, snap.data() as Product);
       });
 
-      const supplementSnaps = await Promise.all(rawSupplementIds.map(sid => transaction.get(doc(db, 'supplements', sid))));
+      const supplementSnaps = await Promise.all(rawSupplementIds.map(sid => transaction.get(db.collection('supplements').doc(sid))));
       const supplementsMap = new Map<string, Supplement>();
       supplementSnaps.forEach(snap => {
-        if (snap.exists()) supplementsMap.set(snap.id, snap.data() as Supplement);
+        if (snap.exists) supplementsMap.set(snap.id, snap.data() as Supplement);
       });
 
       // Identifier tous les identifiants d'ingrédients nécessaires
@@ -1222,11 +1200,11 @@ class DatabaseManager {
       neededIngredientIds.add('ing-riz');
 
       const ingredientSnaps = await Promise.all(
-        Array.from(neededIngredientIds).map(iid => transaction.get(doc(db, 'ingredients', iid)))
+        Array.from(neededIngredientIds).map(iid => transaction.get(db.collection('ingredients').doc(iid)))
       );
       const ingredientsMap = new Map<string, Ingredient>();
       ingredientSnaps.forEach(snap => {
-        if (snap.exists()) ingredientsMap.set(snap.id, snap.data() as Ingredient);
+        if (snap.exists) ingredientsMap.set(snap.id, snap.data() as Ingredient);
       });
 
       // TOUTES LES LECTURES FIRESTORE SONT EFFECTUÉES AVANT TOUTE ÉCRITURE
@@ -1373,12 +1351,12 @@ class DatabaseManager {
       // --- PHASE D'ÉCRITURE FIRESTORE (ATOMICITÉ TOTALE) ---
 
       // 6.1 Enregistrement de la commande
-      transaction.set(doc(db, 'orders', orderId), stripUndefined(newOrder));
+      transaction.set(db.collection('orders').doc(orderId), stripUndefined(newOrder));
 
       // 6.2 Décrémentation du stock et création des mouvements
       requiredStockMap.forEach(({ ingredient, required }) => {
         const newStock = Math.round((ingredient.currentStock - required) * 10) / 10;
-        transaction.update(doc(db, 'ingredients', ingredient.id), {
+        transaction.update(db.collection('ingredients').doc(ingredient.id), {
           currentStock: newStock,
           updatedAt: now
         });
@@ -1397,7 +1375,7 @@ class DatabaseManager {
           timestamp: now,
           performedBy: 'Système BEBBA'
         };
-        transaction.set(doc(db, 'stockMovements', movId), movement);
+        transaction.set(db.collection('stockMovements').doc(movId), movement);
       });
 
       // 6.3 Enregistrement de la clé d'idempotence si fournie
@@ -1427,7 +1405,7 @@ class DatabaseManager {
   // --- Gestion des commandes ---
   public async getOrders(): Promise<Order[]> {
     const db = this.getDb();
-    const snap = await getDocs(collection(db, 'orders'));
+    const snap = await db.collection('orders').get();
     const list: Order[] = [];
     snap.forEach(d => list.push(d.data() as Order));
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -1436,7 +1414,7 @@ class DatabaseManager {
   public async getOrdersByClientId(clientId: string): Promise<Order[]> {
     if (!clientId) return [];
     const db = this.getDb();
-    const snap = await getDocs(query(collection(db, 'orders'), where('clientId', '==', clientId)));
+    const snap = await db.collection('orders').where('clientId', '==', clientId).get();
     const list: Order[] = [];
     snap.forEach(d => list.push(d.data() as Order));
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -1444,13 +1422,13 @@ class DatabaseManager {
 
   public async getOrderById(id: string): Promise<Order | undefined> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'orders', id));
-    return snap.exists() ? (snap.data() as Order) : undefined;
+    const snap = await db.collection('orders').doc(id).get();
+    return snap.exists ? (snap.data() as Order) : undefined;
   }
 
   public async getOrderByTrackingToken(token: string): Promise<Order | undefined> {
     const db = this.getDb();
-    const snap = await getDocs(query(collection(db, 'orders'), where('trackingToken', '==', token)));
+    const snap = await db.collection('orders').where('trackingToken', '==', token).get();
     if (snap.empty) return undefined;
     return snap.docs[0].data() as Order;
   }
@@ -1470,7 +1448,7 @@ class DatabaseManager {
     const inputLast8 = inputDigits.slice(-8);
 
     const db = this.getDb();
-    const snap = await getDocs(query(collection(db, 'orders'), where('orderNumber', '==', cleanOrderNum)));
+    const snap = await db.collection('orders').where('orderNumber', '==', cleanOrderNum).get();
     if (snap.empty) return undefined;
 
     for (const docSnap of snap.docs) {
@@ -1493,9 +1471,9 @@ class DatabaseManager {
     assignedDriverId?: string;
   }): Promise<Order> {
     const db = this.getDb();
-    const orderRef = doc(db, 'orders', params.orderId);
-    const orderSnap = await getDoc(orderRef);
-    if (!orderSnap.exists()) {
+    const orderRef = db.collection('orders').doc(params.orderId);
+    const orderSnap = await orderRef.get();
+    if (!orderSnap.exists) {
       throw new Error(`Commande #${params.orderId} introuvable.`);
     }
 
@@ -1612,7 +1590,7 @@ class DatabaseManager {
         updatedBy: 'Système BEBBA'
       });
 
-      await setDoc(orderRef, order);
+      await orderRef.set(order);
       return order;
     }
 
@@ -1622,7 +1600,7 @@ class DatabaseManager {
       const driver = await this.getDriverById(order.assignedDriverId);
       if (driver) {
         driver.totalDeliveries = (driver.totalDeliveries || 0) + 1;
-        await updateDoc(doc(db, 'drivers', driver.id), {
+        await db.collection('drivers').doc(driver.id).update({
           totalDeliveries: driver.totalDeliveries
         });
       }
@@ -1636,15 +1614,15 @@ class DatabaseManager {
       updatedBy: params.updatedBy || 'Équipe BEBBA'
     });
 
-    await setDoc(orderRef, order);
+    await orderRef.set(order);
     return order;
   }
 
   public async assignDriver(orderId: string, driverId: string, updatedBy: string): Promise<Order> {
     const db = this.getDb();
-    const orderRef = doc(db, 'orders', orderId);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) throw new Error(`Commande #${orderId} introuvable.`);
+    const orderRef = db.collection('orders').doc(orderId);
+    const snap = await orderRef.get();
+    if (!snap.exists) throw new Error(`Commande #${orderId} introuvable.`);
     const order = snap.data() as Order;
 
     if (order.status === 'delivered' || order.status === 'cancelled') {
@@ -1669,15 +1647,15 @@ class DatabaseManager {
       updatedBy
     });
 
-    await setDoc(orderRef, order);
+    await orderRef.set(order);
     return order;
   }
 
   public async updatePaymentStatus(orderId: string, paymentStatus: PaymentStatus): Promise<Order> {
     const db = this.getDb();
-    const orderRef = doc(db, 'orders', orderId);
-    const snap = await getDoc(orderRef);
-    if (!snap.exists()) throw new Error(`Commande #${orderId} introuvable.`);
+    const orderRef = db.collection('orders').doc(orderId);
+    const snap = await orderRef.get();
+    if (!snap.exists) throw new Error(`Commande #${orderId} introuvable.`);
 
     const order = snap.data() as Order;
     if (paymentStatus === 'paid' && order.status !== 'delivered') {
@@ -1685,7 +1663,7 @@ class DatabaseManager {
     }
 
     order.paymentStatus = paymentStatus;
-    await updateDoc(orderRef, { paymentStatus });
+    await orderRef.update({ paymentStatus });
     return order;
   }
 
@@ -1749,7 +1727,7 @@ class DatabaseManager {
   // --- Users & Authentification ---
   public async getUsers(): Promise<User[]> {
     const db = this.getDb();
-    const snap = await getDocs(collection(db, 'users'));
+    const snap = await db.collection('users').get();
     const list: User[] = [];
     snap.forEach(d => list.push(d.data() as User));
     return list;
@@ -1757,15 +1735,15 @@ class DatabaseManager {
 
   public async getUserById(id: string): Promise<User | undefined> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'users', id));
-    return snap.exists() ? (snap.data() as User) : undefined;
+    const snap = await db.collection('users').doc(id).get();
+    return snap.exists ? (snap.data() as User) : undefined;
   }
 
   public async getUserByUsername(username: string): Promise<User | undefined> {
     if (!username || typeof username !== 'string') return undefined;
     const cleanUsername = username.trim().toLowerCase();
     const db = this.getDb();
-    const snap = await getDocs(query(collection(db, 'users'), where('username', '==', cleanUsername)));
+    const snap = await db.collection('users').where('username', '==', cleanUsername).get();
     if (snap.empty) return undefined;
     return snap.docs[0].data() as User;
   }
@@ -1782,22 +1760,22 @@ class DatabaseManager {
     const db = this.getDb();
 
     // 1. Recherche par clientPhoneIndex
-    const indexSnap = await getDoc(doc(db, 'clientPhoneIndex', norm));
-    if (indexSnap.exists()) {
+    const indexSnap = await db.collection('clientPhoneIndex').doc(norm).get();
+    if (indexSnap.exists) {
       const userId = indexSnap.data()?.userId;
       if (userId) {
-        const userSnap = await getDoc(doc(db, 'users', userId));
-        if (userSnap.exists()) return userSnap.data() as User;
+        const userSnap = await db.collection('users').doc(userId).get();
+        if (userSnap.exists) return userSnap.data() as User;
       }
     }
 
     // 2. Recherche directe si l'index n'est pas encore synchronisé
-    const snap = await getDocs(query(collection(db, 'users'), where('role', '==', 'client')));
+    const snap = await db.collection('users').where('role', '==', 'client').get();
     for (const docSnap of snap.docs) {
       const u = docSnap.data() as User;
       if (u.phone && normalizePhoneNumber(u.phone) === norm) {
         // Enregistrement différé dans l'index
-        await setDoc(doc(db, 'clientPhoneIndex', norm), {
+        await db.collection('clientPhoneIndex').doc(norm).set({
           userId: u.id,
           phone: u.phone,
           normalizedPhone: norm,
@@ -1846,9 +1824,9 @@ class DatabaseManager {
       updatedAt: now
     };
 
-    const batch = writeBatch(db);
-    batch.set(doc(db, 'users', clientId), clientUser);
-    batch.set(doc(db, 'clientPhoneIndex', norm), {
+    const batch = db.batch();
+    batch.set(db.collection('users').doc(clientId), clientUser);
+    batch.set(db.collection('clientPhoneIndex').doc(norm), {
       userId: clientId,
       phone: data.phone.trim(),
       normalizedPhone: norm,
@@ -1862,9 +1840,9 @@ class DatabaseManager {
 
   public async updateClientProfile(clientId: string, data: { name?: string; phone?: string; address?: string }): Promise<User> {
     const db = this.getDb();
-    const userRef = doc(db, 'users', clientId);
-    const snap = await getDoc(userRef);
-    if (!snap.exists() || snap.data()?.role !== 'client') {
+    const userRef = db.collection('users').doc(clientId);
+    const snap = await userRef.get();
+    if (!snap.exists || snap.data()?.role !== 'client') {
       throw new Error('Client introuvable.');
     }
 
@@ -1894,14 +1872,14 @@ class DatabaseManager {
 
     user.updatedAt = new Date().toISOString();
 
-    const batch = writeBatch(db);
+    const batch = db.batch();
     batch.set(userRef, user);
 
     if (newNormPhone && newNormPhone !== oldNormPhone) {
       if (oldNormPhone) {
-        batch.delete(doc(db, 'clientPhoneIndex', oldNormPhone));
+        batch.delete(db.collection('clientPhoneIndex').doc(oldNormPhone));
       }
-      batch.set(doc(db, 'clientPhoneIndex', newNormPhone), {
+      batch.set(db.collection('clientPhoneIndex').doc(newNormPhone), {
         userId: user.id,
         phone: user.phone,
         normalizedPhone: newNormPhone,
@@ -1919,28 +1897,28 @@ class DatabaseManager {
     user.updatedAt = new Date().toISOString();
     if (!user.id) user.id = 'usr-' + Date.now();
     if (!user.createdAt) user.createdAt = new Date().toISOString();
-    await setDoc(doc(db, 'users', user.id), user);
+    await db.collection('users').doc(user.id).set(user);
     return user;
   }
 
   public async updateUserLastLogin(id: string): Promise<void> {
     const db = this.getDb();
-    await updateDoc(doc(db, 'users', id), {
+    await db.collection('users').doc(id).update({
       lastLoginAt: new Date().toISOString()
     }).catch(() => {});
   }
 
   public async deleteUser(id: string): Promise<boolean> {
     const db = this.getDb();
-    const snap = await getDoc(doc(db, 'users', id));
-    if (!snap.exists()) return false;
+    const snap = await db.collection('users').doc(id).get();
+    if (!snap.exists) return false;
     const user = snap.data() as User;
 
-    const batch = writeBatch(db);
-    batch.delete(doc(db, 'users', id));
+    const batch = db.batch();
+    batch.delete(db.collection('users').doc(id));
     if (user.role === 'client' && user.phone) {
       const norm = normalizePhoneNumber(user.phone);
-      if (norm) batch.delete(doc(db, 'clientPhoneIndex', norm));
+      if (norm) batch.delete(db.collection('clientPhoneIndex').doc(norm));
     }
     await batch.commit();
     return true;
