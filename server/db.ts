@@ -26,6 +26,7 @@ import {
   Driver,
   Order,
   StockMovement,
+  StockMovementType,
   OrderStatus,
   PaymentStatus,
   DashboardStats,
@@ -351,7 +352,7 @@ class DatabaseManager {
 
   public async addStockMovement(params: {
     ingredientId: string;
-    type: StockMovement['type'] | 'order_cancellation';
+    type: StockMovementType;
     quantity: number;
     notes: string;
     performedBy?: string;

@@ -36,7 +36,14 @@ export interface Ingredient {
   updatedAt: string;
 }
 
-export type StockMovementType = 'order_consumption' | 'manual_in' | 'manual_out' | 'waste' | 'inventory_correction';
+export type StockMovementType =
+  | 'order_consumption'
+  | 'replenishment'
+  | 'inventory_correction'
+  | 'manual_out'
+  | 'manual_in'
+  | 'waste'
+  | 'order_cancellation_restore';
 
 export interface StockMovement {
   id: string;
@@ -223,10 +230,6 @@ export interface PublicTrackingOrder {
     deliveryAddress: string;
     notes?: string;
   };
-  clientName?: string;
-  phone?: string;
-  deliveryAddress?: string;
-  notes?: string;
   items: PublicOrderItem[];
   statusHistory: PublicStatusHistoryEntry[];
   assignedDriverName?: string | null;

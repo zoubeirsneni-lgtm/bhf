@@ -135,8 +135,8 @@ export const ProductModalAdmin: React.FC<ProductModalAdminProps> = ({
     let cost = 0;
     baseIngredients.forEach(item => {
       const ing = ingredients.find(i => i.id === item.ingredientId);
-      if (ing && ing.costPerUnit > 0) {
-        cost += ing.costPerUnit * item.quantity;
+      if (ing && ing.purchaseCost > 0) {
+        cost += ing.purchaseCost * item.quantity;
       }
     });
     return Math.round(cost * 100) / 100;

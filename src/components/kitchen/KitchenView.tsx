@@ -505,8 +505,8 @@ export const KitchenView: React.FC = () => {
                   </tr>
                 ) : (
                   filteredIngredients.map(ing => {
-                    const alertThreshold = ing.minThreshold ?? (ing as any).minimumAlertStock ?? 0;
-                    const unitCost = (ing as any).costPerUnit ?? ing.purchaseCost ?? 0;
+                    const alertThreshold = ing.minThreshold ?? 0;
+                    const unitCost = ing.purchaseCost ?? 0;
                     const isLow = ing.currentStock <= alertThreshold;
                     const isCritical = ing.currentStock <= 0;
                     const isActive = ing.active !== false;

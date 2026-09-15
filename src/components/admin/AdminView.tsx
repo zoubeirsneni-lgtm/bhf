@@ -243,7 +243,7 @@ export const AdminView: React.FC = () => {
 
   const lowStockIngredients = useMemo(() => {
     return (ingredients || []).filter(i => {
-      const threshold = i.minThreshold ?? (i as any).minimumAlertStock ?? 0;
+      const threshold = i.minThreshold ?? 0;
       return i.currentStock <= threshold;
     });
   }, [ingredients]);
@@ -270,7 +270,7 @@ export const AdminView: React.FC = () => {
     if (!qty || qty <= 0) return;
     try {
       setIsRestocking(ing.id);
-      await adjustStock(ing.id, 'restock', Number(qty), 'Réapprovisionnement manuel cuisine');
+      await adjustStock(ing.id, 'replenishment', Number(qty), 'Réapprovisionnement manuel cuisine');
       setRestockAmount(prev => ({ ...prev, [ing.id]: 0 }));
       showToast('Stock réapprovisionné', `+${qty} ${ing.unit} ajoutés à "${ing.name}".`, 'success');
     } catch (err: any) {
@@ -542,7 +542,7 @@ export const AdminView: React.FC = () => {
                     <div>
                       <h4 className="font-bold text-xs text-stone-900">{ing.name}</h4>
                       <p className="text-[11px] text-rose-600 font-bold">
-                        Reste : {ing.currentStock} {ing.unit} (Seuil : {ing.minimumAlertStock})
+                        Reste : {ing.currentStock} {ing.unit} (Seuil : {ing.minThreshold})
                       </p>
                     </div>
                     <button
@@ -990,8 +990,8 @@ export const AdminView: React.FC = () => {
                   </tr>
                 ) : (
                   filteredIngredients.map((ing, ingIdx) => {
-                    const alertThreshold = ing.minThreshold ?? (ing as any).minimumAlertStock ?? 0;
-                    const unitCost = (ing as any).costPerUnit ?? ing.purchaseCost ?? 0;
+                    const alertThreshold = ing.minThreshold ?? 0;
+                    const unitCost = ing.purchaseCost ?? 0;
                     const isLow = ing.currentStock <= alertThreshold;
                     const isCritical = ing.currentStock <= 0;
                     const isActive = ing.active !== false;

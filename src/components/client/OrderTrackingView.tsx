@@ -519,7 +519,7 @@ export const OrderTrackingView: React.FC = () => {
             </div>
 
             {/* Driver Banner (if assigned) */}
-            {(currentOrder.assignedDriverName || (currentOrder as any).assignedDriver?.name) && (
+            {currentOrder.assignedDriverName && (
               <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-200 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0">
@@ -530,7 +530,7 @@ export const OrderTrackingView: React.FC = () => {
                       Livreur BEBBA Attribué
                     </span>
                     <h4 className="text-sm font-bold text-stone-900">
-                      {currentOrder.assignedDriverName || (currentOrder as any).assignedDriver?.name}
+                      {currentOrder.assignedDriverName}
                     </h4>
                     <p className="text-xs text-stone-600">
                       En route pour la livraison à votre adresse
@@ -580,14 +580,14 @@ export const OrderTrackingView: React.FC = () => {
                 <div className="space-y-1.5 pt-0.5">
                   <div className="flex items-center gap-2 text-stone-900 font-semibold">
                     <User className="w-3.5 h-3.5 text-stone-400" />
-                    <span>Client : <strong>{currentOrder.client?.name || (currentOrder as any).clientName || 'Client'}</strong></span>
+                    <span>Client : <strong>{currentOrder.client?.name || 'Client'}</strong></span>
                   </div>
                   <div className="flex items-center gap-2 text-stone-900 font-semibold">
                     <Phone className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Numéro de téléphone : </span>
-                    {(currentOrder.client?.phone || (currentOrder as any).phone) ? (
+                    {currentOrder.client?.phone ? (
                       <span className="font-mono font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded text-xs">
-                        {currentOrder.client?.phone || (currentOrder as any).phone}
+                        {currentOrder.client?.phone}
                       </span>
                     ) : (
                       <span className="text-stone-400 font-normal text-xs">Non renseigné</span>
@@ -598,15 +598,15 @@ export const OrderTrackingView: React.FC = () => {
                     <div>
                       <span className="text-stone-500 font-normal">Adresse : </span>
                       <strong className="text-stone-900">
-                        {currentOrder.client?.deliveryAddress || (currentOrder as any).deliveryAddress || 'Adresse non renseignée'}
+                        {currentOrder.client?.deliveryAddress || 'Adresse non renseignée'}
                       </strong>
                     </div>
                   </div>
                 </div>
 
-                {(currentOrder.client?.notes || (currentOrder as any).notes) && (
+                {currentOrder.client?.notes && (
                   <p className="text-[11px] text-stone-600 italic bg-amber-50/80 border border-amber-200/70 p-2 rounded-xl mt-1">
-                    Note pour le livreur : « {currentOrder.client?.notes || (currentOrder as any).notes} »
+                    Note pour le livreur : « {currentOrder.client?.notes} »
                   </p>
                 )}
               </div>

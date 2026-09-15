@@ -782,9 +782,6 @@ async function startServer() {
         phone: maskedPhone,
         deliveryAddress: maskedAddress
       },
-      clientName: maskedName,
-      phone: maskedPhone,
-      deliveryAddress: maskedAddress,
       items: (order.items || []).map((item: any) => ({
         productName: item.productName || item.product?.name || 'Article',
         quantity: item.quantity || 1,
