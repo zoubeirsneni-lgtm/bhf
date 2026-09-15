@@ -1,83 +1,151 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // BEBBA Healthy Food - Production Security Rules
-    // Gestion complète du cycle de vie des données (création, mise à jour, suppression et consultation)
+    // BEBBA Healthy Food - Règles de sécurité renforcées
+    // 1. Zéro suppression publique (allow delete: if false sur l'ensemble des collections)
+    // 2. Suppression de tous les accès ouverts de type "allow read, write: if true"
+    // 3. Validation de schéma stricte, non-altérabilité des clés primaires et validation des statuts métier
+    // 4. Protection contre l'élévation de privilège (interdiction d'altérer le rôle d'un utilisateur existant)
+    // 5. Immutabilité des historiques d'audit (stockMovements) et clés d'idempotence
 
     // 1. Métadonnées système et compteurs
     match /meta/system {
-      allow read, write: if true;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasOnly(['state', 'initializedAt', 'updatedAt'])
+                            && request.resource.data.state in ['READY', 'NOT_STARTED', 'MAINTENANCE'];
     }
 
     match /meta/counters {
-      allow read, write: if true;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasOnly(['nextOrderSeq', 'updatedAt'])
+                            && request.resource.data.nextOrderSeq is int
+                            && request.resource.data.nextOrderSeq >= 1000;
     }
 
-    // 2. Clés d'idempotence
+    // 2. Clés d'idempotence (Immutables et non-supprimables)
     match /orderIdempotencyKeys/{key} {
-      allow read, delete: if true;
-      allow create, update: if 'key' in request.resource.data
-                            && 'orderId' in request.resource.data
-                            && 'callerId' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow update: if false;
+      allow create: if request.resource.data.keys().hasAll(['key', 'orderId', 'callerId', 'createdAt'])
+                    && request.resource.data.key is string
+                    && request.resource.data.orderId is string
+                    && request.resource.data.callerId is string;
     }
 
-    // 3. Commandes
+    // 3. Commandes (Cycle de vie strict, statut initial "received", pas de suppression)
     match /orders/{orderId} {
-      allow read, delete: if true;
-      allow create, update: if 'id' in request.resource.data
-                            && 'orderNumber' in request.resource.data
-                            && 'status' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create: if request.resource.data.keys().hasAll([
+                      'id', 'orderNumber', 'status', 'paymentStatus',
+                      'items', 'totalAmount', 'createdAt',
+                      'customerName', 'customerPhone', 'deliveryAddress'
+                    ])
+                    && request.resource.data.status == 'received'
+                    && request.resource.data.paymentStatus == 'pending'
+                    && request.resource.data.totalAmount is number
+                    && request.resource.data.totalAmount >= 0;
+      allow update: if request.resource.data.keys().hasAll(['id', 'orderNumber', 'status'])
+                    && request.resource.data.id == resource.data.id
+                    && request.resource.data.orderNumber == resource.data.orderNumber
+                    && request.resource.data.status in [
+                      'received', 'preparing', 'ready',
+                      'waiting_for_driver', 'delivering', 'delivered', 'cancelled'
+                    ];
     }
 
-    // 4. Mouvements de stock
+    // 4. Mouvements de stock (Journal d'audit immuable : ni mise à jour, ni suppression)
     match /stockMovements/{movementId} {
-      allow read, delete: if true;
-      allow create, update: if 'ingredientId' in request.resource.data
-                            && 'type' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow update: if false;
+      allow create: if request.resource.data.keys().hasAll(['id', 'ingredientId', 'type', 'quantity', 'createdAt'])
+                    && request.resource.data.type in [
+                      'manual_adjustment', 'order_consumption',
+                      'order_cancellation_restore', 'replenishment'
+                    ]
+                    && request.resource.data.quantity is number;
     }
 
-    // 5. Ingrédients & Stock
+    // 5. Ingrédients & Stock (Stock positif obligatoire, pas de suppression)
     match /ingredients/{ingredientId} {
-      allow read, delete: if true;
-      allow create, update: if 'name' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll([
+                              'id', 'name', 'unit', 'currentStock',
+                              'minThreshold', 'costPerUnit'
+                            ])
+                            && request.resource.data.currentStock is number
+                            && request.resource.data.currentStock >= 0
+                            && request.resource.data.name is string;
     }
 
-    // 6. Index téléphone client
+    // 6. Index téléphone client (Pas de suppression publique)
     match /clientPhoneIndex/{phone} {
-      allow read, delete: if true;
-      allow create, update: if 'userId' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll(['userId', 'phone'])
+                            && request.resource.data.userId is string
+                            && request.resource.data.phone is string;
     }
 
-    // 7. Catalogue produit (catégories, produits, suppléments, fournisseurs)
+    // 7. Catalogue produit public (Lecture publique, modifications contrôlées, pas de suppression)
     match /categories/{categoryId} {
-      allow read, delete: if true;
-      allow create, update: if 'name' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'name'])
+                            && request.resource.data.name is string
+                            && request.resource.data.name.size() > 0;
     }
 
     match /products/{productId} {
-      allow read, delete: if true;
-      allow create, update: if 'name' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'name', 'price', 'categoryId'])
+                            && request.resource.data.price is number
+                            && request.resource.data.price >= 0
+                            && request.resource.data.name is string;
     }
 
     match /supplements/{supplementId} {
-      allow read, delete: if true;
-      allow create, update: if 'name' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'name', 'price'])
+                            && request.resource.data.price is number
+                            && request.resource.data.price >= 0;
     }
 
     match /suppliers/{supplierId} {
-      allow read, delete: if true;
-      allow create, update: if 'name' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'name'])
+                            && request.resource.data.name is string;
     }
 
-    // 8. Utilisateurs & Livreurs
+    // 8. Utilisateurs (Anti-élévation de privilèges, pas de suppression directe)
     match /users/{userId} {
-      allow read, delete: if true;
-      allow create, update: if 'role' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'role', 'active', 'createdAt'])
+                            && request.resource.data.role in ['admin', 'kitchen', 'driver', 'client']
+                            && request.resource.data.id is string
+                            && request.resource.data.active is bool
+                            && (!exists(/databases/$(database)/documents/users/$(userId))
+                                || request.resource.data.role == resource.data.role);
     }
 
+    // 9. Livreurs (Pas de suppression directe)
     match /drivers/{driverId} {
-      allow read, delete: if true;
-      allow create, update: if 'name' in request.resource.data;
+      allow read: if true;
+      allow delete: if false;
+      allow create, update: if request.resource.data.keys().hasAll(['id', 'name', 'phone', 'active'])
+                            && request.resource.data.id is string
+                            && request.resource.data.name is string
+                            && request.resource.data.phone is string
+                            && request.resource.data.active is bool;
     }
 
     // Verrouillage par défaut pour toute autre collection imprévue
