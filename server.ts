@@ -34,6 +34,16 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Sécurité : Bloquer tout accès public aux fichiers de configuration et métadonnées internes
+  app.use((req, res, next) => {
+    const blocked = ['/firebase-applet-config.json', '/firebase-blueprint.json', '/firestore.rules'];
+    if (blocked.some(p => req.path.toLowerCase() === p)) {
+      res.status(403).json({ error: 'Accès interdit.' });
+      return;
+    }
+    next();
+  });
+
   // Fail-Fast Middleware : Vérification de l'état système dans Firestore
   app.use(async (req, res, next) => {
     // Laisser passer les assets statiques, Vite et la route de santé

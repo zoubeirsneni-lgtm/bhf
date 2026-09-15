@@ -1,25 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // BEBBA Healthy Food - Règles de sécurité renforcées
-    // 1. Zéro suppression publique (allow delete: if false sur l'ensemble des collections)
-    // 2. Suppression de tous les accès ouverts de type "allow read, write: if true"
-    // 3. Validation de schéma stricte, non-altérabilité des clés primaires et validation des statuts métier
-    // 4. Protection contre l'élévation de privilège (interdiction d'altérer le rôle d'un utilisateur existant)
-    // 5. Immutabilité des historiques d'audit (stockMovements) et clés d'idempotence
+    // BEBBA Healthy Food - « Vos Plats santé en un clic »
+    // Règles de sécurité Firestore durcies - Bloc 1B
+    // 1. Zéro suppression directe (allow delete: if false sur l'ensemble de la base)
+    // 2. Protection contre le contournement d'Express : validation de schéma stricte, statuts contrôlés, non-altérabilité des clés et montants
+    // 3. Alignement métier du statut de paiement : paymentStatus == 'to_collect' à la création, et transitions valides ('to_collect' -> 'paid' sur livraison)
+    // 4. Immutabilité des historiques d'audit (stockMovements) et clés d'idempotence (orderIdempotencyKeys)
+    // 5. Catalogue public en lecture seule (categories, products, supplements)
 
     // 1. Métadonnées système et compteurs
     match /meta/system {
       allow read: if true;
       allow delete: if false;
-      allow create, update: if request.resource.data.keys().hasOnly(['state', 'initializedAt', 'updatedAt'])
+      allow create, update: if request.resource.data.keys().hasAll(['state', 'updatedAt'])
                             && request.resource.data.state in ['READY', 'NOT_STARTED', 'MAINTENANCE'];
     }
 
     match /meta/counters {
       allow read: if true;
       allow delete: if false;
-      allow create, update: if request.resource.data.keys().hasOnly(['nextOrderSeq', 'updatedAt'])
+      allow create, update: if request.resource.data.keys().hasAll(['nextOrderSeq', 'updatedAt'])
                             && request.resource.data.nextOrderSeq is int
                             && request.resource.data.nextOrderSeq >= 1000;
     }
@@ -35,26 +36,35 @@ service cloud.firestore {
                     && request.resource.data.callerId is string;
     }
 
-    // 3. Commandes (Cycle de vie strict, statut initial "received", pas de suppression)
+    // 3. Commandes (Cycle de vie strict, paymentStatus: 'to_collect', interdiction de modification du montant ou identifiant)
     match /orders/{orderId} {
       allow read: if true;
       allow delete: if false;
       allow create: if request.resource.data.keys().hasAll([
                       'id', 'orderNumber', 'status', 'paymentStatus',
-                      'items', 'totalAmount', 'createdAt',
-                      'customerName', 'customerPhone', 'deliveryAddress'
+                      'items', 'totalAmount', 'createdAt', 'client'
                     ])
+                    && request.resource.data.id is string
+                    && request.resource.data.orderNumber is string
                     && request.resource.data.status == 'received'
-                    && request.resource.data.paymentStatus == 'pending'
+                    && request.resource.data.paymentStatus == 'to_collect'
                     && request.resource.data.totalAmount is number
-                    && request.resource.data.totalAmount >= 0;
-      allow update: if request.resource.data.keys().hasAll(['id', 'orderNumber', 'status'])
+                    && request.resource.data.totalAmount >= 0
+                    && request.resource.data.client.name is string
+                    && request.resource.data.client.phone is string
+                    && request.resource.data.client.deliveryAddress is string;
+      allow update: if request.resource.data.keys().hasAll(['id', 'orderNumber', 'status', 'paymentStatus'])
                     && request.resource.data.id == resource.data.id
                     && request.resource.data.orderNumber == resource.data.orderNumber
+                    && request.resource.data.totalAmount == resource.data.totalAmount
                     && request.resource.data.status in [
                       'received', 'preparing', 'ready',
                       'waiting_for_driver', 'delivering', 'delivered', 'cancelled'
-                    ];
+                    ]
+                    && request.resource.data.paymentStatus in ['to_collect', 'paid']
+                    && (request.resource.data.paymentStatus == resource.data.paymentStatus
+                        || (request.resource.data.paymentStatus == 'paid'
+                            && (resource.data.status == 'delivered' || request.resource.data.status == 'delivered')));
     }
 
     // 4. Mouvements de stock (Journal d'audit immuable : ni mise à jour, ni suppression)
@@ -62,25 +72,28 @@ service cloud.firestore {
       allow read: if true;
       allow delete: if false;
       allow update: if false;
-      allow create: if request.resource.data.keys().hasAll(['id', 'ingredientId', 'type', 'quantity', 'createdAt'])
+      allow create: if request.resource.data.keys().hasAll(['id', 'ingredientId', 'type', 'quantity', 'timestamp'])
                     && request.resource.data.type in [
-                      'manual_adjustment', 'order_consumption',
+                      'order_consumption', 'manual_in', 'manual_out',
+                      'waste', 'inventory_correction', 'manual_adjustment',
                       'order_cancellation_restore', 'replenishment'
                     ]
                     && request.resource.data.quantity is number;
     }
 
-    // 5. Ingrédients & Stock (Stock positif obligatoire, pas de suppression)
+    // 5. Ingrédients & Stock (Stock positif obligatoire, purchaseCost positif, pas de suppression)
     match /ingredients/{ingredientId} {
       allow read: if true;
       allow delete: if false;
       allow create, update: if request.resource.data.keys().hasAll([
                               'id', 'name', 'unit', 'currentStock',
-                              'minThreshold', 'costPerUnit'
+                              'minThreshold', 'purchaseCost'
                             ])
                             && request.resource.data.currentStock is number
                             && request.resource.data.currentStock >= 0
-                            && request.resource.data.name is string;
+                            && request.resource.data.name is string
+                            && request.resource.data.purchaseCost is number
+                            && request.resource.data.purchaseCost >= 0;
     }
 
     // 6. Index téléphone client (Pas de suppression publique)
