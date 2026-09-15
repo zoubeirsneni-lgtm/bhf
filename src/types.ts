@@ -189,6 +189,49 @@ export interface Order {
   statusHistory: StatusHistoryEntry[];
 }
 
+export interface PublicOrderItem {
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  itemTotalPrice: number;
+  proteinOption?: string | null;
+  veggiesOption?: string | null;
+  baseChoice?: string | null;
+  supplements?: string[];
+  specialInstructions?: string;
+}
+
+export interface PublicStatusHistoryEntry {
+  status: OrderStatus;
+  label: string;
+  timestamp: string;
+}
+
+export interface PublicTrackingOrder {
+  orderNumber: string;
+  trackingToken: string;
+  createdAt: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  paymentMethod: string;
+  totalAmount: number;
+  deliveryFee?: number;
+  subtotal?: number;
+  client: {
+    name: string;
+    phone: string;
+    deliveryAddress: string;
+    notes?: string;
+  };
+  clientName?: string;
+  phone?: string;
+  deliveryAddress?: string;
+  notes?: string;
+  items: PublicOrderItem[];
+  statusHistory: PublicStatusHistoryEntry[];
+  assignedDriverName?: string | null;
+}
+
 export interface Supplier {
   id: string;
   name: string;

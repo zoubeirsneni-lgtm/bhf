@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Order, OrderStatus } from '../../types';
+import { Order, OrderStatus, PublicTrackingOrder } from '../../types';
 import { cleanClientText } from '../../utils/clientFormatters';
 import {
   CheckCircle2,
@@ -45,7 +45,7 @@ export const OrderTrackingView: React.FC = () => {
   const [showTokenSearch, setShowTokenSearch] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [searchedOrder, setSearchedOrder] = useState<Order | null>(null);
+  const [searchedOrder, setSearchedOrder] = useState<PublicTrackingOrder | Order | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
 
   const currentOrder = activeTrackingOrder || searchedOrder;
@@ -586,12 +586,9 @@ export const OrderTrackingView: React.FC = () => {
                     <Phone className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Numéro de téléphone : </span>
                     {(currentOrder.client?.phone || (currentOrder as any).phone) ? (
-                      <a
-                        href={`tel:${currentOrder.client?.phone || (currentOrder as any).phone}`}
-                        className="font-mono font-bold text-emerald-700 bg-emerald-100/70 hover:bg-emerald-200 px-2 py-0.5 rounded transition-colors"
-                      >
+                      <span className="font-mono font-bold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded text-xs">
                         {currentOrder.client?.phone || (currentOrder as any).phone}
-                      </a>
+                      </span>
                     ) : (
                       <span className="text-stone-400 font-normal text-xs">Non renseigné</span>
                     )}

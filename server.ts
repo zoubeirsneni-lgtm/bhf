@@ -707,43 +707,67 @@ async function startServer() {
     }
   });
 
-  // GET /api/orders/:id (Staff & Client with IDOR protection)
-  app.get('/api/orders/:id', authenticateUser, requireRole('admin', 'kitchen', 'driver', 'client'), async (req: AuthenticatedRequest, res) => {
-    try {
-      const user = req.user!;
-      const order = await db.getOrderById(req.params.id);
+  // Fonctions de masquage pour la confidentialité du tracking public (Bloc 2)
+  function maskClientName(fullName?: string): string {
+    if (!fullName || typeof fullName !== 'string') return 'Client';
+    const trimmed = fullName.trim();
+    if (!trimmed) return 'Client';
+    const parts = trimmed.split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    const firstName = parts[0];
+    const lastInitial = parts[parts.length - 1][0].toUpperCase();
+    return `${firstName} ${lastInitial}.`;
+  }
 
-      if (!order) {
-        res.status(404).json({ error: 'Commande non trouvée.' });
-        return;
-      }
-
-      // IDOR Protection: Drivers can ONLY access their own assigned order
-      if (user.role === 'driver') {
-        if (!user.driverId || order.assignedDriverId !== user.driverId) {
-          res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
-          return;
-        }
-      }
-
-      // IDOR Protection: Clients can ONLY access their own orders
-      if (user.role === 'client') {
-        if (!order.clientId || order.clientId !== user.id) {
-          res.status(403).json({ error: 'Accès refusé : Vous ne pouvez pas accéder à cette commande.' });
-          return;
-        }
-      }
-
-      res.json(order);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+  function maskClientPhone(phone?: string): string {
+    if (!phone || typeof phone !== 'string') return '';
+    const trimmed = phone.trim();
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length < 4) return '••••';
+    if (digits.startsWith('216') && digits.length >= 11) {
+      const local = digits.slice(3);
+      return `+216 ${local.slice(0, 2)} ••• •${local.slice(-2)}`;
     }
-  });
+    if (digits.length === 8) {
+      return `${digits.slice(0, 2)} ••• •${digits.slice(-2)}`;
+    }
+    return `${digits.slice(0, 2)} •••• ${digits.slice(-2)}`;
+  }
 
-  // Helper to format safe public payload (avoids exposing internal DB fields)
+  function maskDeliveryAddress(address?: string): string {
+    if (!address || typeof address !== 'string') return '';
+    const trimmed = address.trim();
+    if (!trimmed) return '';
+    const parts = trimmed.split(',').map(p => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      // Conserver le quartier / la ville et masquer le numéro de rue et l'appartement privé
+      const publicArea = parts.length > 2 ? parts.slice(-2).join(', ') : parts[parts.length - 1];
+      return `••••••, ${publicArea}`;
+    }
+    if (trimmed.length > 10) {
+      return `•••••• ${trimmed.slice(-6)}`;
+    }
+    return `••••••`;
+  }
+
+  function formatSafeDriverName(driverName?: string, status?: string): string | null {
+    if (!driverName || typeof driverName !== 'string') return null;
+    // Révéler le prénom du livreur uniquement quand la commande est en cours de livraison ou livrée
+    if (status !== 'delivering' && status !== 'delivered') {
+      return null;
+    }
+    const firstName = driverName.trim().split(/\s+/)[0];
+    return firstName || null;
+  }
+
+  // Projection publique dédiée pour le tracking (Bloc 2 - Confidentialité stricte)
   function formatPublicOrder(order: any) {
+    const maskedName = maskClientName(order.client?.name);
+    const maskedPhone = maskClientPhone(order.client?.phone);
+    const maskedAddress = maskDeliveryAddress(order.client?.deliveryAddress);
+    const driverFirstName = formatSafeDriverName(order.assignedDriverName, order.status);
+
     return {
-      id: order.id,
       orderNumber: order.orderNumber,
       trackingToken: order.trackingToken,
       createdAt: order.createdAt,
@@ -753,23 +777,31 @@ async function startServer() {
       totalAmount: order.totalAmount,
       deliveryFee: order.deliveryFee,
       subtotal: order.subtotal,
-      clientName: order.client?.name || '',
-      phone: order.client?.phone || '',
-      deliveryAddress: order.client?.deliveryAddress || '',
-      notes: order.client?.notes || '',
+      client: {
+        name: maskedName,
+        phone: maskedPhone,
+        deliveryAddress: maskedAddress
+      },
+      clientName: maskedName,
+      phone: maskedPhone,
+      deliveryAddress: maskedAddress,
       items: (order.items || []).map((item: any) => ({
-        productName: item.productName || item.product?.name || '',
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        itemTotalPrice: item.itemTotalPrice,
-        proteinOption: item.proteinOption?.label || item.proteinOption || null,
-        veggiesOption: item.veggiesOption?.label || item.veggiesOption || null,
-        baseChoice: item.baseChoice?.label || item.baseChoice || null,
-        supplements: (item.supplements || []).map((s: any) => typeof s === 'string' ? s : (s.name || s.supplement?.name || '')),
-        specialInstructions: item.specialInstructions || ''
+        productName: item.productName || item.product?.name || 'Article',
+        quantity: item.quantity || 1,
+        unitPrice: item.unitPrice || 0,
+        itemTotalPrice: item.itemTotalPrice || ((item.unitPrice || 0) * (item.quantity || 1)),
+        proteinOption: typeof item.proteinOption === 'object' ? (item.proteinOption?.label || item.proteinOption?.name || null) : (item.proteinOption || null),
+        veggiesOption: typeof item.veggiesOption === 'object' ? (item.veggiesOption?.label || item.veggiesOption?.name || null) : (item.veggiesOption || null),
+        baseChoice: typeof item.baseChoice === 'object' ? (item.baseChoice?.label || item.baseChoice?.name || null) : (item.baseChoice || null),
+        supplements: (item.supplements || []).map((s: any) => typeof s === 'string' ? s : (s.name || s.supplement?.name || '')).filter(Boolean),
+        specialInstructions: item.specialInstructions || undefined
       })),
-      statusHistory: order.statusHistory || [],
-      assignedDriverName: order.assignedDriverName || null
+      statusHistory: (order.statusHistory || []).map((entry: any) => ({
+        status: entry.status,
+        label: entry.label || entry.status,
+        timestamp: entry.timestamp
+      })),
+      assignedDriverName: driverFirstName
     };
   }
 
@@ -783,9 +815,15 @@ async function startServer() {
   const lookupRateLimiter = new Map<string, LookupRateLimitEntry>();
 
   // Public Order Tracking by unique token (No auth required)
-  app.get('/api/orders/track/:token', async (req, res) => {
+  app.get(['/api/orders/track/:token', '/api/orders/track'], async (req, res) => {
     try {
-      const order = await db.getOrderByTrackingToken(req.params.token);
+      const rawToken = req.params.token || (req.query.token as string);
+      const token = typeof rawToken === 'string' ? rawToken.trim() : '';
+      if (!token || token.length < 5) {
+        res.status(404).json({ error: 'Lien de suivi invalide ou commande introuvable.' });
+        return;
+      }
+      const order = await db.getOrderByTrackingToken(token);
       if (!order) {
         res.status(404).json({ error: 'Lien de suivi invalide ou commande introuvable.' });
         return;
@@ -848,6 +886,39 @@ async function startServer() {
       lookupRateLimiter.delete(clientIp);
 
       res.json(formatPublicOrder(order));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/orders/:id (Staff & Client with IDOR protection)
+  app.get('/api/orders/:id', authenticateUser, requireRole('admin', 'kitchen', 'driver', 'client'), async (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user!;
+      const order = await db.getOrderById(req.params.id);
+
+      if (!order) {
+        res.status(404).json({ error: 'Commande non trouvée.' });
+        return;
+      }
+
+      // IDOR Protection: Drivers can ONLY access their own assigned order
+      if (user.role === 'driver') {
+        if (!user.driverId || order.assignedDriverId !== user.driverId) {
+          res.status(403).json({ error: 'Accès refusé : Cette commande ne vous est pas attribuée.' });
+          return;
+        }
+      }
+
+      // IDOR Protection: Clients can ONLY access their own orders
+      if (user.role === 'client') {
+        if (!order.clientId || order.clientId !== user.id) {
+          res.status(403).json({ error: 'Accès refusé : Vous ne pouvez pas accéder à cette commande.' });
+          return;
+        }
+      }
+
+      res.json(order);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
