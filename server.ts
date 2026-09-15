@@ -1177,6 +1177,17 @@ async function startServer() {
     }
   });
 
+  // POST /api/reset-demo-data (Admin only)
+  app.post('/api/reset-demo-data', authenticateUser, requireRole('admin'), async (req: AuthenticatedRequest, res) => {
+    try {
+      const result = await db.resetDemoData();
+      res.json(result);
+    } catch (err: any) {
+      console.error('[API] Erreur reset demo data:', err);
+      res.status(500).json({ error: err.message || 'Erreur interne lors de la réinitialisation des données.' });
+    }
+  });
+
   // --- Vite Middleware or Static Production Serving ---
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

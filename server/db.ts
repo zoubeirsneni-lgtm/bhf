@@ -631,9 +631,11 @@ class DatabaseManager {
     const list: Driver[] = [];
     drvSnap.forEach(d => {
       const drv = d.data() as Driver;
+      const id = drv.id || d.id;
       list.push({
         ...drv,
-        username: userMap.get(drv.id)
+        id,
+        username: userMap.get(id)
       });
     });
     return list;
@@ -1944,6 +1946,264 @@ class DatabaseManager {
     }
     await batch.commit();
     return true;
+  }
+
+  /**
+   * Réinitialisation défensive des données de démonstration.
+   * Supprime les utilisateurs/livreurs de test, les commandes de démo, les mouvements de stock associés,
+   * les clés d'idempotence et les index de téléphone, les 2 ingrédients de test,
+   * préserve le catalogue et les comptes staff, remet les 17 ingrédients officiels à leurs quantités initiales,
+   * et réinitialise le compteur nextOrderSeq à 1001.
+   */
+  public async resetDemoData(): Promise<{
+    success: boolean;
+    deletedCounts: {
+      orders: number;
+      stockMovements: number;
+      users: number;
+      drivers: number;
+      ingredients: number;
+      orderIdempotencyKeys: number;
+      clientPhoneIndex: number;
+    };
+    rulesBlockedDeletionCount?: number;
+    preservedCounts: {
+      staffUsers: number;
+      drivers: number;
+      categories: number;
+      products: number;
+      supplements: number;
+      suppliers: number;
+      ingredients: number;
+    };
+    nextOrderSeq: number;
+    limitationNotice?: string;
+  }> {
+    const db = this.getDb();
+
+    // 1. VÉRIFICATION DÉFENSIVE STRICTE : S'assurer que le catalogue et le staff sont intacts
+    const staffIds = ['usr-admin-1', 'usr-kitchen-1', 'usr-driver-1'];
+    for (const sid of staffIds) {
+      const userSnap = await getDoc(doc(db, 'users', sid));
+      if (!userSnap.exists()) {
+        throw new Error(`Interruption défensive : compte staff critique manquant (${sid}).`);
+      }
+    }
+
+    const drv1Snap = await getDoc(doc(db, 'drivers', 'drv-1'));
+    if (!drv1Snap.exists()) {
+      throw new Error('Interruption défensive : livreur officiel critique manquant (drv-1).');
+    }
+
+    const [catsSnap, prodsSnap, supsSnap, suppliersSnap] = await Promise.all([
+      getDocs(collection(db, 'categories')),
+      getDocs(collection(db, 'products')),
+      getDocs(collection(db, 'supplements')),
+      getDocs(collection(db, 'suppliers'))
+    ]);
+
+    if (catsSnap.docs.length === 0 || prodsSnap.docs.length === 0) {
+      throw new Error('Interruption défensive : catalogue manquant ou vide.');
+    }
+
+    // 2. RECENSEMENT DES DOCUMENTS À SUPPRIMER
+    // a) Utilisateurs de test
+    const allUsersSnap = await getDocs(collection(db, 'users'));
+    const usersToDelete: string[] = [];
+    let preservedStaffCount = 0;
+    for (const d of allUsersSnap.docs) {
+      const u = d.data() as User;
+      if (staffIds.includes(d.id)) {
+        preservedStaffCount++;
+      } else if (
+        d.id.startsWith('cli-') ||
+        d.id === 'usr-1788252052142' ||
+        d.id === 'usr-driver-2' ||
+        d.id === 'usr-driver-3' ||
+        d.id === 'test-u' ||
+        u.role === 'client'
+      ) {
+        usersToDelete.push(d.id);
+      }
+    }
+
+    // b) Livreurs de test
+    const allDriversSnap = await getDocs(collection(db, 'drivers'));
+    const driversToDelete: string[] = [];
+    let preservedDriversCount = 0;
+    for (const d of allDriversSnap.docs) {
+      if (d.id === 'drv-1') {
+        preservedDriversCount++;
+      } else if (d.id === 'drv-2' || d.id === 'drv-3' || d.id === 'test-d') {
+        driversToDelete.push(d.id);
+      }
+    }
+
+    // c) Commandes de démo
+    const allOrdersSnap = await getDocs(collection(db, 'orders'));
+    const ordersToDelete = allOrdersSnap.docs.map(d => d.id);
+
+    // d) Mouvements de stock
+    const allMovementsSnap = await getDocs(collection(db, 'stockMovements'));
+    const movementsToDelete = allMovementsSnap.docs.map(d => d.id);
+
+    // e) Clés d'idempotence
+    const allIdempSnap = await getDocs(collection(db, 'orderIdempotencyKeys'));
+    const idempToDelete = allIdempSnap.docs.map(d => d.id);
+
+    // f) Index téléphone
+    const allPhonesSnap = await getDocs(collection(db, 'clientPhoneIndex'));
+    const phonesToDelete = allPhonesSnap.docs.map(d => d.id);
+
+    // g) Ingrédients de test
+    const allIngSnap = await getDocs(collection(db, 'ingredients'));
+    const testIngredientIds = ['ing-1788825545393', 'test-ing-kitchen-1788896746450', 'test-i'];
+    const ingredientsToDelete: string[] = [];
+    for (const d of allIngSnap.docs) {
+      if (testIngredientIds.includes(d.id)) {
+        ingredientsToDelete.push(d.id);
+      }
+    }
+
+    // 3. RECENSEMENT DES 17 INGRÉDIENTS OFFICIELS À RÉINITIALISER
+    const OFFICIAL_INGREDIENTS_STOCK: Record<string, number> = {
+      'ing-poulet': 8230,
+      'ing-boeuf': 8340,
+      'ing-riz': 20500,
+      'ing-quinoa': 7200,
+      'ing-patate-douce': 9540,
+      'ing-legumes': 12690,
+      'ing-avocat': 3060,
+      'ing-oeuf': 65,
+      'ing-halloumi': 10,
+      'ing-sauce-healthy': 3205,
+      'ing-sauce-miel-moutarde': 3360,
+      'ing-fruits-frais': 12000,
+      'ing-dinde': 12000,
+      'ing-saumon': 6500,
+      'ing-betterave': 5000,
+      'ing-eau-infusee': 8000,
+      'ing-repas-programme': 45
+    };
+
+    // 4. RÉINITIALISATION DU COMPTEUR DE COMMANDE & DES STOCKS OFFICIELS (RÈGLES FIRESTORE AUTORISÉES)
+    const counterDoc = doc(db, 'meta', 'counters');
+    await setDoc(counterDoc, {
+      nextOrderSeq: 1001,
+      updatedAt: new Date().toISOString()
+    }, { merge: true });
+
+    let resetIngredientsCount = 0;
+    for (const [ingId, stockQty] of Object.entries(OFFICIAL_INGREDIENTS_STOCK)) {
+      const ingDoc = doc(db, 'ingredients', ingId);
+      await setDoc(ingDoc, {
+        currentStock: stockQty,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+      resetIngredientsCount++;
+    }
+
+    // 5. TENTATIVES DE SUPPRESSION DÉFENSIVES PAR DOCUMENT (SOUMISES AUX RÈGLES FIRESTORE)
+    const deletedCounts = {
+      orders: 0,
+      stockMovements: 0,
+      users: 0,
+      drivers: 0,
+      ingredients: 0,
+      orderIdempotencyKeys: 0,
+      clientPhoneIndex: 0
+    };
+
+    let rulesBlockedDeletionCount = 0;
+
+    // a) Commandes
+    for (const id of ordersToDelete) {
+      try {
+        await deleteDoc(doc(db, 'orders', id));
+        deletedCounts.orders++;
+      } catch (err: any) {
+        if (err.code === 'permission-denied') rulesBlockedDeletionCount++;
+      }
+    }
+
+    // b) Mouvements de stock
+    for (const id of movementsToDelete) {
+      try {
+        await deleteDoc(doc(db, 'stockMovements', id));
+        deletedCounts.stockMovements++;
+      } catch (err: any) {
+        if (err.code === 'permission-denied') rulesBlockedDeletionCount++;
+      }
+    }
+
+    // c) Utilisateurs
+    for (const id of usersToDelete) {
+      try {
+        await deleteDoc(doc(db, 'users', id));
+        deletedCounts.users++;
+      } catch (err: any) {
+        if (err.code === 'permission-denied') rulesBlockedDeletionCount++;
+      }
+    }
+
+    // d) Livreurs
+    for (const id of driversToDelete) {
+      try {
+        await deleteDoc(doc(db, 'drivers', id));
+        deletedCounts.drivers++;
+      } catch (err: any) {
+        if (err.code === 'permission-denied') rulesBlockedDeletionCount++;
+      }
+    }
+
+    // e) Clés d'idempotence
+    for (const id of idempToDelete) {
+      try {
+        await deleteDoc(doc(db, 'orderIdempotencyKeys', id));
+        deletedCounts.orderIdempotencyKeys++;
+      } catch (err: any) {
+        if (err.code === 'permission-denied') rulesBlockedDeletionCount++;
+      }
+    }
+
+    // f) Index téléphone
+    for (const id of phonesToDelete) {
+      try {
+        await deleteDoc(doc(db, 'clientPhoneIndex', id));
+        deletedCounts.clientPhoneIndex++;
+      } catch (err: any) {
+        if (err.code === 'permission-denied') rulesBlockedDeletionCount++;
+      }
+    }
+
+    // g) Ingrédients de test
+    for (const id of ingredientsToDelete) {
+      try {
+        await deleteDoc(doc(db, 'ingredients', id));
+        deletedCounts.ingredients++;
+      } catch (err: any) {
+        if (err.code === 'permission-denied') rulesBlockedDeletionCount++;
+      }
+    }
+
+    return {
+      success: true,
+      deletedCounts,
+      rulesBlockedDeletionCount,
+      preservedCounts: {
+        staffUsers: preservedStaffCount,
+        drivers: preservedDriversCount,
+        categories: catsSnap.docs.length,
+        products: prodsSnap.docs.length,
+        supplements: supsSnap.docs.length,
+        suppliers: suppliersSnap.docs.length,
+        ingredients: resetIngredientsCount
+      },
+      nextOrderSeq: 1001,
+      limitationNotice: rulesBlockedDeletionCount > 0
+        ? `Note d'intégrité : ${rulesBlockedDeletionCount} suppressions physiques ont été bloquées par les règles Firestore existantes (allow delete: if false). Le compteur de commande nextOrderSeq a bien été remis à 1001 et les 17 ingrédients officiels ont été restaurés à leurs stocks nominaux.`
+        : undefined
+    };
   }
 }
 

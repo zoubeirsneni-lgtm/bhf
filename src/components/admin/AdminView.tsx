@@ -537,8 +537,8 @@ export const AdminView: React.FC = () => {
                 <span>Alertes de Réapprovisionnement Cuisine Immédiat ({lowStockIngredients.length}) :</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {lowStockIngredients.map(ing => (
-                  <div key={ing.id} className="p-3 bg-white rounded-2xl border border-amber-200 shadow-2xs flex items-center justify-between">
+                {lowStockIngredients.map((ing, idx) => (
+                  <div key={ing.id ? `low-stock-${ing.id}` : `low-stock-${idx}`} className="p-3 bg-white rounded-2xl border border-amber-200 shadow-2xs flex items-center justify-between">
                     <div>
                       <h4 className="font-bold text-xs text-stone-900">{ing.name}</h4>
                       <p className="text-[11px] text-rose-600 font-bold">
@@ -569,7 +569,7 @@ export const AdminView: React.FC = () => {
 
               <div className="divide-y divide-stone-100">
                 {topProducts.map((p, idx) => (
-                  <div key={idx} className="py-3 flex items-center justify-between">
+                  <div key={`top-prod-${p.name || idx}-${idx}`} className="py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <span className="w-6 h-6 rounded-full bg-stone-100 text-stone-700 font-bold text-xs flex items-center justify-center">
                         {idx + 1}
@@ -595,12 +595,13 @@ export const AdminView: React.FC = () => {
               </h3>
 
               <div className="space-y-3">
-                {drivers.map(drv => {
-                  const driverDeliveredCount = orders.filter(o => o.assignedDriverId === drv.id && o.status === 'delivered').length;
-                  const driverActiveCount = orders.filter(o => o.assignedDriverId === drv.id && o.status === 'delivering').length;
+                {drivers.filter(Boolean).map((drv, idx) => {
+                  const driverId = drv.id || `drv-${idx}`;
+                  const driverDeliveredCount = orders.filter(o => o.assignedDriverId === driverId && o.status === 'delivered').length;
+                  const driverActiveCount = orders.filter(o => o.assignedDriverId === driverId && o.status === 'delivering').length;
 
                   return (
-                    <div key={drv.id} className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
+                    <div key={`fleet-drv-${driverId}-${idx}`} className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
                       <div>
                         <h4 className="font-bold text-xs sm:text-sm text-stone-900">{drv.name}</h4>
                         <p className="text-xs text-stone-500">{drv.phone} • {drv.vehicle}</p>
@@ -676,14 +677,15 @@ export const AdminView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
-                {filteredOrders.map(order => {
+                {filteredOrders.map((order, orderIdx) => {
+                  const orderKey = order.id || order.orderNumber || `order-${orderIdx}`;
                   const effectiveDriverId = selectedDrivers[order.id] ?? order.assignedDriverId ?? '';
                   const assignedDriver = drivers.find(d => d.id === effectiveDriverId);
                   const allowedTargets = ALLOWED_ADMIN_TRANSITIONS[order.status] || [];
                   const isTerminated = order.status === 'delivered' || order.status === 'cancelled';
 
                   return (
-                    <tr key={order.id} className="hover:bg-stone-50/80 transition-colors">
+                    <tr key={orderKey} className="hover:bg-stone-50/80 transition-colors">
                       <td className="p-3.5 font-mono font-bold text-stone-900 align-top">
                         #{order.orderNumber}
                         <span className="block text-[10px] font-sans font-normal text-stone-400">
@@ -712,8 +714,8 @@ export const AdminView: React.FC = () => {
                         )}
                       </td>
                       <td className="p-3.5 align-top">
-                        {(order.items || []).map((it, idx) => (
-                          <div key={idx} className="line-clamp-1">
+                        {(order.items || []).map((it, itIdx) => (
+                          <div key={`order-${order.id || orderIdx}-item-${it?.productId || it?.productName || itIdx}-${itIdx}`} className="line-clamp-1">
                             • {it?.productName || 'Article'} (x{it?.quantity ?? 1})
                           </div>
                         ))}
@@ -824,11 +826,11 @@ export const AdminView: React.FC = () => {
                               className="block w-full px-2 py-1 text-xs rounded-lg border border-stone-300 bg-white font-medium text-stone-800 focus:ring-2 focus:ring-emerald-500 disabled:opacity-50"
                             >
                               <option value="">-- Aucun livreur --</option>
-                              {drivers.map(drv => drv ? (
-                                <option key={drv.id} value={drv.id}>
+                              {drivers.filter(Boolean).map((drv, dIdx) => (
+                                <option key={`order-drv-${order.id || orderIdx}-${drv.id || dIdx}`} value={drv.id || ''}>
                                   {drv.name} {drv.phone ? `(${drv.phone})` : ''}
                                 </option>
-                              ) : null)}
+                              ))}
                             </select>
                           )}
                         </div>
@@ -878,9 +880,9 @@ export const AdminView: React.FC = () => {
                               <option value={order.status} disabled>
                                 {STATUS_LABELS[order.status]} (actuel)
                               </option>
-                              {allowedTargets.map(target => (
+                              {allowedTargets.map((target, tIdx) => (
                                 <option
-                                  key={target}
+                                  key={`order-status-${order.id || orderIdx}-${target}-${tIdx}`}
                                   value={target}
                                   disabled={target === 'delivering' && !effectiveDriverId}
                                 >
@@ -987,7 +989,7 @@ export const AdminView: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  filteredIngredients.map(ing => {
+                  filteredIngredients.map((ing, ingIdx) => {
                     const alertThreshold = ing.minThreshold ?? (ing as any).minimumAlertStock ?? 0;
                     const unitCost = (ing as any).costPerUnit ?? ing.purchaseCost ?? 0;
                     const isLow = ing.currentStock <= alertThreshold;
@@ -996,7 +998,7 @@ export const AdminView: React.FC = () => {
 
                     return (
                       <tr 
-                        key={ing.id} 
+                        key={ing.id ? `ing-row-${ing.id}` : `ing-row-${ingIdx}`} 
                         className={`hover:bg-stone-50/80 transition-colors ${!isActive ? 'opacity-65 bg-stone-50/40' : ''}`}
                       >
                         <td className="p-3.5 font-bold text-stone-900">
@@ -1261,17 +1263,18 @@ export const AdminView: React.FC = () => {
 
               return (
                 <div className="divide-y divide-stone-100">
-                  {filteredDrivers.map(drv => {
+                  {filteredDrivers.filter(Boolean).map((drv, drvIdx) => {
+                    const driverId = drv.id || `drv-${drvIdx}`;
                     const activeDeliveriesCount = orders.filter(
-                      o => o.assignedDriverId === drv.id && o.status === 'delivering'
+                      o => o.assignedDriverId === driverId && o.status === 'delivering'
                     ).length;
                     const deliveredCount = orders.filter(
-                      o => o.assignedDriverId === drv.id && o.status === 'delivered'
+                      o => o.assignedDriverId === driverId && o.status === 'delivered'
                     ).length;
 
                     return (
                       <div
-                        key={drv.id}
+                        key={`driver-row-${driverId}-${drvIdx}`}
                         className={`p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors ${
                           !drv.active ? 'bg-stone-50/70 opacity-75' : 'hover:bg-stone-50/50'
                         }`}

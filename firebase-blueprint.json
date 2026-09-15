@@ -1,0 +1,162 @@
+{
+  "entities": {
+    "Category": {
+      "title": "Category",
+      "description": "Catégorie de plats ou produits",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "order": { "type": "number" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Produit ou plat du menu",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "number" },
+        "categoryId": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["name"]
+    },
+    "Ingredient": {
+      "title": "Ingredient",
+      "description": "Ingrédient et stock de cuisine",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "currentStock": { "type": "number" },
+        "unit": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Commande client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "orderNumber": { "type": "string" },
+        "status": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "orderNumber", "status"]
+    },
+    "StockMovement": {
+      "title": "StockMovement",
+      "description": "Mouvement d'inventaire ou consommation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ingredientId": { "type": "string" },
+        "type": { "type": "string" },
+        "quantity": { "type": "number" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["ingredientId", "type"]
+    },
+    "User": {
+      "title": "User",
+      "description": "Compte utilisateur ou personnel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "role": { "type": "string" }
+      },
+      "required": ["role"]
+    },
+    "Driver": {
+      "title": "Driver",
+      "description": "Livreur partenaire ou salarié",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Supplement": {
+      "title": "Supplement",
+      "description": "Supplément optionnel pour plat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" }
+      },
+      "required": ["name"]
+    },
+    "Supplier": {
+      "title": "Supplier",
+      "description": "Fournisseur d'ingrédients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/meta/{metaId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Métadonnées système et compteurs de séquence"
+    },
+    "/orderIdempotencyKeys/{key}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Clés d'idempotence des commandes"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Commandes clients"
+    },
+    "/stockMovements/{movementId}": {
+      "schema": { "$ref": "#/entities/StockMovement" },
+      "description": "Historique des mouvements de stock"
+    },
+    "/ingredients/{ingredientId}": {
+      "schema": { "$ref": "#/entities/Ingredient" },
+      "description": "Ingrédients et stocks disponibles"
+    },
+    "/clientPhoneIndex/{phone}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Index de mapping téléphone vers identifiant client"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Catégories du catalogue"
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Produits du catalogue"
+    },
+    "/supplements/{supplementId}": {
+      "schema": { "$ref": "#/entities/Supplement" },
+      "description": "Suppléments et extras"
+    },
+    "/suppliers/{supplierId}": {
+      "schema": { "$ref": "#/entities/Supplier" },
+      "description": "Fournisseurs de matières premières"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Comptes utilisateurs et rôles applicatifs"
+    },
+    "/drivers/{driverId}": {
+      "schema": { "$ref": "#/entities/Driver" },
+      "description": "Livreurs de la flotte BEBBA"
+    }
+  }
+}

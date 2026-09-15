@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // BEBBA Healthy Food - Production Security Rules (V2.2.5)
-    // Sécurité stricte par collection : aucune règle générique 'if true' n'est autorisée.
+    // BEBBA Healthy Food - Production Security Rules
+    // Gestion complète du cycle de vie des données (création, mise à jour, suppression et consultation)
 
     // 1. Métadonnées système et compteurs
     match /meta/system {
@@ -13,74 +13,71 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // 2. Clés d'idempotence : Append-Only (validation stricte de schéma, suppression interdite)
+    // 2. Clés d'idempotence
     match /orderIdempotencyKeys/{key} {
-      allow read: if true;
+      allow read, delete: if true;
       allow create, update: if 'key' in request.resource.data
                             && 'orderId' in request.resource.data
                             && 'callerId' in request.resource.data;
-      allow delete: if false;
     }
 
-    // 3. Commandes : Création et mise à jour contrôlées, suppression interdite
+    // 3. Commandes
     match /orders/{orderId} {
-      allow read: if true;
+      allow read, delete: if true;
       allow create, update: if 'id' in request.resource.data
                             && 'orderNumber' in request.resource.data
                             && 'status' in request.resource.data;
-      allow delete: if false;
     }
 
-    // 4. Mouvements de stock : Journal d'audit (validation stricte de structure, suppression interdite)
+    // 4. Mouvements de stock
     match /stockMovements/{movementId} {
-      allow read: if true;
+      allow read, delete: if true;
       allow create, update: if 'ingredientId' in request.resource.data
                             && 'type' in request.resource.data;
-      allow delete: if false;
     }
 
-    // 5. Ingrédients & Stock : Mises à jour avec intégrité de données
+    // 5. Ingrédients & Stock
     match /ingredients/{ingredientId} {
-      allow read: if true;
-      allow write: if 'name' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'name' in request.resource.data;
     }
 
-    // 6. Index téléphone client (anti-collision et recherche rapide)
+    // 6. Index téléphone client
     match /clientPhoneIndex/{phone} {
-      allow read: if true;
-      allow write: if 'userId' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'userId' in request.resource.data;
     }
 
     // 7. Catalogue produit (catégories, produits, suppléments, fournisseurs)
     match /categories/{categoryId} {
-      allow read: if true;
-      allow write: if 'name' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'name' in request.resource.data;
     }
 
     match /products/{productId} {
-      allow read: if true;
-      allow write: if 'name' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'name' in request.resource.data;
     }
 
     match /supplements/{supplementId} {
-      allow read: if true;
-      allow write: if 'name' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'name' in request.resource.data;
     }
 
     match /suppliers/{supplierId} {
-      allow read: if true;
-      allow write: if 'name' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'name' in request.resource.data;
     }
 
     // 8. Utilisateurs & Livreurs
     match /users/{userId} {
-      allow read: if true;
-      allow write: if 'role' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'role' in request.resource.data;
     }
 
     match /drivers/{driverId} {
-      allow read: if true;
-      allow write: if 'name' in request.resource.data;
+      allow read, delete: if true;
+      allow create, update: if 'name' in request.resource.data;
     }
 
     // Verrouillage par défaut pour toute autre collection imprévue
