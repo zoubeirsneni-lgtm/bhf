@@ -54,7 +54,7 @@ const MainContent: React.FC = () => {
     }
 
     if (currentRole === 'admin') {
-      if (currentUser.role === 'admin') {
+      if (currentUser.role === 'admin' || currentUser.role === 'admin_readonly') {
         return <AdminView />;
       }
       return <StaffLoginView targetRole="admin" message="Accès réservé exclusivement aux administrateurs." />;

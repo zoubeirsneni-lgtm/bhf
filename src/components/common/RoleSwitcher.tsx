@@ -31,7 +31,7 @@ export const RoleSwitcher: React.FC = () => {
   const isRoleAllowed = (role: UserRole): boolean => {
     if (role === 'client') return true;
     if (!isAuthenticated || !currentUser) return false;
-    if (currentUser.role === 'admin') return true;
+    if (currentUser.role === 'admin' || currentUser.role === 'admin_readonly') return true;
     if (currentUser.role === 'kitchen' && role === 'kitchen') return true;
     if (currentUser.role === 'driver' && role === 'driver') return true;
     return false;
@@ -55,7 +55,7 @@ export const RoleSwitcher: React.FC = () => {
       label: 'Cuisine (KDS)',
       mobileLabel: 'Cuisine',
       icon: <ChefHat className="w-4 h-4 flex-shrink-0" />,
-      badge: isAuthenticated && (currentUser?.role === 'admin' || currentUser?.role === 'kitchen') && activeOrdersCount > 0
+      badge: isAuthenticated && (currentUser?.role === 'admin' || currentUser?.role === 'admin_readonly' || currentUser?.role === 'kitchen') && activeOrdersCount > 0
         ? activeOrdersCount
         : undefined
     },
@@ -64,7 +64,7 @@ export const RoleSwitcher: React.FC = () => {
       label: 'Espace Livreur',
       mobileLabel: 'Livreur',
       icon: <Bike className="w-4 h-4 flex-shrink-0" />,
-      badge: isAuthenticated && (currentUser?.role === 'admin' || currentUser?.role === 'driver') && readyOrdersCount > 0
+      badge: isAuthenticated && (currentUser?.role === 'admin' || currentUser?.role === 'admin_readonly' || currentUser?.role === 'driver') && readyOrdersCount > 0
         ? readyOrdersCount
         : undefined
     },
@@ -90,7 +90,7 @@ export const RoleSwitcher: React.FC = () => {
       return r.role === 'driver' || r.role === 'client';
     }
     // Admin sees all roles
-    if (isAuthenticated && currentUser?.role === 'admin') {
+    if (isAuthenticated && (currentUser?.role === 'admin' || currentUser?.role === 'admin_readonly')) {
       return true;
     }
     // When unauthenticated, show all roles so internal staff can navigate to their portal

@@ -143,7 +143,7 @@ service cloud.firestore {
       allow read: if true;
       allow delete: if false;
       allow create, update: if request.resource.data.keys().hasAll(['id', 'role', 'active', 'createdAt'])
-                            && request.resource.data.role in ['admin', 'kitchen', 'driver', 'client']
+                            && request.resource.data.role in ['admin', 'kitchen', 'driver', 'client', 'admin_readonly']
                             && request.resource.data.id is string
                             && request.resource.data.active is bool
                             && (!exists(/databases/$(database)/documents/users/$(userId))

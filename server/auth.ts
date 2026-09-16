@@ -149,8 +149,8 @@ export function isValidStatusTransition(
   targetStatus: OrderStatus,
   role: UserRole
 ): boolean {
-  if (role === 'client') {
-    return false; // Les clients ne peuvent jamais modifier les statuts de commande
+  if (role === 'client' || role === 'admin_readonly') {
+    return false; // Les clients et admin_readonly ne peuvent jamais modifier les statuts de commande
   }
 
   if (currentStatus === targetStatus) {

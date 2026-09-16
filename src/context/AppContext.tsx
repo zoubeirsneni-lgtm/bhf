@@ -761,8 +761,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           } catch (e) {}
         }
 
-        // Fetch admin-only resources if admin
-        if (userRole === 'admin') {
+        // Fetch admin-only resources if admin or admin_readonly
+        if (userRole === 'admin' || userRole === 'admin_readonly') {
           try {
             const [movsRes, suppsRes, statsRes] = await Promise.all([
               safeFetchJson<StockMovement[]>('/api/stock-movements', [], token, handleSessionExpired),

@@ -26,13 +26,14 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({ targetRole, mess
     if (targetRole === 'kitchen') return 'cuisine';
     if (targetRole === 'driver') return 'livreur1';
     if (targetRole === 'admin') return 'admin';
+    if (targetRole === 'admin_readonly') return 'admin_readonly';
     return '';
   });
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const handleRolePreset = (role: 'admin' | 'kitchen' | 'driver', defaultUsername: string) => {
+  const handleRolePreset = (role: 'admin' | 'kitchen' | 'driver' | 'admin_readonly', defaultUsername: string) => {
     setUsername(defaultUsername);
     setPassword('');
     setLocalError(null);
@@ -105,13 +106,13 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({ targetRole, mess
             <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-400 mb-2">
               Choisir votre espace
             </label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-4 gap-1.5">
               <button
                 type="button"
                 id="role-preset-admin"
                 onClick={() => handleRolePreset('admin', 'admin')}
                 className={`min-h-[44px] flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                  username.toLowerCase().includes('admin')
+                  username === 'admin'
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-sm'
                     : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
                 }`}
@@ -122,10 +123,24 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({ targetRole, mess
 
               <button
                 type="button"
+                id="role-preset-admin-readonly"
+                onClick={() => handleRolePreset('admin_readonly', 'admin_readonly')}
+                className={`min-h-[44px] flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+                  username === 'admin_readonly'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-sm'
+                    : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
+                }`}
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                <span className="text-[10px] leading-none">Admin ReadOnly</span>
+              </button>
+
+              <button
+                type="button"
                 id="role-preset-kitchen"
                 onClick={() => handleRolePreset('kitchen', 'cuisine')}
                 className={`min-h-[44px] flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                  username.toLowerCase().includes('cuisine')
+                  username === 'cuisine'
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-sm'
                     : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
                 }`}
@@ -139,7 +154,7 @@ export const StaffLoginView: React.FC<StaffLoginViewProps> = ({ targetRole, mess
                 id="role-preset-driver"
                 onClick={() => handleRolePreset('driver', 'livreur1')}
                 className={`min-h-[44px] flex flex-col items-center justify-center gap-1 p-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                  username.toLowerCase().includes('livreur')
+                  username === 'livreur1'
                     ? 'bg-emerald-50 border-emerald-500 text-emerald-800 shadow-sm'
                     : 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100'
                 }`}

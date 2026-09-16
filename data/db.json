@@ -9121,6 +9121,17 @@
       "createdAt": "2026-09-01T08:40:52.142Z",
       "updatedAt": "2026-09-01T08:40:52.142Z",
       "lastLoginAt": "2026-09-01T08:40:52.263Z"
+    },
+    {
+      "id": "usr-admin-readonly-1",
+      "username": "admin_readonly",
+      "name": "Administrateur lecture seule BEBBA",
+      "phone": "+216 71 000 004",
+      "passwordHash": "$2b$10$mBgHx73c9QS0zyEIzfv4RO0LlXiEBSP20QOUgygtHL.MkQqDaWmkC",
+      "role": "admin_readonly",
+      "active": true,
+      "createdAt": "2026-09-01T08:13:06.548Z",
+      "updatedAt": "2026-09-01T08:13:06.548Z"
     }
   ],
   "nextOrderSeq": 1101

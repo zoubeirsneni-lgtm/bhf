@@ -443,7 +443,7 @@ async function startServer() {
   });
 
   // GET /api/stock-movements (Admin only)
-  app.get('/api/stock-movements', authenticateUser, requireRole('admin'), async (req, res) => {
+  app.get('/api/stock-movements', authenticateUser, requireRole('admin', 'admin_readonly'), async (req, res) => {
     try {
       const list = await db.getStockMovements();
       res.json(list);
@@ -657,7 +657,7 @@ async function startServer() {
         phone: phone || '',
         passwordHash,
         role,
-        driverId: role === 'driver' ? driverId : undefined,
+        ...(role === 'driver' && driverId ? { driverId } : {}),
         active: active !== false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
@@ -1204,9 +1204,15 @@ async function startServer() {
         return;
       }
 
-      // Kitchen is strictly forbidden from modifying payment
+// Kitchen is strictly forbidden from modifying payment
       if (user.role === 'kitchen') {
-        res.status(403).json({ error: 'Accès refusé : La cuisine n’a pas l’autorisation de modifier le statut de paiement.' });
+        res.status(403).json({ error: 'Accès refusé : La cuisine n\u2019a pas l\u2019autorisation de modifier le statut de paiement.' });
+        return;
+      }
+
+      // admin_readonly is strictly forbidden from modifying payment
+      if (user.role === 'admin_readonly') {
+        res.status(403).json({ error: 'Accès refusé : Lecture seule, modification du paiement interdite.' });
         return;
       }
 
@@ -1246,7 +1252,7 @@ async function startServer() {
   });
 
   // Dashboard Stats (Admin only)
-  app.get('/api/stats', authenticateUser, requireRole('admin'), async (req, res) => {
+  app.get('/api/stats', authenticateUser, requireRole('admin', 'admin_readonly'), async (req, res) => {
     try {
       const stats = await db.getDashboardStats();
       res.json(stats);

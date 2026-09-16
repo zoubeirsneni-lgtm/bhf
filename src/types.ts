@@ -275,7 +275,7 @@ export interface ResetDriverPasswordDTO {
 }
 
 export type InternalRole = 'admin' | 'kitchen' | 'driver';
-export type UserRole = 'client' | 'kitchen' | 'driver' | 'admin';
+export type UserRole = 'client' | 'kitchen' | 'driver' | 'admin' | 'admin_readonly';
 
 export interface User {
   id: string;

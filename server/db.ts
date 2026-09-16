@@ -1983,7 +1983,7 @@ class DatabaseManager {
     const db = this.getDb();
 
     // 1. VÉRIFICATION DÉFENSIVE STRICTE : S'assurer que le catalogue et le staff sont intacts
-    const staffIds = ['usr-admin-1', 'usr-kitchen-1', 'usr-driver-1'];
+    const staffIds = ['usr-admin-1', 'usr-kitchen-1', 'usr-driver-1', 'usr-admin-readonly-1'];
     for (const sid of staffIds) {
       const userSnap = await getDoc(doc(db, 'users', sid));
       if (!userSnap.exists()) {
