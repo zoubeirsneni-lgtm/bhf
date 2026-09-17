@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 import { Firestore } from '@google-cloud/firestore';
 
 // Read Firebase config
@@ -46,6 +47,29 @@ async function runMigration() {
 
   const rawData = fs.readFileSync(DB_FILE, 'utf8');
   const sourceData = JSON.parse(rawData);
+
+  // 0. Mots de passe staff: aucun hash commité n'est migré. Les mots de passe initiaux
+  //    des comptes staff sont fournis exclusivement par l'environnement (INITIAL_*_PASSWORD)
+  //    et hachés à la volée. Échec rapide si une variable obligatoire manque.
+  const staffPasswordEnvByRole: Record<string, string> = {
+    admin: 'INITIAL_ADMIN_PASSWORD',
+    kitchen: 'INITIAL_KITCHEN_PASSWORD',
+    driver: 'INITIAL_DRIVER_PASSWORD',
+    admin_readonly: 'INITIAL_ADMIN_READONLY_PASSWORD'
+  };
+  const usersSource = (sourceData.users || []) as Array<{ id: string; role: string; passwordHash?: string }>;
+  for (const u of usersSource) {
+    if (u.role === 'client') continue;
+    const envName = staffPasswordEnvByRole[u.role];
+    if (!envName) {
+      throw new Error(`Rôle staff non couvert par une variable INITIAL_*_PASSWORD: ${u.role} (utilisateur ${u.id})`);
+    }
+    const plainPassword = process.env[envName];
+    if (!plainPassword || plainPassword.trim() === '') {
+      throw new Error(`Variable d'environnement obligatoire manquante pour le compte staff ${u.id} (${u.role}): ${envName}`);
+    }
+    u.passwordHash = await bcrypt.hash(plainPassword, 10);
+  }
 
   // 1. Verrouillage du système: état IN_PROGRESS
   console.log('1. Mise à jour de /meta/system -> IN_PROGRESS');
