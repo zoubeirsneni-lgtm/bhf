@@ -34,7 +34,7 @@ CREATE TABLE `bebba_categories` (
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bebba_categories_legacy_id` (`legacy_id`),
-    UNIQUE KEY `uk_bebba_categories_slug` (`slug`),
+    KEY `idx_bebba_categories_slug` (`slug`),
     KEY `idx_bebba_categories_active` (`active`),
     KEY `idx_bebba_categories_sort_order` (`sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Catégories de produits BEBBA';
@@ -66,15 +66,16 @@ CREATE TABLE `bebba_ingredients` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `legacy_id` VARCHAR(64) NOT NULL COMMENT 'ID Firestore original (ex: ing-poulet)',
     `name` VARCHAR(128) NOT NULL,
-    `unit` ENUM('g','ml','piece','portion') NOT NULL DEFAULT 'g',
-    `stock_quantity` DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Stock actuel (snapshot à la migration)',
-    `min_threshold` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-    `purchase_cost` DECIMAL(10,4) NOT NULL DEFAULT 0.0000 COMMENT 'Coût unitaire en DT',
+    `unit` ENUM('g','ml','piece','portion') NULL COMMENT 'Unité de mesure (NULLable: legacy peut être absent)',
+    `stock_quantity` DECIMAL(12,2) NULL COMMENT 'Stock actuel (snapshot à la migration, NULL si absent legacy)',
+    `min_threshold` DECIMAL(12,2) NULL COMMENT 'Seuil minimal (NULLable: legacy peut être absent)',
+    `purchase_cost` DECIMAL(10,4) NULL COMMENT 'Coût unitaire en DT (NULLable: legacy peut être absent)',
     `supplier_id` BIGINT UNSIGNED NULL COMMENT 'FK vers bebba_suppliers (NULL si orphelin legacy)',
     `supplier_legacy_id` VARCHAR(64) NULL COMMENT 'ID legacy fournisseur si FK non résolue',
     `supplier_name_snapshot` VARCHAR(128) NULL COMMENT 'Nom fournisseur au moment de la migration',
     `category` VARCHAR(64) NULL COMMENT 'Catégorie métier (ex: Protéines, Légumes, Sauces)',
     `active` TINYINT(1) NOT NULL DEFAULT 1,
+    `legacy_active_raw` TINYINT(1) NULL COMMENT 'Valeur brute legacy "active" (NULL = champ absent, 0 = false, 1 = true)',
     `legacy_created_at` DATETIME NULL,
     `legacy_updated_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -101,7 +102,8 @@ CREATE TABLE `bebba_supplements` (
     `ingredient_id` BIGINT UNSIGNED NULL COMMENT 'FK vers bebba_ingredients (NULL si orphelin legacy)',
     `ingredient_legacy_id` VARCHAR(64) NULL COMMENT 'ID legacy ingrédient si FK non résolue',
     `ingredient_name_snapshot` VARCHAR(128) NOT NULL COMMENT 'Nom ingrédient au moment de la migration',
-    `quantity_consumed` DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Quantité consommée par supplément',
+    `quantity_consumed` DECIMAL(12,2) NOT NULL DEFAULT 0.00 COMMENT 'Quantité consommée par supplément (valeur métier normalisée)',
+    `legacy_quantity` DECIMAL(12,2) NULL COMMENT 'Champ legacy "quantity" brute (trace: les deux champs existaient historiquement)',
     `unit` VARCHAR(16) NOT NULL DEFAULT 'g',
     `available` TINYINT(1) NOT NULL DEFAULT 1,
     `is_available` TINYINT(1) NULL COMMENT 'Champ legacy isAvailable',
@@ -128,23 +130,28 @@ CREATE TABLE `bebba_supplements` (
 CREATE TABLE `bebba_drivers` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `legacy_id` VARCHAR(64) NOT NULL COMMENT 'ID Firestore original (ex: drv-1)',
-    `name` VARCHAR(128) NOT NULL COMMENT 'Nom du livreur (source de vérité pour les snapshots commandes)',
+    `name` VARCHAR(128) NOT NULL COMMENT 'Nom du livreur (source de vérité pour les snapshots commandes, Driver.name)',
     `phone` VARCHAR(32) NOT NULL,
     `vehicle` VARCHAR(128) NULL,
     `active` TINYINT(1) NOT NULL DEFAULT 1,
     `total_deliveries` INT UNSIGNED NOT NULL DEFAULT 0,
     `rating` DECIMAL(3,2) NULL COMMENT 'Note sur 5 (ex: 4.90)',
-    `wp_user_id` BIGINT UNSIGNED NULL COMMENT 'ID wp_users si lié (résolu lors migration)',
+    `legacy_user_id` VARCHAR(64) NULL COMMENT 'ID legacy User (ex: usr-driver-1), conservé pour traçabilité BLOC 1',
+    `user_id` BIGINT UNSIGNED NULL COMMENT 'ID wp_users (mapping BLOC 1 gelé: User → wp_users)',
     `legacy_created_at` DATETIME NULL,
     `legacy_updated_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bebba_drivers_legacy_id` (`legacy_id`),
+    UNIQUE KEY `uk_bebba_drivers_legacy_user_id` (`legacy_user_id`),
+    UNIQUE KEY `uk_bebba_drivers_user_id` (`user_id`),
     KEY `idx_bebba_drivers_phone` (`phone`),
     KEY `idx_bebba_drivers_active` (`active`),
-    KEY `idx_bebba_drivers_wp_user_id` (`wp_user_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Livreurs BEBBA';
+    CONSTRAINT `fk_bebba_drivers_user` FOREIGN KEY (`user_id`)
+        REFERENCES `wp_users` (`ID`)
+        ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Livreurs BEBBA (nom = Driver.name ; identité User → wp_users.display_name ; divergence → quarantaine)';
 
 -- ============================================================================
 -- 2. TABLES RÉFÉRENTIELLES (Produits dépendent de catégories)
@@ -197,6 +204,7 @@ CREATE TABLE `bebba_product_ingredients` (
     `ingredient_id` BIGINT UNSIGNED NULL COMMENT 'FK vers bebba_ingredients (NULL si orphelin legacy)',
     `ingredient_legacy_id` VARCHAR(64) NOT NULL COMMENT 'ID legacy ingrédient (toujours conservé)',
     `ingredient_name_snapshot` VARCHAR(128) NOT NULL COMMENT 'Nom ingrédient au moment de la migration',
+    `position` INT UNSIGNED NOT NULL COMMENT 'Position originale dans le tableau baseIngredients legacy',
     `quantity` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     `unit` VARCHAR(16) NOT NULL DEFAULT 'g',
     `legacy_created_at` DATETIME NULL,
@@ -205,6 +213,7 @@ CREATE TABLE `bebba_product_ingredients` (
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_bebba_product_ingredients_product_legacy` (`product_id`, `ingredient_legacy_id`),
+    UNIQUE KEY `uk_bebba_product_ingredients_product_position` (`product_id`, `position`),
     KEY `idx_bebba_product_ingredients_ingredient_id` (`ingredient_id`),
     CONSTRAINT `fk_bebba_product_ingredients_product` FOREIGN KEY (`product_id`)
         REFERENCES `bebba_products` (`id`)
@@ -212,7 +221,7 @@ CREATE TABLE `bebba_product_ingredients` (
     CONSTRAINT `fk_bebba_product_ingredients_ingredient` FOREIGN KEY (`ingredient_id`)
         REFERENCES `bebba_ingredients` (`id`)
         ON DELETE SET NULL ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Composition ingrédients de base par produit';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Composition ingrédients de base par produit — position = ordre original legacy';
 
 -- --------------------------------------------------------
 -- bebba_product_options (Options de personnalisation : protéines, légumes, base)
@@ -221,22 +230,24 @@ CREATE TABLE `bebba_product_options` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `product_id` BIGINT UNSIGNED NOT NULL,
     `option_type` ENUM('protein','veggies','base') NOT NULL COMMENT 'Type d\'option',
+    `position` INT UNSIGNED NOT NULL COMMENT 'Position originale dans le tableau legacy (ordre de déclaration)',
     `label` VARCHAR(128) NOT NULL COMMENT 'Label affiché (ex: Portion sportive (+100g de poulet))',
     `extra_price` DECIMAL(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Supplément prix en DT',
     `extra_grams` DECIMAL(12,2) NULL COMMENT 'Grammes supplémentaires (NULL pour type base)',
     `sort_order` INT NOT NULL DEFAULT 0,
-    `is_default` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Option par défaut (prix 0, grams 0)',
+    `is_default` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Option par défaut technique/conservée (prix 0, grams 0) — champ legacy isDefault',
     `legacy_created_at` DATETIME NULL,
     `legacy_updated_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_bebba_product_options_product_type_position` (`product_id`, `option_type`, `position`),
     KEY `idx_bebba_product_options_product_type` (`product_id`, `option_type`),
     KEY `idx_bebba_product_options_sort_order` (`sort_order`),
     CONSTRAINT `fk_bebba_product_options_product` FOREIGN KEY (`product_id`)
         REFERENCES `bebba_products` (`id`)
         ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Options de personnalisation par produit (protéines, légumes, base)';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Options de personnalisation par produit (protéines, légumes, base) — position = ordre original legacy';
 
 -- --------------------------------------------------------
 -- bebba_product_supplements (Suppléments autorisés par produit)
@@ -290,7 +301,7 @@ CREATE TABLE `bebba_orders` (
     `driver_legacy_id` VARCHAR(64) NULL COMMENT 'ID legacy driver si FK non résolue',
     `driver_name_snapshot` VARCHAR(128) NULL COMMENT 'Nom livreur au moment de l\'assignation (snapshot historique)',
     `stock_consumed` TINYINT(1) NULL COMMENT 'TRUE/FALSE/NULL (3 états possibles legacy)',
-    `idempotency_key` VARCHAR(128) NULL COMMENT 'Clé d\'idempotence si fournie',
+    `idempotency_key` VARCHAR(128) NULL COMMENT 'Clé d\'idempotence si fournie (UNIQUE, NULL multiples autorisés)',
     `legacy_created_at` DATETIME NULL,
     `legacy_updated_at` DATETIME NULL,
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -299,12 +310,12 @@ CREATE TABLE `bebba_orders` (
     UNIQUE KEY `uk_bebba_orders_legacy_id` (`legacy_id`),
     UNIQUE KEY `uk_bebba_orders_order_number` (`order_number`),
     UNIQUE KEY `uk_bebba_orders_tracking_token` (`tracking_token`),
+    UNIQUE KEY `uk_bebba_orders_idempotency_key` (`idempotency_key`),
     KEY `idx_bebba_orders_placed_at` (`placed_at`),
     KEY `idx_bebba_orders_status` (`status`),
     KEY `idx_bebba_orders_payment_status` (`payment_status`),
     KEY `idx_bebba_orders_driver_id` (`driver_id`),
     KEY `idx_bebba_orders_wp_customer_id` (`wp_customer_id`),
-    KEY `idx_bebba_orders_idempotency_key` (`idempotency_key`),
     CONSTRAINT `fk_bebba_orders_driver` FOREIGN KEY (`driver_id`)
         REFERENCES `bebba_drivers` (`id`)
         ON DELETE SET NULL ON UPDATE CASCADE,
@@ -373,6 +384,7 @@ CREATE TABLE `bebba_order_item_supplements` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_bebba_order_item_supplements_item_legacy` (`order_item_id`, `supplement_legacy_id`),
     KEY `idx_bebba_order_item_supplements_order_item_id` (`order_item_id`),
     KEY `idx_bebba_order_item_supplements_supplement_id` (`supplement_id`),
     KEY `idx_bebba_order_item_supplements_ingredient_id` (`ingredient_id`),
@@ -403,6 +415,7 @@ CREATE TABLE `bebba_order_item_prep` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_bebba_order_item_prep_item_legacy` (`order_item_id`, `ingredient_legacy_id`),
     KEY `idx_bebba_order_item_prep_order_item_id` (`order_item_id`),
     KEY `idx_bebba_order_item_prep_ingredient_id` (`ingredient_id`),
     KEY `idx_bebba_order_item_prep_ingredient_legacy_id` (`ingredient_legacy_id`),
@@ -420,9 +433,10 @@ CREATE TABLE `bebba_order_item_prep` (
 CREATE TABLE `bebba_order_status_history` (
     `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     `order_id` BIGINT UNSIGNED NOT NULL,
+    `position` INT UNSIGNED NOT NULL COMMENT 'Position séquentielle dans l\'historique (ordre original du tableau legacy)',
     `status` ENUM('received','preparing','ready','waiting_for_driver','delivering','delivered','cancelled') NOT NULL,
     `label` VARCHAR(128) NOT NULL COMMENT 'Libellé humain du statut',
-    `timestamp` DATETIME NOT NULL COMMENT 'Horodatage précis du changement',
+    `timestamp` DATETIME(3) NOT NULL COMMENT 'Horodatage précis du changement (millisecondes conservées)',
     `note` TEXT NULL COMMENT 'Note associée au changement',
     `updated_by` VARCHAR(128) NULL COMMENT 'Acteur : "Système Client", "Administrateur BEBBA (Admin)", "Sami Trabelsi (Livreur)", etc.',
     `legacy_created_at` DATETIME NULL,
@@ -430,13 +444,14 @@ CREATE TABLE `bebba_order_status_history` (
     `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_bebba_order_status_history_order_position` (`order_id`, `position`),
     KEY `idx_bebba_order_status_history_order_id` (`order_id`),
     KEY `idx_bebba_order_status_history_timestamp` (`timestamp`),
     KEY `idx_bebba_order_status_history_status` (`status`),
     CONSTRAINT `fk_bebba_order_status_history_order` FOREIGN KEY (`order_id`)
         REFERENCES `bebba_orders` (`id`)
         ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Historique complet des changements de statut des commandes';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Historique complet des changements de statut des commandes (ordre original préservé via position)';
 
 -- ============================================================================
 -- 4. TABLES DE STOCK
@@ -453,7 +468,7 @@ CREATE TABLE `bebba_stock_movements` (
     `ingredient_name_snapshot` VARCHAR(128) NOT NULL COMMENT 'Nom ingrédient au moment du mouvement',
     `movement_type` ENUM('order_consumption','replenishment','inventory_correction','manual_out','manual_in','waste','order_cancellation_restore') NOT NULL,
     `quantity` DECIMAL(12,2) NOT NULL COMMENT 'Signé : négatif = sortie, positif = entrée (conserve signe original)',
-    `unit` VARCHAR(16) NOT NULL DEFAULT 'g',
+    `unit` VARCHAR(16) NULL COMMENT 'Unité (NULLable: legacy peut être absent)',
     `order_id` BIGINT UNSIGNED NULL COMMENT 'FK vers bebba_orders si lié à une commande',
     `order_legacy_id` VARCHAR(64) NULL COMMENT 'ID legacy commande',
     `order_number_snapshot` VARCHAR(32) NULL COMMENT 'Numéro commande au moment du mouvement',
@@ -557,7 +572,7 @@ CREATE TABLE `bebba_migration_quarantine` (
     `source_value` TEXT NULL COMMENT 'Valeur source (Firestore / db.json)',
     `target_value` TEXT NULL COMMENT 'Valeur cible proposée / alternative',
     `anomaly_type` ENUM('identity_conflict','missing_fk','orphan_reference','data_mismatch','duplicate_key','null_not_allowed','format_invalid','other') NOT NULL,
-    `status` ENUM('open','in_review','resolved','ignored') NOT NULL DEFAULT 'open',
+    `status` ENUM('open','pending_review','in_review','resolved','ignored') NOT NULL DEFAULT 'open',
     `decision` TEXT NULL COMMENT 'Décision métier prise (ex: "Conserver Yassine Ben Amor comme nom driver")',
     `decided_by` VARCHAR(128) NULL COMMENT 'Qui a tranché',
     `decided_at` DATETIME NULL COMMENT 'Quand la décision a été prise',
@@ -581,6 +596,6 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ============================================================================
 -- DONNÉES INITIALES : Compteurs
 -- ============================================================================
-INSERT INTO `bebba_counters` (`counter_name`, `current_value`, `legacy_created_at`, `legacy_updated_at`)
-VALUES ('nextOrderSeq', 1101, '2026-09-01 08:13:06', '2026-09-01 08:13:06')
-ON DUPLICATE KEY UPDATE `current_value` = VALUES(`current_value`);
+INSERT INTO `bebba_counters` (`counter_name`, `current_value`)
+VALUES ('nextOrderSeq', 1101)
+ON DUPLICATE KEY UPDATE `current_value` = 1101;
