@@ -156,46 +156,74 @@ COMMIT;  -- fin de phase, tout validé
 
 ---
 
-## 7. Stratégie Rollback / Restauration (procédure unique et déterministe)
+## 7. Stratégie Backup / Rollback / Restauration
 
-**Procédure de restauration complète (niveau B) — seule procédure de rollback complet :**
+### 7.1 Distinction des deux backups
+
+| Backup | Moment | Contenu | Rôle |
+|--------|--------|---------|------|
+| **Backup historique BLOC 4C** | Avant création du schéma BEBBA (création des 19 tables) | État WordPress pur : 12 tables `wp_*`, zéro table `bebba_*` | Témoin de l'état WordPress pur. **Ne sert PAS de rollback pour la migration Firestore → MySQL (BLOC 5C)**. Fichier : `bebba_test_backup_20260918_010130.sql` |
+| **Backup de sécurité BLOC 5C** | Immédiatement avant migration Firestore → MySQL (exécution réelle) | État complet pré-migration : 12 tables `wp_*` + 19 tables `bebba_*` (vides, schémas créés) | **Seul point de restauration valide pour le rollback BLOC 5C**. Nom généré dynamiquement : `bebba_test_pre_migration_<YYYYMMDD_HHMMSS>.sql` |
+
+**Règle** : Le backup BLOC 4C est un témoin historique. Le rollback de la migration Firestore → MySQL utilise **exclusivement** le backup BLOC 5C capturé immédiatement avant l'exécution.
+
+### 7.2 État de référence avant migration (capturé dynamiquement)
+
+Avant l'exécution de la migration, le migrateur capture et conserve l'état de référence de la base cible :
+
+- Liste complète des tables (`SHOW TABLES`)
+- Nombre de lignes par table (`SELECT COUNT(*) FROM <table>`)
+- État des tables `wp_*` (12 tables attendues)
+- État des tables `bebba_*` (19 tables, vides, schémas créés)
+- `CHECKSUM TABLE` sur toutes les tables (contrôle complémentaire)
+- Horodatage de capture
+- Identifiant de batch de migration (`batch_id`)
+
+Ces informations sont stockées dans le rapport de migration/dry-run (artefact de preuve), **pas** dans une table métier supplémentaire.
+
+### 7.3 Procédure de restauration unique (rollback complet BLOC 5C)
+
+**Procédure déterministe — seule procédure de rollback complet pour la migration Firestore → MySQL :**
 
 1. **Arrêter la migration** : `Ctrl+C` ou signal d'arrêt → la transaction de phase en cours fait `ROLLBACK` automatiquement.
-2. **Vérifier l'état MySQL** : s'assurer qu'aucune transaction n'est en cours (`SHOW PROCESSLIST`).
-3. **Restaurer le backup** :
+2. **Rollback transaction en cours** : s'assurer qu'aucune transaction n'est en cours (`SHOW PROCESSLIST` → aucune transaction active).
+3. **Empêcher toute nouvelle écriture applicative** : couper l'accès applicatif à la base (ex: arrêter le serveur applicatif, ou mode maintenance WordPress).
+4. **Restaurer le backup BLOC 5C complet** :
    ```bash
-   mysql -h 127.0.0.1 -P 3306 -u root bebba_test < /chemin/backup_bebba_test_YYYYMMDD_HHMMSS.sql
+   mysql -h 127.0.0.1 -P 3306 -u root bebba_test < /chemin/backup_pre_migration_<batch_id>.sql
    ```
-4. **Vérifier la restauration** :
-   - `SELECT COUNT(*) FROM bebba_*` → toutes les tables BEBBA vides (0 lignes) ou état pré-migration connu.
-   - `SELECT COUNT(*) FROM wp_*` → 12 tables WordPress inchangées.
-   - `CHECKSUM TABLE bebba_*, wp_*` → correspond aux checksums pré-migration.
-5. **Vérifier WordPress** :
+5. **Vérifier la restauration** :
+   - `SELECT COUNT(*) FROM bebba_*` → toutes les tables BEBBA restaurées à l'état pré-migration (vides, schémas présents).
+   - `SELECT COUNT(*) FROM wp_*` → 12 tables WordPress présentes, lignes inchangées vs capture pré-migration.
+   - `CHECKSUM TABLE bebba_*, wp_*` → correspond aux checksums capturés à l'étape de référence pré-migration.
+6. **Vérifier WordPress** :
    - HTTP `GET /bebba_test/` → 200 OK.
    - Connexion admin WordPress fonctionnelle.
-   - Tables `wp_users`, `wp_options`, `wp_posts` intactes.
+   - Tables `wp_users`, `wp_options`, `wp_posts` intactes (comptages identiques à la référence).
+7. **Valider la restauration** : seulement après validation des étapes 5 et 6, considérer la restauration terminée.
 
 **Tables concernées par la restauration :**
-- **Tables `bebba_*`** : toutes restaurées à l'état pré-migration (vides si migration initiale).
-- **Tables `wp_*`** : **jamais modifiées** par la migration → restent inchangées. Le backup les inclut pour intégrité.
+- **Tables `bebba_*`** : restaurées à l'état pré-migration (vides, schémas présents).
+- **Tables `wp_*`** : restaurées à l'état pré-migration (contenu WordPress inchangé). Le backup les inclut pour intégrité.
 
-**Règle** : Cette procédure est **la seule** procédure de rollback complet. `migration_map` ne sert jamais de rollback.
+**Règle** : Cette procédure est **la seule** procédure de rollback complet pour la migration Firestore → MySQL. Le backup BLOC 4C n'est **pas** utilisé pour ce rollback. `migration_map` ne sert jamais de rollback.
 
-**Note sur la cohérence transactionnelle :**
+### 7.4 Cohérence transactionnelle (rappel)
+
 - Au niveau batch : `ROLLBACK TO SAVEPOINT batch_N` annule le batch courant.
 - Au niveau phase : `ROLLBACK` (après l'échec du batch) annule **toute** la phase — aucune écriture de la phase n'est persistée, y compris `migration_map` (restent `pending`).
 - Si la migration est interrompue **après** `COMMIT` d'une phase : les phases validées restent `migrated`/`quarantined` ; seules les phases non validées sont reprises via `migration_map` (`status='pending'`).
 
 ---
 
-## Validation du Backup (procédure obligatoire pré-migration)
+## Validation du Backup BLOC 5C (procédure obligatoire pré-migration)
 
-La validation du backup ne se limite **pas** à un `CHECKSUM TABLE`. Elle suit une procédure en 6 étapes :
+La validation du backup BLOC 5C ne se limite **pas** à un `CHECKSUM TABLE`. Elle suit une procédure en 6 étapes :
 
 | Étape | Action | Critère de succès |
 |-------|--------|-------------------|
-| 1. **Existence** | Fichier `.sql` présent à l'emplacement attendu | Fichier présent |
-| 2. **Taille** | > 0 octets, cohérente (ex: > 100 KB pour base avec données WordPress) | Taille > 0 et cohérente |
+| 1. **Existence** | Fichier `.sql` présent à l'emplacement attendu (généré dynamiquement avec timestamp) | Fichier présent |
+| 2. **Taille** | > 0 octets, cohérente (ex: > 100 KB pour base avec données WordPress + schémas BEBBA) | Taille > 0 et cohérente |
 | 3. **Lisibilité** | `head -50 backup.sql` montre structure mysqldump valide (`CREATE TABLE`, `INSERT INTO`) | Structure valide |
 | 4. **Contenu attendu** | `grep -c "CREATE TABLE" backup.sql` ≥ 31 (19 `bebba_*` + 12 `wp_*`) | ≥ 31 tables |
 | 5. **Restauration test** (recommandée) | Restauration sur base de test temporaire → `CHECKSUM TABLE` correspond | Checksums conformes |
@@ -204,6 +232,8 @@ La validation du backup ne se limite **pas** à un `CHECKSUM TABLE`. Elle suit u
 **Preuve de validité** : le fichier `.sql` est un dump mysqldump complet, lisible, contenant la structure + données attendues. `CHECKSUM TABLE` est un **contrôle complémentaire** post-restauration, pas une preuve suffisante à lui seul de la validité du fichier dump.
 
 **Règle GO/NO-GO** : Backup valide = étapes 1-4 obligatoires OK. Étape 5 recommandée. Si une étape échoue → NO-GO.
+
+---
 
 ---
 
