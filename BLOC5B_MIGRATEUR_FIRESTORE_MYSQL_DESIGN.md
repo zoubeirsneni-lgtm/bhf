@@ -185,21 +185,54 @@ Ces informations sont stockées dans le rapport de migration/dry-run (artefact d
 
 **Procédure déterministe — seule procédure de rollback complet pour la migration Firestore → MySQL :**
 
-1. **Arrêter la migration** : `Ctrl+C` ou signal d'arrêt → la transaction de phase en cours fait `ROLLBACK` automatiquement.
+1. **Arrêter la migration** :
+   - Si arrêt géré par le migrateur (handler `SIGINT`/`SIGTERM`) : déclencher un rollback explicite de la transaction de phase en cours avant arrêt.
+   - Si crash brutal / `kill -9` / perte de connexion : la transaction InnoDB non commitée est annulée automatiquement par MySQL à la rupture de connexion. **Au redémarrage**, le migrateur doit vérifier l'état (`migration_map` status `pending`/`failed`) avant toute reprise.
+   *Ne pas supposer que `Ctrl+C` sans handler dédié entraîne automatiquement un rollback.*
+
 2. **Rollback transaction en cours** : s'assurer qu'aucune transaction n'est en cours (`SHOW PROCESSLIST` → aucune transaction active).
+
 3. **Empêcher toute nouvelle écriture applicative** : couper l'accès applicatif à la base (ex: arrêter le serveur applicatif, ou mode maintenance WordPress).
+
 4. **Restaurer le backup BLOC 5C complet** :
+   Le backup BLOC 5C est un **dump complet `mysqldump` de la base `bebba_test`** créé avec les options déterministes suivantes :
+   ```bash
+   mysqldump \
+     --single-transaction \
+     --routines --triggers --events \
+     --add-drop-table --create-options \
+     --extended-insert=FALSE \
+     --order-by-primary \
+     --set-gtid-purged=OFF \
+     -h 127.0.0.1 -P 3306 -u root bebba_test \
+     > /chemin/backup_pre_migration_<batch_id>.sql
+   ```
+   Ces options garantissent :
+   - `--single-transaction` : cohérence transactionnelle sans verrouiller les tables
+   - `--add-drop-table` : chaque `CREATE TABLE` précédé de `DROP TABLE IF EXISTS` → restauration idempotente
+   - `--create-options` : conservation de toutes les options de table (engine, charset, etc.)
+   - `--extended-insert=FALSE` : un `INSERT` par ligne → reproductibilité
+   - `--order-by-primary` : données triées par clé primaire → reproductibilité
+   - `--set-gtid-purged=OFF` : évite les problèmes de réplication GTID
+
+   **Restauration :**
    ```bash
    mysql -h 127.0.0.1 -P 3306 -u root bebba_test < /chemin/backup_pre_migration_<batch_id>.sql
    ```
+   Grâce à `--add-drop-table`, le dump contient explicitement `DROP TABLE IF EXISTS` avant chaque `CREATE TABLE` → la restauration est **idempotente et déterministe** : deux exécutions successives sur la même base produisent le même état final. Pas de `TRUNCATE` manuel, pas d'import partiel, le dump est **autosuffisant**.
+
 5. **Vérifier la restauration** :
-   - `SELECT COUNT(*) FROM bebba_*` → toutes les tables BEBBA restaurées à l'état pré-migration (vides, schémas présents).
-   - `SELECT COUNT(*) FROM wp_*` → 12 tables WordPress présentes, lignes inchangées vs capture pré-migration.
-   - `CHECKSUM TABLE bebba_*, wp_*` → correspond aux checksums capturés à l'étape de référence pré-migration.
+   - **Inventaire structurel** : `SHOW TABLES` → liste exacte des tables `wp_*` (12 attendues) et `bebba_*` (19 attendues) identiques à l'inventaire pré-migration.
+   - **Intégrité des données `wp_*`** : pour chaque table `wp_*`, `SELECT COUNT(*) FROM <table>` = nombre de lignes capturé à l'état de référence pré-migration. Tables critiques vérifiées : `wp_users`, `wp_options`, `wp_posts`, `wp_usermeta`, `wp_term_taxonomy`, `wp_term_relationships`, `wp_term_meta`, `wp_terms`, `wp_comments`, `wp_commentmeta`, `wp_links`, `wp_postmeta`.
+   - **État `bebba_*`** : `SELECT COUNT(*) FROM bebba_*` → toutes les tables BEBBA restaurées à l'état pré-migration (0 lignes, schémas présents).
+   - `CHECKSUM TABLE bebba_*, wp_*` → correspond aux checksums capturés à l'état de référence pré-migration.
+   - **Intégrité critique WordPress** : pour `wp_users`, `wp_options`, `wp_posts`, vérifier non seulement les comptages mais aussi la présence des enregistrements critiques (ex: utilisateur admin, options `siteurl`/`home`, premier post).
+
 6. **Vérifier WordPress** :
    - HTTP `GET /bebba_test/` → 200 OK.
    - Connexion admin WordPress fonctionnelle.
-   - Tables `wp_users`, `wp_options`, `wp_posts` intactes (comptages identiques à la référence).
+   - Tables `wp_users`, `wp_options`, `wp_posts` intactes (comptages et enregistrements critiques identiques à la référence pré-migration).
+
 7. **Valider la restauration** : seulement après validation des étapes 5 et 6, considérer la restauration terminée.
 
 **Tables concernées par la restauration :**
@@ -208,11 +241,16 @@ Ces informations sont stockées dans le rapport de migration/dry-run (artefact d
 
 **Règle** : Cette procédure est **la seule** procédure de rollback complet pour la migration Firestore → MySQL. Le backup BLOC 4C n'est **pas** utilisé pour ce rollback. `migration_map` ne sert jamais de rollback.
 
-### 7.4 Cohérence transactionnelle (rappel)
+### 7.4 Arrêt / Crash / Reprise — Distinction explicite
 
-- Au niveau batch : `ROLLBACK TO SAVEPOINT batch_N` annule le batch courant.
-- Au niveau phase : `ROLLBACK` (après l'échec du batch) annule **toute** la phase — aucune écriture de la phase n'est persistée, y compris `migration_map` (restent `pending`).
-- Si la migration est interrompue **après** `COMMIT` d'une phase : les phases validées restent `migrated`/`quarantined` ; seules les phases non validées sont reprises via `migration_map` (`status='pending'`).
+| Scénario | Comportement MySQL | Comportement Migrateur | État `migration_map` après |
+|----------|-------------------|------------------------|----------------------------|
+| **Arrêt géré** (handler `SIGINT`/`SIGTERM` défini) | Transaction de phase → `ROLLBACK` explicite par handler | Handler déclenche rollback explicite, log, arrêt propre | Phase en cours → `pending` |
+| **Crash brutal** (`kill -9`, segfault, OOM) | Connexion coupée → MySQL annule transaction non commitée | Aucun code exécuté. Au redémarrage : `ResumeController` détecte `pending` | Phase en cours → `pending` |
+| **Perte connexion réseau** | Idem : MySQL annule transaction non commitée | Au redémarrage : reprise via `ResumeController` | Phase en cours → `pending` |
+| **Interruption après `COMMIT` phase** | Transaction validée, données persistées | Reprise au prochain `pending` | Phases validées = `migrated`/`quarantined` ; en cours = `pending` |
+
+**Règle** : Ne pas supposer que `Ctrl+C` entraîne un rollback sans handler explicite. Le migrateur **doit** installer un handler `SIGINT`/`SIGTERM` qui déclenche un rollback propre. Sans handler, seul le mécanisme InnoDB de rupture de connexion garantit l'atomicité.
 
 ---
 
@@ -227,7 +265,7 @@ La validation du backup BLOC 5C ne se limite **pas** à un `CHECKSUM TABLE`. Ell
 | 3. **Lisibilité** | `head -50 backup.sql` montre structure mysqldump valide (`CREATE TABLE`, `INSERT INTO`) | Structure valide |
 | 4. **Contenu attendu** | `grep -c "CREATE TABLE" backup.sql` ≥ 31 (19 `bebba_*` + 12 `wp_*`) | ≥ 31 tables |
 | 5. **Restauration test** (recommandée) | Restauration sur base de test temporaire → `CHECKSUM TABLE` correspond | Checksums conformes |
-| 6. **Contrôles post-restauration** | `SELECT COUNT(*) FROM wp_users` = 12 tables `wp_*` accessibles | 12 tables accessibles |
+| 6. **Contrôles post-restauration** | `SELECT COUNT(*) FROM wp_users` = nb lignes capturé pré-migration ; `SHOW TABLES LIKE 'wp_%'` = 12 tables `wp_*` listées | 12 tables listées + lignes `wp_users` = référence |
 
 **Preuve de validité** : le fichier `.sql` est un dump mysqldump complet, lisible, contenant la structure + données attendues. `CHECKSUM TABLE` est un **contrôle complémentaire** post-restauration, pas une preuve suffisante à lui seul de la validité du fichier dump.
 
