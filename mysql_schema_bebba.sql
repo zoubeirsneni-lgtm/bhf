@@ -592,10 +592,3 @@ CREATE TABLE `bebba_migration_quarantine` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Quarantaine des anomalies de migration nécessitant décision métier';
 
 SET FOREIGN_KEY_CHECKS = 1;
-
--- ============================================================================
--- DONNÉES INITIALES : Compteurs
--- ============================================================================
-INSERT INTO `bebba_counters` (`counter_name`, `current_value`)
-VALUES ('nextOrderSeq', 1101)
-ON DUPLICATE KEY UPDATE `current_value` = 1101;
