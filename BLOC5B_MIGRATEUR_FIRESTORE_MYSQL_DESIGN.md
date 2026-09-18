@@ -56,7 +56,7 @@ Rapport dry-run / Migration
 |--------|------|-------------|
 | **Firestore `active-presence-n4jp1`** | **Source de vérité unique** | Lecture dynamique de toutes les collections au moment du dry-run/migration |
 | `data/db.json` | Référence historique **uniquement** | Contrôle de cohérence, jamais source de migration |
-| GitHub `main` @ `ed6375b` | Code du migrateur | Version verrouillée, aucune copie locale/ZIP |
+| GitHub `main` @ `ed6375b` | État du dépôt de référence (design + DDL) | Le migrateur n'est pas encore implémenté ; `ed6375b` = état du dépôt pour le design/DDL ; commit du migrateur référencé lors du BLOC 5C |
 | `mysql_schema_bebba.sql` @ `af1154f` | Schéma cible | Déjà déployé sur `bebba_test`, immuable |
 
 **Interdictions :**
@@ -156,15 +156,30 @@ COMMIT;  -- fin de phase, tout validé
 
 ---
 
-## 7. Stratégie Rollback
+## 7. Stratégie Rollback / Restauration (procédure unique)
 
-| Niveau | Déclencheur | Action | Vérification |
-|--------|-------------|--------|--------------|
-| **A. Transactionnel (batch)** | Erreur technique dans un batch (FK inattendue, UNIQUE, ENUM, type, timeout) | `ROLLBACK TO SAVEPOINT batch_N` + `ROLLBACK` (phase) | Aucune ligne phase persistée |
-| **B. Restauration complète** | Crash process, corruption post-commit, GO/NO-GO manuel | 1. `mysql < backup.sql`<br>2. `TRUNCATE bebba_*` + réimport | `CHECKSUM TABLE` + comptages source = cible |
+**Procédure de restauration complète (niveau B) — seule procédure de rollback complet :**
 
-**Règle** : `migration_map` NE SERT PAS de rollback. Rollback complet = restauration backup mysqldump.
-**Pas de `SAVEPOINT phase_X`** — seul le `SAVEPOINT batch_N` existe. Un échec technique = `ROLLBACK TO SAVEPOINT batch_N` puis `ROLLBACK` total de la phase.
+1. **Arrêter la migration** : `Ctrl+C` ou signal d'arrêt → la transaction de phase en cours fait `ROLLBACK` automatiquement.
+2. **Vérifier l'état MySQL** : s'assurer qu'aucune transaction n'est en cours (`SHOW PROCESSLIST`).
+3. **Restaurer le backup** :
+   ```bash
+   mysql -h 127.0.0.1 -P 3306 -u root bebba_test < /chemin/backup_bebba_test_YYYYMMDD_HHMMSS.sql
+   ```
+4. **Vérifier la restauration** :
+   - `SELECT COUNT(*) FROM bebba_*` → toutes les tables BEBBA vides (0 lignes) ou état pré-migration connu.
+   - `SELECT COUNT(*) FROM wp_*` → 12 tables WordPress inchangées.
+   - `CHECKSUM TABLE bebba_*, wp_*` → correspond aux checksums pré-migration.
+5. **Vérifier WordPress** :
+   - HTTP `GET /bebba_test/` → 200 OK.
+   - Connexion admin WordPress fonctionnelle.
+   - Tables `wp_users`, `wp_options`, `wp_posts` intactes.
+
+**Tables concernées par la restauration :**
+- **Tables `bebba_*`** : toutes restaurées à l'état pré-migration (vides si migration initiale).
+- **Tables `wp_*`** : **jamais modifiées** par la migration → restent inchangées. Le backup les inclut pour intégrité.
+
+**Règle** : Cette procédure est **la seule** procédure de rollback complet. `migration_map` ne sert jamais de rollback.
 
 ---
 
@@ -177,7 +192,7 @@ Aucun état `migrating` ni `interrupted` n'existe dans le DDL. La reprise se bas
 | **Interruption (Ctrl+C) / Crash** | Lignes `status='pending'` ou `'failed'` restantes au redémarrage | Reprise à la première ligne `pending`/`failed` dans l'ordre `legacy_type, legacy_id` | `ResumeController.getResumePoint()` = `SELECT * FROM migration_map WHERE status IN ('pending','failed') ORDER BY legacy_type, legacy_id LIMIT 1` |
 | **Erreur batch (soft, anomalie connue)** | Ligne marquée `failed` + `quarantine` écrite (même transaction) | Continue batch suivant (ligne suivante) | `QuarantineService` + `migration_map` status='failed' |
 | **Erreur technique (HARD FAIL)** | Rollback phase complet → toutes les lignes de la phase restent `pending` | Au redémarrage : reprise au début de la phase | `ResumeController` détecte phase non `migrated` |
-| **Timeout DB** | Retry exponentiel (3x), puis ligne marquée `failed` | Continue batch suivant | `TransactionManager.withRetry()` |
+| **Timeout DB** | Retry exponentiel (3x, délai croissant) → si échec persistant → **erreur technique** → `ROLLBACK TO SAVEPOINT batch_N` + `ROLLBACK` phase → `NO-GO` | `TransactionManager.withRetry(max=3)` |
 | **Relance complète** | Détection via `migration_map` : `status IN ('pending','failed')` → reprise ; tout `migrated`/`quarantined` → skip | Reprise au premier `pending`/`failed` | Idempotence par `UNIQUE (legacy_type, legacy_id)` |
 
 **Règle** : `status='pending'` = "à traiter" (initial ou reprise). `status='failed'` = "échec technique, à reprendre". Pas d'état transitoire (`migrating`, `interrupted` n'existent pas).
@@ -283,7 +298,7 @@ status ENUM('pending','migrated','failed','quarantined') NOT NULL DEFAULT 'pendi
 
 | Étape | Condition | Décision |
 |-------|-----------|----------|
-| **Pré-migration** | Backup mysqldump valide (`CHECKSUM TABLE` OK) | GO / NO-GO |
+| **Pré-migration** | Backup mysqldump valide (voir procédure validation complète § Validation Backup) | GO / NO-GO |
 | **Pré-migration** | Dry-run `go_nogo === "GO"` (0 erreur technique, 0 FK missing, wp_users résolus) | GO / NO-GO |
 | **Pré-migration** | MySQL 8.4.7 accessible, `bebba_test` existe, 12 tables `wp_*` | GO / NO-GO |
 | **Pré-migration** | Schéma cible = `mysql_schema_bebba.sql` @ `af1154f` (vérification `CHECKSUM`) | GO / NO-GO |
@@ -310,7 +325,7 @@ status ENUM('pending','migrated','failed','quarantined') NOT NULL DEFAULT 'pendi
 | **Orders** | `COUNT(*), SUM(total_amount)` | cohérents avec source |
 | **Stock movements** | `COUNT(*), SUM(quantity)` | quantités signées |
 | **Status history** | `COUNT(*), COUNT(DISTINCT order_id)` | volume réel lu |
-| **WordPress** | `wp_users` avec `user_login IN ('livreur1','livreur2','livreur3')` | 3 |
+| **WordPress** | `wp_users` avec `user_login` dans liste dynamique depuis Firestore (usernames staff lus pendant dry-run) | comptes préexistants |
 | **Application** | API `/api/health`, `/api/orders`, `/api/categories` | 200 OK |
 
 **Toutes les valeurs de référence sont lues dynamiquement** — aucune constante 9, 33, 119, 3, 1010, etc. n'est utilisée comme oracle.
@@ -383,7 +398,7 @@ Tous les contrôles utilisent **exclusivement** des lectures dynamiques au momen
 | Orders | `COUNT(*), SUM(total_amount)` | cohérents avec source |
 | Stock movements | `COUNT(*), SUM(quantity)` | quantités signées |
 | Status history | `COUNT(*), COUNT(DISTINCT order_id)` | volume réel lu |
-| WordPress | `wp_users` avec `user_login IN ('livreur1','livreur2','livreur3')` | 3 (si comptes préexistent) |
+| WordPress | `wp_users` avec `user_login` dans liste dynamique depuis Firestore (usernames staff lus pendant dry-run) | comptes préexistants |
 | Application | API `/api/health`, `/api/orders`, `/api/categories` | 200 OK |
 
 **Aucune constante** 9, 33, 119, 3, 1010, 1101, 54, 173, 328, etc. n'est utilisée comme valeur attendue ou seuil. Toutes les valeurs de référence sont calculées dynamiquement au moment de l'exécution.
@@ -433,108 +448,6 @@ Tous les contrôles utilisent **exclusivement** des lectures dynamiques au momen
 **Zéro écriture** MySQL/Firestore en mode dry-run.
 
 ---
-
-## 19. GO / NO-GO (dynamique)
-
-| Étape | Condition | Décision |
-|-------|-----------|----------|
-| **Pré-migration** | Backup mysqldump valide (`CHECKSUM TABLE` OK) | GO / NO-GO |
-| **Pré-migration** | Dry-run `go_nogo === "GO"` (0 erreur technique, 0 FK missing, wp_users résolus) | GO / NO-GO |
-| **Pré-migration** | MySQL 8.4.7 accessible, `bebba_test` existe, 12 tables `wp_*` | GO / NO-GO |
-| **Pré-migration** | Schéma cible = `mysql_schema_bebba.sql` @ `af1154f` (vérification `CHECKSUM`) | GO / NO-GO |
-| **Pendant migration** | Erreur technique (FK inattendue, UNIQUE, ENUM, type) | NO-GO → rollback transactionnel |
-| **Pendant migration** | Anomalie métier connue (BLOC 2) | Quarantaine → GO (continue) |
-| **Post-migration** | Tous contrôles post-migration passent | MIGRATION VALIDÉE |
-| **Post-migration** | Un contrôle échoue | DIAGNOSTIC → ROLLBACK B si critique |
-
-**Pas de seuil historique** — les volumes sont ceux découverts au moment du dry-run.
-
----
-
-## 20. Contrôles Post-Migration (dynamiques)
-
-| Contrôle | Requête / Méthode | Source de vérité |
-|----------|-------------------|------------------|
-| **Comptages source = cible** | `firestore_coll.count()` vs `SELECT COUNT(*) FROM bebba_*` | Firestore temps réel |
-| **migration_map complet** | `SELECT COUNT(*) FROM migration_map WHERE status='migrated'` | = total entités source lues |
-| **Quarantaine attendue** | `SELECT COUNT(*) FROM migration_quarantine` | ≥ anomalies BLOC 1/2 documentées |
-| **FK valides** | `SELECT COUNT(*) FROM bebba_* WHERE fk_id IS NOT NULL AND fk_id NOT IN (SELECT id FROM parent)` | 0 orphelins non prévus |
-| **UNIQUE respectées** | `GROUP BY legacy_id HAVING COUNT(*) > 1` | 0 |
-| **NULL préservés** | `SELECT COUNT(*) FROM bebba_orders WHERE subtotal IS NULL` | = source NULL count |
-| **ENUM valides** | `status NOT IN (...)` | 0 |
-| **Orders** | `COUNT(*), SUM(total_amount)` | cohérents avec source |
-| **Stock movements** | `COUNT(*), SUM(quantity)` | quantités signées |
-| **Status history** | `COUNT(*), COUNT(DISTINCT order_id)` | volume réel lu |
-| **WordPress** | `wp_users` avec `user_login IN ('livreur1','livreur2','livreur3')` | 3 (si comptes préexistent) |
-| **Application** | API `/api/health`, `/api/orders`, `/api/categories` | 200 OK |
-
----
-
-## 21. Traitement dynamique de `nextOrderSeq`
-
-| Étape | Action |
-|-------|--------|
-| 1. **Dry-run** | Lecture `meta/counters` Firestore → affiche `nextOrderSeq` (valeur actuelle, ex: 1010) |
-| 2. **Migration (phase 2 Identité)** | Lecture `meta/counters` Firestore → `INSERT INTO bebba_counters (counter_name, current_value) VALUES ('nextOrderSeq', <valeur_lue>) ON DUPLICATE KEY UPDATE current_value=<valeur_lue>` |
-| 3. **Validation** | Vérification `bebba_counters.current_value = valeur_lue` |
-| 4. **Utilisation** | Application lit `bebba_counters` pour générer `BEBBA-{seq}` |
-
-**Jamais** : `1101` (DDL), `1010` (hardcodé), valeur par défaut. Toujours lecture dynamique Firestore.
-
----
-
-## 22. Distinction Anomalies Métier / Erreurs Techniques
-
-| Catégorie | Exemples | Traitement |
-|-----------|----------|------------|
-| **Anomalie métier connue** (BLOC 2) | Référence legacy orpheline, NULL historique, doublon slug documenté, divergence User/Driver, snapshot incomplet, `stockConsumed` absent, `unit` NULL, mouvement sans order, ghost ref documenté | Transformation contrôlée + trace + **quarantaine** `pending_review` → continue |
-| **Erreur technique inattendue** | Violation FK non documentée, violation UNIQUE non documentée, ENUM invalide, type incompatible, colonne inexistante, erreur SQL, mapper défectueux, connexion perdue, timeout, schéma cible ≠ DDL validé | **HARD FAIL** → `ROLLBACK` transactionnel immédiat → NO-GO |
-
-**Règle** : Ne jamais transformer silencieusement une erreur technique en anomalie métier.
-
----
-
-## 23. Mapping WordPress / Identité (aligné BLOC 1 gelé)
-
-**Chaîne de mapping gelée :**
-```
-User.username  →  wp_users.user_login  →  wp_users.ID  →  bebba_drivers.user_id
-```
-
-**Règles strictes :**
-- Résolution primaire : `User.username` = `wp_users.user_login` (ex: `livreur1`, `livreur2`, `livreur3`)
-- Email ne sert de fallback **que si** il existe réellement dans les données source et est exploitable sans ambiguïté
-- **Pas de création implicite de compte WordPress** par le migrateur
-- Si une identité WordPress obligatoire pour un driver ne peut pas être résolue → **BLOQUANT / NO-GO** (à traiter explicitement avant migration)
-- `bebba_drivers.user_id` peut rester `NULL` **uniquement** si :
-  - Le driver n'a pas de compte utilisateur staff associé (cas théorique non observé)
-  - Le `WPUserResolver` n'a pas trouvé de correspondance → quarantaine `identity_conflict` + `user_id=NULL` + NO-GO si driver staff requis
-- **Cas BLOC 1 (gelés) :**
-  | User legacy | Username | wp_users attendu | Résultat attendu |
-  |-------------|----------|------------------|------------------|
-  | `usr-driver-1` | `livreur1` | `wp_users` avec `user_login='livreur1'` | `wpUserId` résolu |
-  | `usr-driver-2` | `livreur2` | `wp_users` avec `user_login='livreur2'` | `wpUserId` résolu |
-  | `usr-driver-3` | `livreur3` | `wp_users` avec `user_login='livreur3'` | `wpUserId` résolu |
-
-**Divergence Sami/Yassine** : conservée dans `bebba_drivers.name` (Driver.name) + `bebba_migration_quarantine` avec `legacy_user_id='usr-driver-1'`, `legacy_driver_id='drv-1'`, `anomaly_type='identity_conflict'`. `wp_users.display_name` ← `User.name` (Sami), `bebba_drivers.name` ← `Driver.name` (Yassine). Aucune création implicite.
-
----
-
-## 24. Risques résiduels
-
-| Risque | Probabilité | Impact | Mitigation |
-|--------|-------------|--------|------------|
-| `wp_users` manquant pour livreurs | Moyenne | `bebba_drivers.user_id=NULL` + quarantaine | Audit `wp_users` pré-migration, résolution manuelle post-migration |
-| Conflit `user_login` WordPress | Faible | Quarantaine `identity_conflict` | Audit `wp_users` pré-migration |
-| Volume Firestore > mémoire Node | Faible | OOM crash | Curseurs + pagination (`limit` + `startAfter`) |
-| Timeout batch > 30s | Moyenne | Retry + quarantaine batch | Batch size 500, timeout configurable |
-| Perte connexion MySQL mid-batch | Faible | Rollback + reprise | Savepoints + ResumeController |
-| Doublon `legacy_id` source | Faible | Échec UNIQUE migration_map | Validation source pré-migration |
-| `nextOrderSeq` Firestore ≠ attendu | Confirmé (1010 vs 1101) | Valeur dynamique lue | Lecture dynamique, pas de seed DDL |
-| Schéma cible ≠ DDL validé | Faible | Migration invalide | `CHECKSUM TABLE` pré-migration vs DDL |
-
----
-
 ## VERDICT
 
 **VALIDÉ** — La conception corrigée est :
@@ -562,4 +475,3 @@ User.username  →  wp_users.user_login  →  wp_users.ID  →  bebba_drivers.us
 
 ---
 
-**STOP — Conception corrigée produite. Aucun code écrit. Aucun fichier modifié (hors rapport demandé).**
