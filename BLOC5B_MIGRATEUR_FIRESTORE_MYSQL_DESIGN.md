@@ -127,7 +127,7 @@ SAVEPOINT batch_N;
 --     RELEASE SAVEPOINT batch_N;  -- continue batch suivant
 --   Si erreur technique (FK inattendue, UNIQUE, ENUM, type, timeout, etc.) :
 --     ROLLBACK TO SAVEPOINT batch_N;  -- annule ce batch seulement
---     marque migration_map status='failed' + error_message
+--     -- PAS d'écriture 'failed' (annulée par le ROLLBACK de phase)
 --     ROLLBACK;  -- annule TOUTE la phase
 --     EXIT (NO-GO)
 -- RELEASE SAVEPOINT batch_N;
@@ -138,8 +138,8 @@ COMMIT;  -- fin de phase, tout validé
 - `migration_map` et `quarantine` sont écrits **dans la MÊME transaction** que l'entité qu'ils tracent (même `START TRANSACTION`).
 - Pas d'auto-commit par ligne à l'intérieur de la transaction de phase.
 - Une ligne = une exécution `INSERT/UPDATE` dans le batch courant.
-- Si 1 ligne échoue techniquement → `ROLLBACK TO SAVEPOINT batch_N` + `ROLLBACK` global phase.
-- Si 1 ligne est anomalie métier connue → `quarantine` + `migration_map` status='quarantined' (dans même transaction) → `RELEASE SAVEPOINT` → continue.
+- **Anomalie métier connue (BLOC 2)** → `quarantine` + `migration_map` status='quarantined' (dans même transaction) → `RELEASE SAVEPOINT` → continue.
+- **Erreur technique** (FK inattendue, UNIQUE, ENUM, type, timeout persistant) → `ROLLBACK TO SAVEPOINT batch_N` + `ROLLBACK` (phase complète) → **aucune écriture `failed`** (annulée par le rollback) → NO-GO.
 - `wp_users` mapping : résolu **AVANT** `START TRANSACTION` (lecture seule). Si absent → NO-GO pré-migration.
 - Pas de niveau "Ligne critique auto-commit" : tout est dans la transaction de phase.
 
@@ -156,7 +156,7 @@ COMMIT;  -- fin de phase, tout validé
 
 ---
 
-## 7. Stratégie Rollback / Restauration (procédure unique)
+## 7. Stratégie Rollback / Restauration (procédure unique et déterministe)
 
 **Procédure de restauration complète (niveau B) — seule procédure de rollback complet :**
 
@@ -181,6 +181,30 @@ COMMIT;  -- fin de phase, tout validé
 
 **Règle** : Cette procédure est **la seule** procédure de rollback complet. `migration_map` ne sert jamais de rollback.
 
+**Note sur la cohérence transactionnelle :**
+- Au niveau batch : `ROLLBACK TO SAVEPOINT batch_N` annule le batch courant.
+- Au niveau phase : `ROLLBACK` (après l'échec du batch) annule **toute** la phase — aucune écriture de la phase n'est persistée, y compris `migration_map` (restent `pending`).
+- Si la migration est interrompue **après** `COMMIT` d'une phase : les phases validées restent `migrated`/`quarantined` ; seules les phases non validées sont reprises via `migration_map` (`status='pending'`).
+
+---
+
+## Validation du Backup (procédure obligatoire pré-migration)
+
+La validation du backup ne se limite **pas** à un `CHECKSUM TABLE`. Elle suit une procédure en 6 étapes :
+
+| Étape | Action | Critère de succès |
+|-------|--------|-------------------|
+| 1. **Existence** | Fichier `.sql` présent à l'emplacement attendu | Fichier présent |
+| 2. **Taille** | > 0 octets, cohérente (ex: > 100 KB pour base avec données WordPress) | Taille > 0 et cohérente |
+| 3. **Lisibilité** | `head -50 backup.sql` montre structure mysqldump valide (`CREATE TABLE`, `INSERT INTO`) | Structure valide |
+| 4. **Contenu attendu** | `grep -c "CREATE TABLE" backup.sql` ≥ 31 (19 `bebba_*` + 12 `wp_*`) | ≥ 31 tables |
+| 5. **Restauration test** (recommandée) | Restauration sur base de test temporaire → `CHECKSUM TABLE` correspond | Checksums conformes |
+| 6. **Contrôles post-restauration** | `SELECT COUNT(*) FROM wp_users` = 12 tables `wp_*` accessibles | 12 tables accessibles |
+
+**Preuve de validité** : le fichier `.sql` est un dump mysqldump complet, lisible, contenant la structure + données attendues. `CHECKSUM TABLE` est un **contrôle complémentaire** post-restauration, pas une preuve suffisante à lui seul de la validité du fichier dump.
+
+**Règle GO/NO-GO** : Backup valide = étapes 1-4 obligatoires OK. Étape 5 recommandée. Si une étape échoue → NO-GO.
+
 ---
 
 ## 8. Stratégie Reprise (compatible ENUM DDL: pending, migrated, failed, quarantined)
@@ -189,15 +213,15 @@ Aucun état `migrating` ni `interrupted` n'existe dans le DDL. La reprise se bas
 
 | Scénario | Détection | Comportement | Mécanisme |
 |----------|-----------|--------------|-----------|
-| **Interruption (Ctrl+C) / Crash** | Lignes `status='pending'` ou `'failed'` restantes au redémarrage | Reprise à la première ligne `pending`/`failed` dans l'ordre `legacy_type, legacy_id` | `ResumeController.getResumePoint()` = `SELECT * FROM migration_map WHERE status IN ('pending','failed') ORDER BY legacy_type, legacy_id LIMIT 1` |
-| **Erreur batch (soft, anomalie connue)** | Ligne marquée `failed` + `quarantine` écrite (même transaction) | Continue batch suivant (ligne suivante) | `QuarantineService` + `migration_map` status='failed' |
+| **Interruption (Ctrl+C) / Crash** | Lignes `status='pending'` restantes au redémarrage | Reprise à la première ligne `pending` dans l'ordre `legacy_type, legacy_id` | `ResumeController.getResumePoint()` = `SELECT * FROM migration_map WHERE status='pending' ORDER BY legacy_type, legacy_id LIMIT 1` |
+| **Anomalie métier connue (BLOC 2)** | Ligne marquée `quarantined` + `quarantine` écrite (même transaction) | Continue batch suivant (ligne suivante) | `QuarantineService` + `migration_map` status='quarantined' |
 | **Erreur technique (HARD FAIL)** | Rollback phase complet → toutes les lignes de la phase restent `pending` | Au redémarrage : reprise au début de la phase | `ResumeController` détecte phase non `migrated` |
 | **Timeout DB** | Retry exponentiel (3x, délai croissant) → si échec persistant → **erreur technique** → `ROLLBACK TO SAVEPOINT batch_N` + `ROLLBACK` phase → `NO-GO` | `TransactionManager.withRetry(max=3)` |
-| **Relance complète** | Détection via `migration_map` : `status IN ('pending','failed')` → reprise ; tout `migrated`/`quarantined` → skip | Reprise au premier `pending`/`failed` | Idempotence par `UNIQUE (legacy_type, legacy_id)` |
+| **Relance complète** | Détection via `migration_map` : `status='pending'` → reprise ; tout `migrated`/`quarantined` → skip | Reprise au premier `pending` | Idempotence par `UNIQUE (legacy_type, legacy_id)` |
 
-**Règle** : `status='pending'` = "à traiter" (initial ou reprise). `status='failed'` = "échec technique, à reprendre". Pas d'état transitoire (`migrating`, `interrupted` n'existent pas).
+**Règle** : `status='pending'` = "à traiter" (initial ou reprise). `status='failed'` **n'est jamais écrit** (le rollback de phase l'annulerait). Les lignes restent `pending` après rollback technique et sont reprises au redémarrage. Pas d'état transitoire (`migrating`, `interrupted`, `failed` ne sont pas écrits dans la transaction de phase).
 
-**Idempotence** : `UNIQUE (legacy_type, legacy_id)` sur `migration_map` → second lancement détecte `status IN ('migrated','quarantined')` → skip + log "already migrated". Les lignes `status='pending'` ou `'failed'` sont reprises.
+**Idempotence** : `UNIQUE (legacy_type, legacy_id)` sur `migration_map` → second lancement détecte `status IN ('migrated','quarantined')` → skip + log "already migrated". Les lignes `status='pending'` sont reprises.
 
 ---
 
@@ -209,15 +233,21 @@ status ENUM('pending','migrated','failed','quarantined') NOT NULL DEFAULT 'pendi
 ```
 **Aucun état `migrating` ni `interrupted` n'existe.** Le design utilise strictement ces 4 valeurs.
 
+**Règle d'usage des statuts :**
+- `'pending'` = à traiter (initial ou reprise après rollback)
+- `'migrated'` = écriture réussie, validée
+- `'quarantined'` = anomalie métier connue (BLOC 2), écrite dans la transaction de phase
+- `'failed'` = **jamais écrit dans la transaction de phase** (le rollback l'annulerait). Réservé pour usage futur si mécanisme de reprise technique explicite est ajouté.
+
 | Moment | Action | Champs clés |
 |--------|--------|-------------|
 | **Début entité** | `INSERT ... ON DUPLICATE KEY UPDATE status='pending', batch_id=?, updated_at=NOW()` | `legacy_type`, `legacy_id`, `target_table`, `batch_id`, `status='pending'`, `raw_json` |
 | **Traitement batch** | (pas de changement de status — reste `pending` pendant le batch) | — |
 | **Succès écriture** | `UPDATE ... SET status='migrated', target_id=?, updated_at=NOW() WHERE legacy_type=? AND legacy_id=?` | `target_id` (via `LAST_INSERT_ID()` ou SELECT), `status='migrated'` |
-| **Échec validation** | `UPDATE ... SET status='failed', error_message=?, updated_at=NOW() WHERE ...` | `status='failed'`, `error_message` |
-| **Quarantaine** | `UPDATE ... SET status='quarantined', updated_at=NOW() WHERE ...` + `INSERT INTO quarantine` | `status='quarantined'` |
+| **Anomalie métier connue** | `UPDATE ... SET status='quarantined', updated_at=NOW() WHERE ...` + `INSERT INTO quarantine` | `status='quarantined'` |
+| **Erreur technique** | **Pas d'écriture `failed`** — le rollback de phase annule la transaction | — |
 
-**Clé d'idempotence** : `UNIQUE (legacy_type, legacy_id)` → second lancement détecte `status IN ('migrated','quarantined')` → skip + log "already migrated". Les lignes `status='pending'` ou `'failed'` sont reprises.
+**Clé d'idempotence** : `UNIQUE (legacy_type, legacy_id)` → second lancement détecte `status IN ('migrated','quarantined')` → skip + log "already migrated". Les lignes `status='pending'` sont reprises.
 
 **`batch_id`** : format `YYYYMMDD_HHMMSS_UUID` unique par exécution complète.
 
@@ -311,21 +341,30 @@ status ENUM('pending','migrated','failed','quarantined') NOT NULL DEFAULT 'pendi
 
 ---
 
-## 13. Contrôles Post-Migration (dynamiques)
+## 13. Contrôles Post-Migration (dynamiques, mappings 1→N explicites)
 
 | Contrôle | Requête / Méthode | Source de vérité |
 |----------|-------------------|------------------|
-| **Comptages source = cible** | `firestore_coll.count()` vs `SELECT COUNT(*) FROM bebba_*` | Firestore temps réel |
+| **Comptages source = cible (1:1)** | `firestore_coll.count()` vs `SELECT COUNT(*) FROM bebba_*` (tables 1:1) | Firestore temps réel |
+| **orders → bebba_orders** | `orders.count()` vs `SELECT COUNT(*) FROM bebba_orders` | Firestore temps réel |
+| **orders.items → bebba_order_items** | `sum(orders.items.length)` vs `SELECT COUNT(*) FROM bebba_order_items` | Firestore temps réel |
+| **orders.items.supplements → bebba_order_item_supplements** | `sum(items.supplements.length)` vs `SELECT COUNT(*) FROM bebba_order_item_supplements` | Firestore temps réel |
+| **orders.items.preparationSheet → bebba_order_item_prep** | `sum(preparationSheet.totalIngredients.length)` vs `SELECT COUNT(*) FROM bebba_order_item_prep` | Firestore temps réel |
+| **orders.statusHistory → bebba_order_status_history** | `sum(orders.statusHistory.length)` vs `SELECT COUNT(*) FROM bebba_order_status_history` | Firestore temps réel |
+| **stockMovements → bebba_stock_movements** | `stockMovements.count()` vs `SELECT COUNT(*) FROM bebba_stock_movements` | Firestore temps réel |
+| **produits.baseIngredients → bebba_product_ingredients** | `sum(products.baseIngredients.length)` vs `SELECT COUNT(*) FROM bebba_product_ingredients` | Firestore temps réel |
+| **produits.customization options → bebba_product_options** | `sum(options.length)` vs `SELECT COUNT(*) FROM bebba_product_options` | Firestore temps réel |
+| **produits.customization.allowedSupplements → bebba_product_supplements** | `sum(allowedSupplementIds.length)` vs `SELECT COUNT(*) FROM bebba_product_supplements` | Firestore temps réel |
 | **migration_map complet** | `SELECT COUNT(*) FROM migration_map WHERE status='migrated'` | = total entités source lues |
 | **Quarantaine attendue** | `SELECT COUNT(*) FROM migration_quarantine` | ≥ anomalies BLOC 1/2 documentées |
 | **FK valides** | `SELECT COUNT(*) FROM bebba_* WHERE fk_id IS NOT NULL AND fk_id NOT IN (SELECT id FROM parent)` | 0 orphelins non prévus |
 | **UNIQUE respectées** | `GROUP BY legacy_id HAVING COUNT(*) > 1` | 0 |
 | **NULL préservés** | `SELECT COUNT(*) FROM bebba_orders WHERE subtotal IS NULL` | = source NULL count |
 | **ENUM valides** | `status NOT IN (...)` | 0 |
-| **Orders** | `COUNT(*), SUM(total_amount)` | cohérents avec source |
+| **Orders montants** | `COUNT(*), SUM(total_amount)` | cohérents avec source |
 | **Stock movements** | `COUNT(*), SUM(quantity)` | quantités signées |
 | **Status history** | `COUNT(*), COUNT(DISTINCT order_id)` | volume réel lu |
-| **WordPress** | `wp_users` avec `user_login` dans liste dynamique depuis Firestore (usernames staff lus pendant dry-run) | comptes préexistants |
+| **WordPress** | `wp_users` avec `user_login` dans liste dynamique depuis Firestore | comptes préexistants |
 | **Application** | API `/api/health`, `/api/orders`, `/api/categories` | 200 OK |
 
 **Toutes les valeurs de référence sont lues dynamiquement** — aucune constante 9, 33, 119, 3, 1010, etc. n'est utilisée comme oracle.
