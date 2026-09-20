@@ -1,0 +1,7 @@
+﻿*
+
+!.gitignore
+!wp-content/
+!wp-content/plugins/
+!wp-content/plugins/bebba/
+!wp-content/plugins/bebba/**
