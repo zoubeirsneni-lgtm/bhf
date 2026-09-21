@@ -43,9 +43,16 @@ $tables = array(
 	$wpdb->prefix . 'bebba_migration_quarantine',
 );
 
+// Les FK bloquent le DROP des tables parentes tant que les enfants existent.
+// On désactive les vérifications pour la durée de la purge (portée session uniquement).
+$wpdb->query( 'SET FOREIGN_KEY_CHECKS = 0' );
+
 foreach ( $tables as $table ) {
-	$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $table ) );
+	// Liste codée en dur + préfixe $wpdb : aucun input utilisateur, backticks suffisants.
+	$wpdb->query( "DROP TABLE IF EXISTS `{$table}`" );
 }
+
+$wpdb->query( 'SET FOREIGN_KEY_CHECKS = 1' );
 
 delete_option( 'bebba_hf_jwt_secret' );
 delete_option( 'bebba_hf_schema_version' );

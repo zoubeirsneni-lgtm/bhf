@@ -35,7 +35,53 @@ class Bebba_HF_Activator {
 		$sql = array();
 
 		/* ================================================================
-		 * 1. bebba_categories
+		 * 1. bebba_users (réintégrée : table racine du squelette v0.1, perdue lors du LOT 1)
+		 *    Conforme au delta mysql_schema_delta_users.sql : AUCUNE colonne ni FK vers wp_users.
+		 * ================================================================ */
+		$sql[] = "CREATE TABLE {$prefix}bebba_users (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			legacy_id VARCHAR(64) NULL,
+			username VARCHAR(64) NULL,
+			phone VARCHAR(20) NULL,
+			name VARCHAR(128) NOT NULL,
+			address VARCHAR(255) NULL,
+			password_hash VARCHAR(255) NOT NULL,
+			role ENUM('client','kitchen','driver','admin','admin_readonly') NOT NULL,
+			driver_id BIGINT UNSIGNED NULL,
+			active TINYINT(1) NOT NULL DEFAULT 1,
+			token_version INT UNSIGNED NOT NULL DEFAULT 0,
+			must_change_password TINYINT(1) NOT NULL DEFAULT 0,
+			last_login_at DATETIME NULL,
+			legacy_created_at DATETIME NULL,
+			legacy_updated_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY uk_bebba_users_legacy_id (legacy_id),
+			UNIQUE KEY uk_bebba_users_username (username),
+			UNIQUE KEY uk_bebba_users_phone (phone),
+			KEY idx_bebba_users_role (role),
+			KEY idx_bebba_users_driver_id (driver_id),
+			KEY idx_bebba_users_active (active)
+		) {$charset}";
+
+		/* ================================================================
+		 * 2. bebba_counters (réintégrée : séquences de numérotation des commandes)
+		 * ================================================================ */
+		$sql[] = "CREATE TABLE {$prefix}bebba_counters (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			counter_name VARCHAR(64) NOT NULL,
+			current_value BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			legacy_created_at DATETIME NULL,
+			legacy_updated_at DATETIME NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY uk_bebba_counters_name (counter_name)
+		) {$charset}";
+
+		/* ================================================================
+		 * 3. bebba_categories
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_categories (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -61,7 +107,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 2. bebba_suppliers
+		 * 4. bebba_suppliers
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_suppliers (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -81,7 +127,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 3. bebba_ingredients
+		 * 5. bebba_ingredients
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_ingredients (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -109,7 +155,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 4. bebba_supplements
+		 * 6. bebba_supplements
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_supplements (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -140,7 +186,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 5. bebba_drivers (R1 : pas de user_id, pas de FK wp_users)
+		 * 7. bebba_drivers (R1 : pas de user_id, pas de FK wp_users)
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_drivers (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -164,7 +210,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 6. bebba_products
+		 * 8. bebba_products
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_products (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -199,7 +245,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 7. bebba_product_ingredients
+		 * 9. bebba_product_ingredients
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_product_ingredients (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -221,7 +267,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 8. bebba_product_options
+		 * 10. bebba_product_options
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_product_options (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -244,7 +290,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 9. bebba_product_supplements
+		 * 11. bebba_product_supplements
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_product_supplements (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -262,7 +308,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 10. bebba_orders (R2 : bebba_customer_id pas wp_customer_id)
+		 * 12. bebba_orders (R2 : bebba_customer_id pas wp_customer_id)
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_orders (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -304,7 +350,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 11. bebba_order_items
+		 * 13. bebba_order_items
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_order_items (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -339,7 +385,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 12. bebba_order_item_supplements
+		 * 14. bebba_order_item_supplements
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_order_item_supplements (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -366,7 +412,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 13. bebba_order_item_prep
+		 * 15. bebba_order_item_prep
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_order_item_prep (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -388,7 +434,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 14. bebba_order_status_history
+		 * 16. bebba_order_status_history
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_order_status_history (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -411,7 +457,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 15. bebba_stock_movements
+		 * 17. bebba_stock_movements
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_stock_movements (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -441,7 +487,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 16. bebba_order_idempotency
+		 * 18. bebba_order_idempotency
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_order_idempotency (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -461,7 +507,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 17. bebba_migration_map
+		 * 19. bebba_migration_map
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_migration_map (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -485,7 +531,7 @@ class Bebba_HF_Activator {
 		) {$charset}";
 
 		/* ================================================================
-		 * 18. bebba_migration_quarantine
+		 * 20. bebba_migration_quarantine
 		 * ================================================================ */
 		$sql[] = "CREATE TABLE {$prefix}bebba_migration_quarantine (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
