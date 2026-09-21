@@ -315,7 +315,7 @@ class Bebba_HF_Activator {
 			legacy_id VARCHAR(64) NOT NULL COMMENT 'ID Firestore original (ex: ord-1788531857440)',
 			order_number VARCHAR(32) NOT NULL COMMENT 'Numéro humain (ex: BEBBA-1100)',
 			tracking_token VARCHAR(64) NOT NULL COMMENT 'Token de suivi public (ex: tk_e355ed9dd33a)',
-			placed_at DATETIME NOT NULL COMMENT 'Date/heure de la commande (legacy createdAt)',
+			placed_at DATETIME(3) NOT NULL COMMENT 'Date/heure de la commande (legacy createdAt, millisecondes)',
 			customer_name VARCHAR(128) NOT NULL,
 			customer_phone VARCHAR(32) NOT NULL,
 			delivery_address VARCHAR(512) NOT NULL,
