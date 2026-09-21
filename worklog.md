@@ -24,3 +24,22 @@ Stage Summary:
 - 3 modifications du schéma BLOC 3 documentées dans docs/ARCHITECTURE_PLUGIN_WP.md
 - Livrables produits : ROADMAP.md, docs/ARCHITECTURE_PLUGIN_WP.md, docs/INSTRUCTIONS_LOT_1.md
 - Prochaine étape : exécution du LOT 1 par Claude Code (socle plugin + schéma + auth)
+
+---
+Task ID: 1-b
+Agent: Super Z (architecte & revue)
+Task: Réconcilier les livrables de la session perdue avec le nouveau cadrage et rédiger les instructions LOT 1
+
+Work Log:
+- Découverte des livrables antérieurs dans download/ : spec de migration complète (PDF+md), squelette plugin fonctionnel (bebba-plugin-skeleton.zip), delta SQL (bebba_schema_delta_users.sql)
+- Inspection du squelette : auth JWT complète avec token_version, rate limiting 5/15 min, seed admin bebba_admin_XXXX, /bebba/v1/health, routes /auth/*, dbDelta (2 tables créées seulement)
+- Alignement effectué : nom du plugin = bebba-healthy-food, DDL bebba_users = delta SQL (fait foi), création de tables = dbDelta + FK ALTER, secret JWT = option WP auto-générée (constante prioritaire en prod)
+- Squelette intégré au dépôt (bebba-healthy-food/) + delta SQL (mysql_schema_delta_users.sql)
+- Mise à jour ARCHITECTURE_PLUGIN_WP.md en v1.1 (alignée squelette + delta)
+- Réécriture de ROADMAP.md (8 phases alignées sur la spec, état des actifs livrés)
+- Réécriture de docs/INSTRUCTIONS_LOT_1.md : portage des 17 tables restantes + achèvement auth (password_needs_rehash, must_change_password, /auth/change-password) + 12 critères d'acceptation
+
+Stage Summary:
+- Source de vérité unique : ARCHITECTURE v1.1 + delta SQL + spec (phases/critères)
+- LOT 1 prêt à transférer à Claude Code : docs/INSTRUCTIONS_LOT_1.md
+- Dépôt commité localement (docs + squelette + delta SQL) — push à faire depuis la machine de Zoubeir
