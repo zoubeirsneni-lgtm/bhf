@@ -22,7 +22,25 @@ if ( 'yes' === $keep ) {
 
 $tables = array(
 	$wpdb->prefix . 'bebba_users',
+	$wpdb->prefix . 'bebba_categories',
+	$wpdb->prefix . 'bebba_suppliers',
+	$wpdb->prefix . 'bebba_ingredients',
+	$wpdb->prefix . 'bebba_supplements',
+	$wpdb->prefix . 'bebba_drivers',
+	$wpdb->prefix . 'bebba_products',
+	$wpdb->prefix . 'bebba_product_ingredients',
+	$wpdb->prefix . 'bebba_product_options',
+	$wpdb->prefix . 'bebba_product_supplements',
+	$wpdb->prefix . 'bebba_orders',
+	$wpdb->prefix . 'bebba_order_items',
+	$wpdb->prefix . 'bebba_order_item_supplements',
+	$wpdb->prefix . 'bebba_order_item_prep',
+	$wpdb->prefix . 'bebba_order_status_history',
+	$wpdb->prefix . 'bebba_stock_movements',
 	$wpdb->prefix . 'bebba_counters',
+	$wpdb->prefix . 'bebba_order_idempotency',
+	$wpdb->prefix . 'bebba_migration_map',
+	$wpdb->prefix . 'bebba_migration_quarantine',
 );
 
 foreach ( $tables as $table ) {

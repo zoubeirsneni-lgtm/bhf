@@ -24,6 +24,78 @@ class Bebba_HF_DB {
 		return self::table( 'counters' );
 	}
 
+	public static function categories_table(): string {
+		return self::table( 'categories' );
+	}
+
+	public static function suppliers_table(): string {
+		return self::table( 'suppliers' );
+	}
+
+	public static function ingredients_table(): string {
+		return self::table( 'ingredients' );
+	}
+
+	public static function supplements_table(): string {
+		return self::table( 'supplements' );
+	}
+
+	public static function drivers_table(): string {
+		return self::table( 'drivers' );
+	}
+
+	public static function products_table(): string {
+		return self::table( 'products' );
+	}
+
+	public static function product_ingredients_table(): string {
+		return self::table( 'product_ingredients' );
+	}
+
+	public static function product_options_table(): string {
+		return self::table( 'product_options' );
+	}
+
+	public static function product_supplements_table(): string {
+		return self::table( 'product_supplements' );
+	}
+
+	public static function orders_table(): string {
+		return self::table( 'orders' );
+	}
+
+	public static function order_items_table(): string {
+		return self::table( 'order_items' );
+	}
+
+	public static function order_item_supplements_table(): string {
+		return self::table( 'order_item_supplements' );
+	}
+
+	public static function order_item_prep_table(): string {
+		return self::table( 'order_item_prep' );
+	}
+
+	public static function order_status_history_table(): string {
+		return self::table( 'order_status_history' );
+	}
+
+	public static function stock_movements_table(): string {
+		return self::table( 'stock_movements' );
+	}
+
+	public static function order_idempotency_table(): string {
+		return self::table( 'order_idempotency' );
+	}
+
+	public static function migration_map_table(): string {
+		return self::table( 'migration_map' );
+	}
+
+	public static function migration_quarantine_table(): string {
+		return self::table( 'migration_quarantine' );
+	}
+
 	/** Transactions — a utiliser pour toute ecriture multi-tables. */
 	public static function begin(): void {
 		global $wpdb;
