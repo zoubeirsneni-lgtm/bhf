@@ -81,3 +81,17 @@ Nouveau  docs/demo_cleanup_lot2.sql                            (purge des donné
 - Les tables `bebba_orders` sont vides : le tracking renverra 404 jusqu'au LOT 3 (création de
   commandes) puis LOT 7 (reprise des vraies commandes Firestore).
 - Les routes `POST/PUT/DELETE` du catalogue (back-office) sont réservées au LOT 4.
+
+## 6. Complément v0.2.1 — page vitrine [bebba_catalogue]
+
+- Nouveau shortcode `[bebba_catalogue]` (rendu serveur, sans React) : affiche catégories, produits
+  (image, prix « 14,50 DT », badges Populaire / Personnalisable / indisponibilité, kcal + protéines)
+  et suppléments, tirés directement de `Bebba_HF_Catalog` — les mêmes données que l'API publique.
+- But : preuve **visible** du LOT 2 dans WordPress (le plugin reste une API jusqu'au LOT 6).
+- CSS scopé sous `.bebba-vitrine` (aucune fuite dans le thème) ; échappement esc_html/esc_url/esc_attr
+  sur toutes les sorties ; état vide explicite si le seed n'est pas importé.
+- Version plugin 0.2.1 — visible dans `/health` et dans l'en-tête de la vitrine.
+- Critères d'acceptation supplémentaires :
+  17. Page WP avec `[bebba_catalogue]` → 2 catégories, 2 produits (Poulet Bowl avec badges
+      « Populaire » + « Personnalisable »), 2 suppléments, en-tête « plugin v0.2.1 ».
+  18. GET `/health` → `"version":"0.2.1"`.
