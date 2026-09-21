@@ -88,6 +88,23 @@ class Bebba_HF_Rest {
 			)
 		);
 
+		/* ------------------------------------------------ change-password (authenticated) */
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/auth/change-password',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( Bebba_HF_Auth::ROLES );
+				},
+				'callback'            => array( __CLASS__, 'change_password' ),
+				'args'                => array(
+					'currentPassword' => array( 'required' => true, 'type' => 'string' ),
+					'newPassword'     => array( 'required' => true, 'type' => 'string' ),
+				),
+			)
+		);
+
 		/* ================================================================
 		 * CARTE DES ROUTES RESTANTES (spec section 5) — a declarer ici :
 		 *
@@ -245,5 +262,20 @@ class Bebba_HF_Rest {
 	/** La deconnexion est cote client (suppression du token) ; reponse conservee pour compatibilite. */
 	public static function logout(): WP_REST_Response {
 		return new WP_REST_Response( array( 'message' => 'Déconnecté.' ), 200 );
+	}
+
+	public static function change_password( WP_REST_Request $request ): WP_REST_Response|WP_Error {
+		$current_password = (string) $request->get_param( 'currentPassword' );
+		$new_password     = (string) $request->get_param( 'newPassword' );
+
+		if ( ! $current_password || ! $new_password ) {
+			return new WP_Error( 'bebba_bad_request', 'currentPassword et newPassword sont requis.', array( 'status' => 400 ) );
+		}
+
+		$result = Bebba_HF_Auth::change_password( $current_password, $new_password );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return new WP_REST_Response( $result, 200 );
 	}
 }

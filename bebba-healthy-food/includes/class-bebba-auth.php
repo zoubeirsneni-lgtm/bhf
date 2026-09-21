@@ -253,17 +253,89 @@ class Bebba_HF_Auth {
 	/** Projection publique d'un compte — JAMAIS de password_hash (equivalent sanitizeUser). */
 	public static function safe_user( array $row ): array {
 		return array(
-			'id'            => (int) $row['id'],
-			'username'      => $row['username'] ?? null,
-			'name'          => $row['name'],
-			'phone'         => $row['phone'] ?? null,
-			'address'       => $row['address'] ?? null,
-			'role'          => $row['role'],
-			'driverId'      => $row['driver_id'] ? (int) $row['driver_id'] : null,
-			'active'        => (bool) $row['active'],
-			'createdAt'     => $row['created_at'] ?? null,
-			'updatedAt'     => $row['updated_at'] ?? null,
-			'lastLoginAt'   => $row['last_login_at'] ?? null,
+			'id'               => (int) $row['id'],
+			'username'         => $row['username'] ?? null,
+			'name'             => $row['name'],
+			'phone'            => $row['phone'] ?? null,
+			'address'          => $row['address'] ?? null,
+			'role'             => $row['role'],
+			'driverId'         => $row['driver_id'] ? (int) $row['driver_id'] : null,
+			'active'           => (bool) $row['active'],
+			'mustChangePassword' => (bool) $row['must_change_password'],
+			'createdAt'        => $row['created_at'] ?? null,
+			'updatedAt'        => $row['updated_at'] ?? null,
+			'lastLoginAt'      => $row['last_login_at'] ?? null,
+		);
+	}
+
+	/**
+	 * Changement de mot de passe (authentifié Bearer).
+	 * Vérifie currentPassword, hache newPassword (min 8 car.),
+	 * reset must_change_password, incrémente token_version, émet un NOUVEAU token.
+	 */
+	public static function change_password( string $current_password, string $new_password ): array|WP_Error {
+		$token = self::get_bearer_token();
+		if ( null === $token || '' === $token ) {
+			return new WP_Error( 'bebba_unauthenticated', "Acces non autorise : jeton d'authentification manquant.", array( 'status' => 401 ) );
+		}
+		$payload = self::verify_token( $token );
+		if ( null === $payload ) {
+			return new WP_Error( 'bebba_unauthenticated', "Acces non autorise : jeton invalide ou expire.", array( 'status' => 401 ) );
+		}
+
+		// Rate limit change-password like login (5/15 min per IP).
+		$rl_key = 'bebba_rl_cp_' . md5( ( isset( $_SERVER['REMOTE_ADDR'] ) ? $_SERVER['REMOTE_ADDR'] : 'cli' ) );
+		$attempts = (int) get_transient( $rl_key );
+		if ( $attempts >= self::RATE_LIMIT ) {
+			return new WP_Error( 'bebba_rate_limited', 'Trop de tentatives. Reessayez plus tard.', array( 'status' => 429 ) );
+		}
+
+		global $wpdb;
+		$table = Bebba_HF_DB::users_table();
+		$user_id = (int) $payload['sub'];
+
+		$row = $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d AND active = 1", $user_id ),
+			ARRAY_A
+		);
+		if ( ! $row ) {
+			set_transient( $rl_key, $attempts + 1, self::RATE_WINDOW );
+			return new WP_Error( 'bebba_invalid_credentials', 'Identifiants invalides.', array( 'status' => 401 ) );
+		}
+
+		if ( ! password_verify( $current_password, $row['password_hash'] ) ) {
+			set_transient( $rl_key, $attempts + 1, self::RATE_WINDOW );
+			return new WP_Error( 'bebba_invalid_credentials', 'Identifiants invalides.', array( 'status' => 401 ) );
+		}
+
+		if ( strlen( $new_password ) < 8 ) {
+			return new WP_Error( 'bebba_bad_request', 'Le nouveau mot de passe doit comporter au moins 8 caracteres.', array( 'status' => 400 ) );
+		}
+
+		$new_hash = self::hash_password( $new_password );
+		$wpdb->update(
+			$table,
+			array(
+				'password_hash'        => $new_hash,
+				'must_change_password' => 0,
+				'token_version'        => (int) $row['token_version'] + 1,
+			),
+			array( 'id' => $user_id ),
+			array( '%s', '%d', '%d' ),
+			array( '%d' )
+		);
+
+		// Recharger l'utilisateur mis a jour avec le nouveau token_version
+		$updated_row = $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d AND active = 1", $user_id ),
+			ARRAY_A
+		);
+
+		delete_transient( $rl_key );
+
+		return array(
+			'token' => self::issue_token( $updated_row ),
+			'user'  => self::safe_user( $updated_row ),
 		);
 	}
 }
