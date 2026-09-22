@@ -48,12 +48,12 @@
 
 | Phase | Lot | Contenu | Statut |
 |-------|-----|---------|--------|
-| 0 | LOT 0 | Prérequis locaux : WP 6.4+ / PHP 8.1 / MySQL 8, branche `wordpress-migration`, déploiement du squelette | ⏳ |
-| 0+1 | LOT 1 | **Socle complet** : portage des 17 tables restantes (dbDelta) + FK ALTER, application du delta, achèvement auth (`password_needs_rehash`, `must_change_password`, `POST /auth/change-password`), tests d'isolation WP | ⏳ |
-| 2 | LOT 2 | Catalogue public + suivi public : GET categories/products/supplements, tracking par token, contrats camelCase conformes à `src/types.ts` | ⏳ |
-| 3 | LOT 3 | Création de commande (cœur transactionnel) : POST /orders, recalcul serveur des prix, stock + rollback, compteurs séquentiels, idempotence, annulation avec restauration | ⏳ |
-| 4 | LOT 4 | Back-office admin : CRUD catalogue/stock/fournisseurs/comptes/livreurs + stats | ⏳ |
-| 5 | LOT 5 | Flux cuisine et livreur : transitions de statut (matrice strict), assignation, encaissement, tests IDOR | ⏳ |
+| 0 | LOT 0 | Prérequis locaux : WP 6.4+ / PHP 8.1 / MySQL 8, branche `wordpress-migration`, déploiement du squelette | ✅ |
+| 0+1 | LOT 1 | **Socle complet** : portage des 17 tables restantes (dbDelta) + FK ALTER, application du delta, achèvement auth (`password_needs_rehash`, `must_change_password`, `POST /auth/change-password`), tests d'isolation WP | ✅ |
+| 2 | LOT 2 | Catalogue public + suivi public : GET categories/products/supplements, tracking par token, contrats camelCase conformes à `src/types.ts` | ✅ |
+| 3 | LOT 3 | Création de commande (cœur transactionnel) : POST /orders, recalcul serveur des prix, stock + rollback, compteurs séquentiels, idempotence, annulation avec restauration | ✅ |
+| 4 | LOT 4 | Back-office admin : CRUD catalogue/stock/fournisseurs/comptes/livreurs + stats | ✅ |
+| 5 | LOT 5 | Flux cuisine et livreur : transitions de statut (matrice strict), assignation, encaissement, tests IDOR | 🚧 |
 | 6 | LOT 6 | Intégration React : build Vite, shortcodes, `API_BASE`, pages WP, parcours bout-en-bout | ⏳ |
 | 7 | LOT 7 | Reprise des données : import Firestore → tables plugin (hachages bcrypt préservés), runbook prod, recette finale + audit sécurité Super Z | ⏳ |
 

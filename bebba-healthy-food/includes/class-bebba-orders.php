@@ -1087,4 +1087,510 @@ class Bebba_HF_Orders {
 		}
 		return new WP_Error( 'bebba_order_error', $message, $data );
 	}
+
+	/* ================================================================
+	 * FLUX CUISINE & LIVREUR (LOT 5 — portage server.ts l.674/1089/1174/1191
+	 * + db.updateOrderStatus l.1491 / assignDriver l.1646 / updatePaymentStatus l.1679,
+	 * + restauration de stock à l'annulation exigée par la spec §6.3 — constat C2).
+	 * ================================================================ */
+
+	const STATUS_LABELS = array(
+		'received'           => 'Commande reçue',
+		'preparing'          => 'En préparation en cuisine',
+		'ready'              => 'Commande prête & emballée',
+		'waiting_for_driver' => 'En attente de livreur',
+		'delivering'         => 'En cours de livraison',
+		'delivered'          => 'Commande livrée au client',
+		'cancelled'          => 'Commande annulée',
+	);
+
+	/**
+	 * Matrice stricte des transitions (portage de isValidStatusTransition,
+	 * server/auth.ts l.147-190) : aucun saut d'étape, aucun retour arrière,
+	 * client et admin_readonly ne peuvent jamais changer un statut.
+	 */
+	public static function is_valid_status_transition( string $current, string $target, string $role ): bool {
+		if ( 'client' === $role || 'admin_readonly' === $role ) {
+			return false;
+		}
+		if ( $current === $target ) {
+			return true; // no-op idempotent (géré avant l'appel, comme Express).
+		}
+		if ( 'admin' === $role ) {
+			$lifecycle = array(
+				'received'           => array( 'preparing', 'cancelled' ),
+				'preparing'          => array( 'ready', 'cancelled' ),
+				'ready'              => array( 'waiting_for_driver', 'cancelled' ),
+				'waiting_for_driver' => array( 'delivering', 'cancelled' ),
+				'delivering'         => array( 'delivered', 'cancelled' ),
+				'delivered'          => array(),
+				'cancelled'          => array(),
+			);
+			return in_array( $target, $lifecycle[ $current ] ?? array(), true );
+		}
+		if ( 'kitchen' === $role ) {
+			// La cuisine s'arrête strictement à 'ready' (le système pose ensuite
+			// automatiquement 'waiting_for_driver').
+			return ( 'received' === $current && 'preparing' === $target )
+				|| ( 'preparing' === $current && 'ready' === $target );
+		}
+		if ( 'driver' === $role ) {
+			// Le livreur confirme uniquement la livraison physique (Rule 5) ;
+			// seul l'Admin assigne les courses (Rule 4).
+			return 'delivering' === $current && 'delivered' === $target;
+		}
+		return false;
+	}
+
+	/** Ligne brute d'une commande depuis un id business (legacy_id ou id numérique). */
+	private static function find_order_row( string $biz_id ): ?array {
+		global $wpdb;
+		$o = Bebba_HF_DB::orders_table();
+		if ( ctype_digit( $biz_id ) ) {
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$o} WHERE legacy_id = %s OR id = %d", $biz_id, (int) $biz_id ), ARRAY_A );
+		} else {
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$o} WHERE legacy_id = %s", $biz_id ), ARRAY_A );
+		}
+		return $row ? $row : null;
+	}
+
+	/** Ligne brute d'un livreur depuis un id business (legacy_id ou id numérique). */
+	private static function find_driver_row( string $biz ): ?array {
+		global $wpdb;
+		$d = Bebba_HF_DB::drivers_table();
+		if ( '' === $biz ) {
+			return null;
+		}
+		if ( ctype_digit( $biz ) ) {
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$d} WHERE legacy_id = %s OR id = %d LIMIT 1", $biz, (int) $biz ), ARRAY_A );
+		} else {
+			$row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$d} WHERE legacy_id = %s", $biz ), ARRAY_A );
+		}
+		return $row ? $row : null;
+	}
+
+	/** Prochaine position d'historique d'une commande. */
+	private static function next_history_position( int $order_id ): int {
+		global $wpdb;
+		$osh = Bebba_HF_DB::order_status_history_table();
+		return 1 + (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(MAX(position), 0) FROM {$osh} WHERE order_id = %d", $order_id ) );
+	}
+
+	/** Écriture d'une entrée d'historique (mêmes colonnes/formats que create()). */
+	private static function push_history( int $order_id, string $status, string $label, string $note, string $updated_by, string $now_ms ): void {
+		global $wpdb;
+		$wpdb->insert(
+			Bebba_HF_DB::order_status_history_table(),
+			array(
+				'order_id'   => $order_id,
+				'position'   => self::next_history_position( $order_id ),
+				'status'     => $status,
+				'label'      => $label,
+				'timestamp'  => $now_ms,
+				'note'       => $note,
+				'updated_by' => $updated_by,
+			),
+			array( '%d', '%d', '%s', '%s', '%s', '%s', '%s' )
+		);
+	}
+
+	/** GET /orders (admin|kitchen|driver) — portage server.ts l.674 : scoping par rôle, tri createdAt desc. */
+	public static function list_for_staff( array $user ): array {
+		global $wpdb;
+		$o    = Bebba_HF_DB::orders_table();
+		$role = (string) $user['role'];
+
+		if ( 'driver' === $role ) {
+			$my_driver = isset( $user['driverId'] ) ? (int) $user['driverId'] : 0;
+			if ( ! $my_driver ) {
+				return array();
+			}
+			$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$o} WHERE driver_id = %d ORDER BY placed_at DESC, id DESC", $my_driver ), ARRAY_A );
+		} elseif ( 'kitchen' === $role ) {
+			// La cuisine voit tout sauf les commandes annulées (l.685-689).
+			$rows = $wpdb->get_results( "SELECT * FROM {$o} WHERE status <> 'cancelled' ORDER BY placed_at DESC, id DESC", ARRAY_A );
+		} else {
+			$rows = $wpdb->get_results( "SELECT * FROM {$o} ORDER BY placed_at DESC, id DESC", ARRAY_A );
+		}
+
+		$out = array();
+		foreach ( ( $rows ? $rows : array() ) as $r ) {
+			$out[] = self::format_order_row( $r );
+		}
+		return $out;
+	}
+
+	/**
+	 * PATCH /orders/:id/status (admin|kitchen|driver) — portage fidèle de
+	 * server.ts l.1089-1171 + db.updateOrderStatus l.1491-1644. La transition
+	 * à 'cancelled' restaure le stock dans la même transaction (spec §6.3).
+	 */
+	public static function update_status( string $biz_id, array $user, array $body ) {
+		global $wpdb;
+
+		$row = self::find_order_row( $biz_id );
+		if ( ! $row ) {
+			return self::fail( 'Commande non trouvée.', 404 );
+		}
+
+		$role = (string) $user['role'];
+
+		/* IDOR : un livreur ne peut modifier que ses propres courses (l.1100-1105). */
+		if ( 'driver' === $role ) {
+			$my_driver = isset( $user['driverId'] ) ? (int) $user['driverId'] : 0;
+			if ( ! $my_driver || (int) $row['driver_id'] !== $my_driver ) {
+				return self::fail( 'Accès refusé : Cette commande ne vous est pas attribuée.', 403 );
+			}
+		}
+
+		$status = trim( (string) ( $body['status'] ?? '' ) );
+		if ( '' === $status ) {
+			return self::fail( 'Le champ statut est requis.', 400 );
+		}
+
+		$current = (string) $row['status'];
+
+		/* Idempotence : même statut -> renvoi sans effet de bord (l.1115-1118). */
+		if ( $current === $status ) {
+			return self::format_order_row( $row );
+		}
+
+		/* Matrice stricte côté serveur (l.1121-1126). */
+		if ( ! self::is_valid_status_transition( $current, $status, $role ) ) {
+			return self::fail(
+				sprintf( "Transition interdite : Le rôle '%s' n'est pas autorisé à passer de '%s' à '%s'.", $role, $current, $status ),
+				403
+			);
+		}
+
+		/* Étiquette serveur-vérifiée de l'acteur (l.1128-1130). */
+		$role_label = 'admin' === $role ? 'Admin' : ( 'kitchen' === $role ? 'Cuisine' : 'Livreur' );
+		$updated_by = (string) $user['name'] . ' (' . $role_label . ')';
+		$note       = isset( $body['note'] ) ? trim( (string) $body['note'] ) : '';
+
+		/*
+		 * Attribution livreur : SEUL l'admin, et SEULEMENT lors du passage à
+		 * 'delivering' (l.1132-1133). Sinon le paramètre est totalement ignoré.
+		 */
+		$new_driver_biz = ( 'admin' === $role && 'delivering' === $status && isset( $body['assignedDriverId'] ) )
+			? trim( (string) $body['assignedDriverId'] )
+			: '';
+
+		if ( 'delivering' === $status ) {
+			if ( '' !== $new_driver_biz ) {
+				$driver_biz = $new_driver_biz;
+			} elseif ( '' !== (string) ( $row['driver_legacy_id'] ?? '' ) ) {
+				$driver_biz = (string) $row['driver_legacy_id'];
+			} else {
+				$driver_biz = (string) ( $row['driver_id'] ?? '' );
+			}
+			if ( '' === $driver_biz || '0' === $driver_biz ) {
+				return self::fail( "Une commande ne peut pas passer en cours de livraison sans attribution préalable d'un livreur.", 400 );
+			}
+			$driver = self::find_driver_row( $driver_biz );
+			if ( ! $driver ) {
+				return self::fail( sprintf( 'Livreur #%s introuvable.', $driver_biz ), 400 );
+			}
+			if ( (int) $driver['active'] !== 1 ) {
+				return self::fail( sprintf( 'Le livreur "%s" est désactivé et ne peut pas recevoir de nouvelle commande.', (string) $driver['name'] ), 400 );
+			}
+		}
+
+		$o = Bebba_HF_DB::orders_table();
+		$d = Bebba_HF_DB::drivers_table();
+
+		Bebba_HF_DB::begin();
+		try {
+
+			/* Relecture verrouillée : protège contre une transition concurrente. */
+			$cur = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$o} WHERE id = %d FOR UPDATE", (int) $row['id'] ), ARRAY_A );
+			if ( ! $cur ) {
+				throw new Bebba_HF_Order_Exception( 'Commande non trouvée.', 404 );
+			}
+			if ( (string) $cur['status'] !== $current ) {
+				throw new Bebba_HF_Order_Exception(
+					sprintf( "Transition interdite : Le rôle '%s' n'est pas autorisé à passer de '%s' à '%s'.", $role, (string) $cur['status'], $status ),
+					403
+				);
+			}
+
+			$now    = Bebba_HF_DB::now();
+			$now_ms = self::now_ms();
+
+			$upd     = array();
+			$upd_fmt = array();
+
+			$upd['status'] = $status;
+			$upd_fmt[]     = '%s';
+
+			if ( 'delivering' === $status ) {
+				/* Re-snapshot du livreur résolu (db.updateOrderStatus l.1536-1537). */
+				$driver = self::find_driver_row( '' !== $new_driver_biz ? $new_driver_biz : (string) $cur['driver_id'] );
+				if ( ! $driver ) {
+					throw new Bebba_HF_Order_Exception( sprintf( 'Livreur #%s introuvable.', '' !== $new_driver_biz ? $new_driver_biz : (string) $cur['driver_id'] ), 400 );
+				}
+				$upd['driver_id']            = (int) $driver['id'];
+				$upd_fmt[]                   = '%d';
+				$upd['driver_legacy_id']     = (string) $driver['legacy_id'];
+				$upd_fmt[]                   = '%s';
+				$upd['driver_name_snapshot'] = (string) $driver['name'];
+				$upd_fmt[]                   = '%s';
+			}
+
+			/* Restauration du stock à l'annulation (spec §6.3 — constat C2). */
+			if ( 'cancelled' === $status && 1 === (int) $cur['stock_consumed'] ) {
+				self::apply_stock_delta( (int) $cur['id'], (string) $cur['order_number'], (string) $cur['legacy_id'], 1, $updated_by, $now, 'order_cancellation_restore', 'Restauration stock annulation commande #' );
+				$upd['stock_consumed'] = 0;
+				$upd_fmt[]             = '%d';
+			}
+
+			/* Rétro-compatibilité : consommation à 'preparing' si pas déjà faite
+			 * (l.1541-1588 — les commandes du plugin consomment déjà à la création,
+			 * ce bloc ne sert qu'aux commandes migrées non consommées). */
+			if ( 'preparing' === $status && 1 !== (int) $cur['stock_consumed'] ) {
+				self::apply_stock_delta( (int) $cur['id'], (string) $cur['order_number'], (string) $cur['legacy_id'], -1, $updated_by, $now, 'order_consumption', 'Consommation préparation commande #' );
+				$upd['stock_consumed'] = 1;
+				$upd_fmt[]             = '%d';
+			}
+
+			if ( 'delivered' === $status && ! empty( $cur['driver_id'] ) ) {
+				/* Compteur du livreur (l.1624-1632). */
+				$wpdb->query( $wpdb->prepare( "UPDATE {$d} SET total_deliveries = total_deliveries + 1 WHERE id = %d", (int) $cur['driver_id'] ) );
+			}
+
+			if ( 'ready' === $status ) {
+				/* Double transition automatique (l.1600-1620) : 'ready' puis
+				 * 'waiting_for_driver' posé par le système. */
+				self::push_history( (int) $cur['id'], 'ready', self::STATUS_LABELS['ready'], '' !== $note ? $note : 'Plats préparés et emballés en sac thermique', $updated_by, $now_ms );
+				$upd['status'] = 'waiting_for_driver';
+				self::push_history( (int) $cur['id'], 'waiting_for_driver', self::STATUS_LABELS['waiting_for_driver'], "Placée automatiquement en attente d'attribution d'un livreur", 'Système BEBBA', $now_ms );
+			} else {
+				self::push_history( (int) $cur['id'], $status, (string) ( self::STATUS_LABELS[ $status ] ?? $status ), $note, $updated_by, $now_ms );
+			}
+
+			$ok = $wpdb->update( $o, $upd, array( 'id' => (int) $cur['id'] ), $upd_fmt, array( '%d' ) );
+			if ( false === $ok ) {
+				throw new Bebba_HF_Order_Exception( 'Erreur interne lors de la mise à jour du statut.', 500 );
+			}
+
+			Bebba_HF_DB::commit();
+
+			$fresh = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$o} WHERE id = %d", (int) $cur['id'] ), ARRAY_A );
+			return $fresh ? self::format_order_row( $fresh ) : self::format_order_row( $cur );
+
+		} catch ( Bebba_HF_Order_Exception $e ) {
+			Bebba_HF_DB::rollback();
+			return self::fail( $e->getMessage(), $e->status() );
+		} catch ( Throwable $e ) {
+			Bebba_HF_DB::rollback();
+			return self::fail( 'Erreur interne.', 500 );
+		}
+	}
+
+	/**
+	 * Applique la consommation (-1) ou la restauration (+1) du stock d'une
+	 * commande, avec écriture des mouvements correspondants, DANS la
+	 * transaction appelante. Vérifie la disponibilité avant toute écriture.
+	 */
+	private static function apply_stock_delta( int $order_id, string $order_number, string $order_legacy, int $sign, string $performed_by, string $now, string $movement_type, string $note_prefix ): void {
+		global $wpdb;
+		$oip = Bebba_HF_DB::order_item_prep_table();
+		$oi  = Bebba_HF_DB::order_items_table();
+		$ing = Bebba_HF_DB::ingredients_table();
+		$sm  = Bebba_HF_DB::stock_movements_table();
+
+		$rows = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT p.ingredient_id, p.ingredient_legacy_id, p.ingredient_name_snapshot, p.unit, SUM(p.total_quantity) AS need
+				 FROM {$oip} p INNER JOIN {$oi} i ON i.id = p.order_item_id
+				 WHERE i.order_id = %d AND p.ingredient_id IS NOT NULL
+				 GROUP BY p.ingredient_id, p.ingredient_legacy_id, p.ingredient_name_snapshot, p.unit",
+				$order_id
+			),
+			ARRAY_A
+		);
+		$rows = $rows ? $rows : array();
+
+		/* Vérification de la disponibilité AVANT toute écriture (l.1569-1573). */
+		if ( -1 === $sign ) {
+			foreach ( $rows as $r ) {
+				$have = (float) $wpdb->get_var( $wpdb->prepare( "SELECT stock_quantity FROM {$ing} WHERE id = %d", (int) $r['ingredient_id'] ) );
+				if ( $have < (float) $r['need'] ) {
+					throw new Bebba_HF_Order_Exception( sprintf( "Stock insuffisant pour l'ingrédient %s.", (string) $r['ingredient_name_snapshot'] ), 400 );
+				}
+			}
+		}
+
+		foreach ( $rows as $r ) {
+			$need    = self::round1( (float) $r['need'] );
+			$delta   = $sign * $need;
+			$ing_row = $wpdb->get_row( $wpdb->prepare( "SELECT id, legacy_id, name, unit FROM {$ing} WHERE id = %d", (int) $r['ingredient_id'] ), ARRAY_A );
+			if ( ! $ing_row ) {
+				continue;
+			}
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$ing} SET stock_quantity = stock_quantity + %s, updated_at = %s WHERE id = %d",
+					number_format( $delta, 2, '.', '' ),
+					$now,
+					(int) $ing_row['id']
+				)
+			);
+			$wpdb->insert(
+				$sm,
+				array(
+					'legacy_id'                => 'mov-' . (string) (int) round( microtime( true ) * 1000 ) . '-' . self::rand_hex( 4 ),
+					'ingredient_id'            => (int) $ing_row['id'],
+					'ingredient_legacy_id'     => (string) $ing_row['legacy_id'],
+					'ingredient_name_snapshot' => (string) $ing_row['name'],
+					'movement_type'            => $movement_type,
+					'quantity'                 => $delta,
+					'unit'                     => (string) ( $r['unit'] ?? $ing_row['unit'] ?? 'g' ),
+					'order_id'                 => $order_id,
+					'order_legacy_id'          => $order_legacy,
+					'order_number_snapshot'    => $order_number,
+					'notes'                    => $note_prefix . $order_number,
+					'performed_by'             => '' !== $performed_by ? $performed_by : 'Cuisine BEBBA',
+					'timestamp'                => $now,
+				),
+				array( '%s', '%d', '%s', '%s', '%s', '%f', '%s', '%d', '%s', '%s', '%s', '%s', '%s' )
+			);
+		}
+	}
+
+	/** PATCH /orders/:id/assign-driver (admin) — portage server.ts l.1174-1188 + db.assignDriver l.1646-1677. */
+	public static function assign_driver( string $biz_id, array $body, array $user ) {
+		global $wpdb;
+
+		/* Express accepte driverId OU assignedDriverId (l.1177). */
+		$driver_biz = trim( (string) ( $body['driverId'] ?? '' ) );
+		if ( '' === $driver_biz ) {
+			$driver_biz = trim( (string) ( $body['assignedDriverId'] ?? '' ) );
+		}
+		if ( '' === $driver_biz ) {
+			return self::fail( 'L’identifiant du livreur (driverId) est requis.', 400 );
+		}
+
+		/* Express : toutes les erreurs de cette route sortent en 400 (catch l.1186). */
+		$row = self::find_order_row( $biz_id );
+		if ( ! $row ) {
+			return self::fail( sprintf( 'Commande #%s introuvable.', $biz_id ), 400 );
+		}
+		$status = (string) $row['status'];
+		if ( 'delivered' === $status || 'cancelled' === $status ) {
+			return self::fail( 'Impossible de modifier l’affectation d’une commande clôturée ou annulée.', 400 );
+		}
+		$driver = self::find_driver_row( $driver_biz );
+		if ( ! $driver ) {
+			return self::fail( sprintf( 'Livreur #%s introuvable.', $driver_biz ), 400 );
+		}
+		if ( (int) $driver['active'] !== 1 ) {
+			return self::fail( sprintf( 'Le livreur "%s" est désactivé et ne peut pas recevoir de nouvelle commande.', (string) $driver['name'] ), 400 );
+		}
+
+		$o = Bebba_HF_DB::orders_table();
+
+		Bebba_HF_DB::begin();
+		try {
+			$ok = $wpdb->update(
+				$o,
+				array(
+					'driver_id'            => (int) $driver['id'],
+					'driver_legacy_id'     => (string) $driver['legacy_id'],
+					'driver_name_snapshot' => (string) $driver['name'],
+				),
+				array( 'id' => (int) $row['id'] ),
+				array( '%d', '%s', '%s' ),
+				array( '%d' )
+			);
+			if ( false === $ok ) {
+				throw new Bebba_HF_Order_Exception( 'Erreur interne lors de l’affectation du livreur.', 500 );
+			}
+			self::push_history(
+				(int) $row['id'],
+				$status,
+				'Livreur affecté : ' . (string) $driver['name'],
+				"Affectation livreur mise à jour par l'administrateur",
+				(string) $user['name'] . ' (Admin)',
+				self::now_ms()
+			);
+			Bebba_HF_DB::commit();
+		} catch ( Bebba_HF_Order_Exception $e ) {
+			Bebba_HF_DB::rollback();
+			return self::fail( $e->getMessage(), $e->status() );
+		} catch ( Throwable $e ) {
+			Bebba_HF_DB::rollback();
+			return self::fail( 'Erreur interne.', 500 );
+		}
+
+		$fresh = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$o} WHERE id = %d", (int) $row['id'] ), ARRAY_A );
+		return $fresh ? self::format_order_row( $fresh ) : self::format_order_row( $row );
+	}
+
+	/**
+	 * PATCH /orders/:id/payment — portage server.ts l.1191-1252 : cascade 403
+	 * explicite (client / cuisine / lecture-seule / autre), encaissement
+	 * 'paid' uniquement sur une commande livrée, livreur restreint à 'paid'
+	 * sur SES propres courses.
+	 */
+	public static function update_payment( string $biz_id, array $user, array $body ) {
+		global $wpdb;
+
+		$row = self::find_order_row( $biz_id );
+		if ( ! $row ) {
+			return self::fail( 'Commande non trouvée.', 404 );
+		}
+
+		$role = (string) $user['role'];
+
+		if ( 'client' === $role ) {
+			return self::fail( 'Accès refusé : Les clients ne sont pas autorisés à modifier le statut de paiement.', 403 );
+		}
+		if ( 'kitchen' === $role ) {
+			return self::fail( 'Accès refusé : La cuisine n’a pas l’autorisation de modifier le statut de paiement.', 403 );
+		}
+		if ( 'admin_readonly' === $role ) {
+			return self::fail( 'Accès refusé : Lecture seule, modification du paiement interdite.', 403 );
+		}
+		if ( 'admin' !== $role && 'driver' !== $role ) {
+			return self::fail( 'Accès refusé : Vous n’avez pas l’autorisation de modifier le statut de paiement.', 403 );
+		}
+
+		$payment_status = trim( (string) ( $body['paymentStatus'] ?? '' ) );
+		if ( '' === $payment_status || ! in_array( $payment_status, array( 'paid', 'to_collect' ), true ) ) {
+			return self::fail( 'Statut de paiement invalide.', 400 );
+		}
+		if ( 'paid' === $payment_status && 'delivered' !== (string) $row['status'] ) {
+			return self::fail( "Impossible d'encaisser une commande qui n'est pas encore livrée.", 400 );
+		}
+		if ( 'driver' === $role ) {
+			$my_driver = isset( $user['driverId'] ) ? (int) $user['driverId'] : 0;
+			if ( ! $my_driver || (int) $row['driver_id'] !== $my_driver ) {
+				return self::fail( 'Accès refusé : Cette commande ne vous est pas attribuée.', 403 );
+			}
+			if ( 'paid' !== $payment_status ) {
+				return self::fail( 'Le livreur peut uniquement enregistrer le paiement reçu (paid).', 400 );
+			}
+		}
+
+		$o = Bebba_HF_DB::orders_table();
+
+		Bebba_HF_DB::begin();
+		try {
+			$ok = $wpdb->update( $o, array( 'payment_status' => $payment_status ), array( 'id' => (int) $row['id'] ), array( '%s' ), array( '%d' ) );
+			if ( false === $ok ) {
+				throw new Bebba_HF_Order_Exception( 'Erreur interne lors de la mise à jour du paiement.', 500 );
+			}
+			Bebba_HF_DB::commit();
+		} catch ( Bebba_HF_Order_Exception $e ) {
+			Bebba_HF_DB::rollback();
+			return self::fail( $e->getMessage(), $e->status() );
+		} catch ( Throwable $e ) {
+			Bebba_HF_DB::rollback();
+			return self::fail( 'Erreur interne.', 500 );
+		}
+
+		$fresh = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$o} WHERE id = %d", (int) $row['id'] ), ARRAY_A );
+		return $fresh ? self::format_order_row( $fresh ) : self::format_order_row( $row );
+	}
 }

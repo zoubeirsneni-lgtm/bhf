@@ -558,18 +558,86 @@ class Bebba_HF_Rest {
 						)
 				);
 
+				/* ------------------------------------------------ phase 5 : flux cuisine & livreur (LOT 5) */
+				register_rest_route(
+						self::NAMESPACE_V1,
+						'/orders',
+						array(
+								'methods'             => WP_REST_Server::READABLE,
+								'permission_callback' => function () {
+										return Bebba_HF_Auth::require_role( array( 'admin', 'kitchen', 'driver' ) );
+								},
+								'callback'            => array( __CLASS__, 'orders_list' ),
+						)
+				);
+
+				register_rest_route(
+						self::NAMESPACE_V1,
+						'/orders/(?P<id>[A-Za-z0-9_-]+)/status',
+						array(
+								'methods'             => WP_REST_Server::EDITABLE,
+								'permission_callback' => function () {
+										return Bebba_HF_Auth::require_role( array( 'admin', 'kitchen', 'driver' ) );
+								},
+								'callback'            => array( __CLASS__, 'orders_update_status' ),
+								// 'status' reste OPTIONNEL ici : le message exact
+								// « Le champ statut est requis. » est produit par le handler
+								// (fidélité server.ts l.1109-1112, pas rest_missing_callback_param).
+								'args'                => array(
+										'status'           => array( 'type' => 'string' ),
+										'note'             => array( 'type' => 'string' ),
+										'assignedDriverId' => array( 'type' => 'string' ),
+								),
+						)
+				);
+
+				register_rest_route(
+						self::NAMESPACE_V1,
+						'/orders/(?P<id>[A-Za-z0-9_-]+)/assign-driver',
+						array(
+								'methods'             => WP_REST_Server::EDITABLE,
+								'permission_callback' => function () {
+										return Bebba_HF_Auth::require_role( array( 'admin' ) );
+								},
+								'callback'            => array( __CLASS__, 'orders_assign_driver' ),
+								// driverId/assignedDriverId optionnels : le handler produit le
+								// message exact « L'identifiant du livreur (driverId) est requis. »
+								'args'                => array(
+										'driverId'         => array( 'type' => 'string' ),
+										'assignedDriverId' => array( 'type' => 'string' ),
+								),
+						)
+				);
+
+				register_rest_route(
+						self::NAMESPACE_V1,
+						'/orders/(?P<id>[A-Za-z0-9_-]+)/payment',
+						array(
+								'methods'             => WP_REST_Server::EDITABLE,
+								// Comme Express (authenticateUser seul, l.1191) : la cascade 403
+								// client/cuisine/lecture-seule est portée PAR LE HANDLER, donc
+								// admin_readonly doit atteindre le handler.
+								'permission_callback' => function () {
+										return Bebba_HF_Auth::require_role( Bebba_HF_Auth::ROLES );
+								},
+								'callback'            => array( __CLASS__, 'orders_update_payment' ),
+								'args'                => array(
+										'paymentStatus' => array( 'type' => 'string' ),
+								),
+						)
+				);
 
 		/* ================================================================
 		 * CARTE DES ROUTES RESTANTES (spec section 5) — a declarer ici :
 		 *
 		 * PHASE 2 (catalogue public) : IMPLEMENTEE EN LOT 2 ✓
 		 *
-		 * PHASE 3 (commandes) :
+		 * PHASE 3 (commandes) : IMPLEMENTÉE EN LOT 3 ✓
 		 *   POST /orders              public|client (transaction stock + idempotence)
 		 *   GET  /orders/(?P<id>\d+)  admin|kitchen|driver|client (anti-IDOR)
 		 *   GET  /client/orders       client
 		 *
-		 * PHASE 4 (back-office) :
+		 * PHASE 4 (back-office) : IMPLEMENTÉE EN LOT 4 ✓
 		 *   POST/PUT/DELETE /categories|products|supplements[/:id]  admin
 		 *   GET/POST/PUT /ingredients  admin|kitchen ; DELETE /ingredients/:id  admin
 		 *   POST /ingredients/:id/stock  admin|kitchen
@@ -581,7 +649,7 @@ class Bebba_HF_Rest {
 		 *   GET  /stats                admin|admin_readonly
 		 *   POST /admin/reset-demo     admin (reglage ON/OFF, OFF en prod)
 		 *
-		 * PHASE 5 (cuisine + livreur) :
+		 * PHASE 5 (cuisine + livreur) : IMPLEMENTÉE EN LOT 5 ✓
 		 *   PATCH /orders/:id/status        admin|kitchen|driver (matrice spec 6.1)
 		 *   PATCH /orders/:id/assign-driver admin
 		 *   PATCH /orders/:id/payment       admin|driver
@@ -1290,5 +1358,76 @@ class Bebba_HF_Rest {
 						return $user;
 				}
 				return new WP_REST_Response( Bebba_HF_Orders::list_for_client( (int) $user['id'] ), 200 );
+		}
+
+		/**
+		* GET /orders — liste staff avec scoping par rôle (server.ts l.674) :
+		* admin = tout, cuisine = hors annulées, livreur = ses courses seulement.
+		*/
+		public static function orders_list( WP_REST_Request $request ) {
+				$user = Bebba_HF_Auth::require_role( array( 'admin', 'kitchen', 'driver' ) );
+				if ( is_wp_error( $user ) ) {
+						return $user;
+				}
+				return new WP_REST_Response( Bebba_HF_Orders::list_for_staff( $user ), 200 );
+		}
+
+		/**
+		* PATCH /orders/:id/status — matrice stricte (spec 6.1), IDOR livreur,
+		* idempotence même statut, double transition ready→waiting_for_driver,
+		* restauration du stock à l'annulation (spec 6.3 — constat C2).
+		*/
+		public static function orders_update_status( WP_REST_Request $request ) {
+				$user = Bebba_HF_Auth::require_role( array( 'admin', 'kitchen', 'driver' ) );
+				if ( is_wp_error( $user ) ) {
+						return $user;
+				}
+				$result = Bebba_HF_Orders::update_status( (string) $request['id'], $user, array(
+						'status'           => $request->get_param( 'status' ),
+						'note'             => $request->get_param( 'note' ),
+						'assignedDriverId' => $request->get_param( 'assignedDriverId' ),
+				) );
+				if ( is_wp_error( $result ) ) {
+						return self::order_error( $result );
+				}
+				return new WP_REST_Response( $result, 200 );
+		}
+
+		/**
+		* PATCH /orders/:id/assign-driver — admin seul (server.ts l.1174).
+		* Toutes les erreurs métier sortent en 400 (catch Express l.1186).
+		*/
+		public static function orders_assign_driver( WP_REST_Request $request ) {
+				$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+				if ( is_wp_error( $user ) ) {
+						return $user;
+				}
+				$result = Bebba_HF_Orders::assign_driver( (string) $request['id'], array(
+						'driverId'         => $request->get_param( 'driverId' ),
+						'assignedDriverId' => $request->get_param( 'assignedDriverId' ),
+				), $user );
+				if ( is_wp_error( $result ) ) {
+						return self::order_error( $result );
+				}
+				return new WP_REST_Response( $result, 200 );
+		}
+
+		/**
+		* PATCH /orders/:id/payment — encaissement (server.ts l.1191-1252) :
+		* cascade 403 explicite client/cuisine/lecture-seule portée par le
+		* handler, livreur restreint à 'paid' sur ses propres courses.
+		*/
+		public static function orders_update_payment( WP_REST_Request $request ) {
+				$user = Bebba_HF_Auth::require_role( Bebba_HF_Auth::ROLES );
+				if ( is_wp_error( $user ) ) {
+						return $user;
+				}
+				$result = Bebba_HF_Orders::update_payment( (string) $request['id'], $user, array(
+						'paymentStatus' => $request->get_param( 'paymentStatus' ),
+				) );
+				if ( is_wp_error( $result ) ) {
+						return self::order_error( $result );
+				}
+				return new WP_REST_Response( $result, 200 );
 		}
 }
