@@ -41,9 +41,15 @@ class Bebba_HF_Rest {
 				'permission_callback' => '__return_true', // Public, protege par anti-force-brute.
 				'callback'            => array( __CLASS__, 'login' ),
 				'args'                => array(
-					'identifier' => array( 'required' => true, 'type' => 'string' ),
+					// Contrat Express d'origine : {username?, phone?, password}
+					// (server.ts l.81-106). identifier/mode restent acceptes en
+					// extension plugin mais ne sont PAS requis : le handler de
+					// compatibilite doit rester atteignable (fix LOT 4 v0.4.1).
+					'identifier' => array( 'type' => 'string' ),
 					'password'   => array( 'required' => true, 'type' => 'string' ),
-					'mode'       => array( 'required' => true, 'type' => 'string', 'enum' => array( 'client', 'staff' ) ),
+					'mode'       => array( 'type' => 'string', 'enum' => array( 'client', 'staff' ) ),
+					'username'   => array( 'type' => 'string' ),
+					'phone'      => array( 'type' => 'string' ),
 				),
 			)
 		);
@@ -187,7 +193,327 @@ class Bebba_HF_Rest {
 			)
 		);
 
+	
+		/* ------------------------------------------------ admin (LOT 4) */
+
 		register_rest_route(
+			self::NAMESPACE_V1,
+			'/categories',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_categories_create' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/categories/(?P<id>[^/]+)',
+			array(
+				array(
+					'methods'             => 'PUT',
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_categories_update' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_categories_delete' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/products',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_products_create' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/products/(?P<id>[^/]+)',
+			array(
+				array(
+					'methods'             => 'PUT',
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_products_update' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_products_delete' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/supplements',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_supplements_create' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/supplements/(?P<id>[^/]+)',
+			array(
+				array(
+					'methods'             => 'PUT',
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_supplements_update' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_supplements_delete' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/ingredients',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_ingredients_list' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_ingredients_create' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/ingredients/(?P<id>[^/]+)',
+			array(
+				array(
+					'methods'             => 'PUT',
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_ingredients_update' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_ingredients_delete' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/ingredients/(?P<id>[^/]+)/stock',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_ingredients_stock' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/stock-movements',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin', 'admin_readonly' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_stock_movements_list' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/drivers',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_drivers_list' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_drivers_create' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/drivers/(?P<id>[^/]+)',
+			array(
+				array(
+					'methods'             => 'PUT',
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_drivers_update' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_drivers_delete' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/drivers/(?P<id>[^/]+)/status',
+			array(
+				'methods'             => 'PATCH',
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_drivers_status' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/drivers/(?P<id>[^/]+)/password',
+			array(
+				'methods'             => 'PATCH',
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_drivers_password' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/suppliers',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_suppliers_list' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_suppliers_create' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/suppliers/(?P<id>[^/]+)',
+			array(
+				array(
+					'methods'             => 'PUT',
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_suppliers_update' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::DELETABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_suppliers_delete' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/users',
+			array(
+				array(
+					'methods'             => WP_REST_Server::READABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_users_list' ),
+				),
+				array(
+					'methods'             => WP_REST_Server::CREATABLE,
+					'permission_callback' => function () {
+						return Bebba_HF_Auth::require_role( array( 'admin' ) );
+					},
+					'callback'            => array( __CLASS__, 'admin_users_create' ),
+				),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/stats',
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin', 'admin_readonly' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_stats' ),
+			)
+		);
+
+		register_rest_route(
+			self::NAMESPACE_V1,
+			'/reset-demo-data',
+			array(
+				'methods'             => WP_REST_Server::CREATABLE,
+				'permission_callback' => function () {
+					return Bebba_HF_Auth::require_role( array( 'admin' ) );
+				},
+				'callback'            => array( __CLASS__, 'admin_reset_demo_data' ),
+			)
+		);
+	register_rest_route(
 			self::NAMESPACE_V1,
 			'/orders/track-lookup',
 			array(
@@ -480,6 +806,372 @@ class Bebba_HF_Rest {
 	private const LOOKUP_MAX_FAILED = 5;          // echecs avant blocage
 	private const LOOKUP_WINDOW     = 600;        // 10 minutes
 
+
+	/* -------------------------------------------------- handlers admin (LOT 4) */
+
+	/** Corps JSON en tableau (les handlers admin lisent tout le corps). */
+	private static function admin_body( WP_REST_Request $request ): array {
+		$body = $request->get_json_params();
+		return is_array( $body ) ? $body : array();
+	}
+
+	/** Gate interne : si le role ne passe pas, propage le WP_Error (401/403). */
+	private static function admin_guard( $user ) {
+		return is_wp_error( $user ) ? $user : null;
+	}
+
+	/** Erreur metier au format Express : {"error": "..."}. */
+	private static function admin_catch( Exception $e, int $status = 400 ): WP_REST_Response {
+		return Bebba_HF_Catalog::err( $e->getMessage(), $status );
+	}
+
+	public static function admin_categories_create( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_category( self::admin_body( $request ) ), 201 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_categories_update( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_category( self::admin_body( $request ), (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_categories_delete( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::delete_category( (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_products_create( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_product( self::admin_body( $request ) ), 201 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_products_update( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_product( self::admin_body( $request ), (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_products_delete( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::delete_product( (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_supplements_create( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_supplement( self::admin_body( $request ) ), 201 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_supplements_update( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_supplement( self::admin_body( $request ), (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_supplements_delete( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::delete_supplement( (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_ingredients_list( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::list_ingredients(), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e, 500 );
+		}
+	}
+
+	public static function admin_ingredients_create( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_ingredient( self::admin_body( $request ) ), 201 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_ingredients_update( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_ingredient( self::admin_body( $request ), (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_ingredients_delete( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::delete_ingredient( (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_ingredients_stock( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::adjust_stock( (string) $request['id'], self::admin_body( $request ), $user ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_stock_movements_list( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin', 'admin_readonly' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::list_stock_movements(), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e, 500 );
+		}
+	}
+
+	public static function admin_drivers_list( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin', 'kitchen' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::list_drivers(), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e, 500 );
+		}
+	}
+
+	public static function admin_drivers_create( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::create_driver( self::admin_body( $request ) ), 201 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_drivers_update( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::update_driver( (string) $request['id'], self::admin_body( $request ) ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_drivers_status( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::set_driver_status( (string) $request['id'], self::admin_body( $request ) ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_drivers_password( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::reset_driver_password( (string) $request['id'], self::admin_body( $request ) ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_drivers_delete( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::delete_driver( (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_suppliers_list( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::list_suppliers(), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e, 500 );
+		}
+	}
+
+	public static function admin_suppliers_create( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_supplier( self::admin_body( $request ) ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_suppliers_update( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::save_supplier( self::admin_body( $request ), (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_suppliers_delete( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::delete_supplier( (string) $request['id'] ), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_users_list( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::list_users(), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e, 500 );
+		}
+	}
+
+	public static function admin_users_create( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::create_user( self::admin_body( $request ) ), 201 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e );
+		}
+	}
+
+	public static function admin_stats( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin', 'admin_readonly' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::dashboard_stats(), 200 );
+		} catch ( Exception $e ) {
+			return self::admin_catch( $e, 500 );
+		}
+	}
+
+	public static function admin_reset_demo_data( WP_REST_Request $request ) {
+		$user = Bebba_HF_Auth::require_role( array( 'admin' ) );
+		if ( self::admin_guard( $user ) ) {
+			return $user;
+		}
+		try {
+			return new WP_REST_Response( Bebba_HF_Admin::reset_demo_data(), 200 );
+		} catch ( Exception $e ) {
+			return new WP_REST_Response( array( 'error' => '' !== $e->getMessage() ? $e->getMessage() : 'Erreur interne lors de la réinitialisation des données.' ), 500 );
+		}
+	}
 	public static function track_lookup( WP_REST_Request $request ): WP_REST_Response {
 		$order_number = (string) $request->get_param( 'orderNumber' );
 		$phone        = (string) $request->get_param( 'phone' );

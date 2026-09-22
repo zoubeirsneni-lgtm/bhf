@@ -3,7 +3,7 @@
  * Plugin Name:       BEBBA Healthy Food
  * Plugin URI:        https://github.com/zoubeirsneni-lgtm/bhf
  * Description:       Plateforme BEBBA Healthy Food pour WordPress — boutique client, cuisine, livreurs et administration, avec un systeme d'utilisateurs bebba TOTALEMENT INDEPENDANT des utilisateurs WordPress (table bebba_users, JWT dedie, REST /wp-json/bebba/v1).
- * Version:           0.3.1
+ * Version:           0.4.2
  * Requires at least: 6.4
  * Requires PHP:      8.1
  * Author:            BEBBA Healthy Food
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'BEBBA_HF_VERSION', '0.3.1' );
+define( 'BEBBA_HF_VERSION', '0.4.2' );
 define( 'BEBBA_HF_PATH', plugin_dir_path( __FILE__ ) );
 define( 'BEBBA_HF_URL', plugin_dir_url( __FILE__ ) );
 
@@ -26,6 +26,7 @@ require_once BEBBA_HF_PATH . 'includes/class-bebba-db.php';
 require_once BEBBA_HF_PATH . 'includes/class-bebba-auth.php';
 require_once BEBBA_HF_PATH . 'includes/class-bebba-catalog.php';
 require_once BEBBA_HF_PATH . 'includes/class-bebba-orders.php';
+require_once BEBBA_HF_PATH . 'includes/class-bebba-admin.php';
 require_once BEBBA_HF_PATH . 'includes/class-bebba-activator.php';
 require_once BEBBA_HF_PATH . 'includes/class-bebba-plugin.php';
 require_once BEBBA_HF_PATH . 'api/class-bebba-rest.php';
